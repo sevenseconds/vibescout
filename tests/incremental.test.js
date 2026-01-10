@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, vi, beforeEach } from "vitest";
 import { clearDatabase } from "../src/db.js";
-import { handleIndexFolder } from "../src/index.js";
+import { handleIndexFolder } from "../src/core.js";
 import path from "path";
 import fs from "fs-extra";
 
