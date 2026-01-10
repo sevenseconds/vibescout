@@ -2,7 +2,8 @@ import * as lancedb from "@lancedb/lancedb";
 import path from "path";
 import fs from "fs-extra";
 
-const DB_PATH = path.join(process.cwd(), ".lancedb");
+const DB_NAME = process.env.NODE_ENV === "test" ? ".lancedb_test" : ".lancedb";
+const DB_PATH = path.join(process.cwd(), DB_NAME);
 const HASH_FILE = path.join(DB_PATH, "hashes.json");
 
 let activeDb = null;
