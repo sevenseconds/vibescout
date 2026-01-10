@@ -4,15 +4,16 @@ A high-performance Model Context Protocol (MCP) server for local semantic code s
 
 ## Features
 
+- **Multi-Language Support**: Robust semantic extraction for **TypeScript/JS**, **Python**, **Go**, **Java**, **Kotlin**, **Dart**, **Markdown**, **JSON**, **TOML**, and **XML**.
 - **Multi-Project Collections**: Group related codebases (e.g., "Frontend", "Backend") for targeted or global search.
 - **Hierarchical Context Retrieval**: Automatically summarizes functions and injects that context into logical sub-chunks. The AI never loses the "Big Picture".
+- **Interactive TUI**: Beautiful table-based search results with AI context previews and one-click file opening.
+- **Persistent Configuration**: Dedicated `config` command to manage your local setup visually.
 - **Hybrid Search**: Combines **Semantic (Vector)** and **Exact Keyword (FTS)** search for maximum recall and precision.
 - **Auto-Context (Reranking)**: Uses a local Cross-Encoder model to surface the absolute most relevant snippets.
 - **Structural Knowledge**: Tracks imports and exports to build a dependency graph of your codebase.
-- **Markdown Indexing**: Full support for `.md` documentation, split intelligently by headings.
 - **Semantic Chunking**: Automatically slices large functions (>50 lines) into logical sub-blocks.
 - **Incremental & Parallel Indexing**: Processes multiple files concurrently and skips unchanged files using MD5 hashing.
-- **Watch Mode**: Real-time monitoring of folders for automatic indexing of changes and deletions.
 - **Local & Private**: 100% local execution. No data ever leaves your machine.
 
 ## MCP Tools
@@ -76,23 +77,37 @@ Once installed, you can run it anywhere using the `vibescout` command.
 
 ## CLI Usage
 
-VibeScout can be used directly from the command line for indexing and searching, or as an MCP server.
+VibeScout can be used directly from the command line for indexing, searching, and maintenance.
+
+### Interactive Search
+```bash
+vibescout search "how do I handle authentication?"
+```
+*(Displays an interactive table. Select a result to open it in your default editor)*
+
+### Interactive Configuration
+```bash
+vibescout config
+```
+*(Launches a TUI to manage models, paths, and server settings)*
+
+### Database Maintenance
+```bash
+vibescout compact
+```
+*(Removes stale files and optimizes database storage)*
 
 ### Index a folder
 ```bash
 vibescout index ./my-project "My Project Name"
 ```
 
-### Search the knowledge base
-```bash
-vibescout search "how do I handle authentication?"
-```
-
 ### Options
 - `--mcp [mode]`: Specify the MCP transport mode. Options: `stdio` (default), `sse`, `http`.
 - `--models-path <path>`: Specify local path for models.
 - `--offline`: Force offline mode.
-- `--port <number>`: Port for `sse` or `http` server (default: 3000, can also be set via `PORT` env).
+- `--port <number>`: Port for `sse` or `http` server (default: 3000).
+- `--verbose`: Enable verbose debug logs (shows model loading progress).
 
 ### Transport Modes
 
