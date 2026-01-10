@@ -2,7 +2,7 @@ import fs from "fs-extra";
 import path from "path";
 import os from "os";
 import pkg from "enquirer";
-const { Form, Select } = pkg;
+const { Form, Select, Toggle } = pkg;
 import { env } from "@huggingface/transformers";
 
 const CONFIG_DIR = path.join(os.homedir(), ".vibescout");
@@ -44,38 +44,51 @@ export async function saveConfig(config) {
 export async function interactiveConfig() {
   const currentConfig = await loadConfig();
 
-  // 1. Select Model
-  const modelPrompt = new Select({
-    name: "embeddingModel",
-    message: "Select Embedding Model:",
-    choices: RECOMMENDED_MODELS,
-    initial: RECOMMENDED_MODELS.findIndex(m => m.name === currentConfig.embeddingModel) || 0
-  });
-
   try {
+    // 1. Select Model
+    const modelPrompt = new Select({
+      name: "embeddingModel",
+      message: "Select Embedding Model:",
+      choices: RECOMMENDED_MODELS,
+      initial: RECOMMENDED_MODELS.findIndex(m => m.name === currentConfig.embeddingModel) || 0
+    });
     const embeddingModel = await modelPrompt.run();
 
-    // 2. Other settings via Form
+    // 2. Basic settings via Form
     const formPrompt = new Form({
       name: "settings",
-      message: "VibeScout Configuration (Use arrows to move, type to edit):",
+      message: "VibeScout Settings (Use arrows to move, type to edit):",
       choices: [
         { name: "modelsPath", message: "Models Path", initial: currentConfig.modelsPath, hint: `(Default: ${env.cacheDir})` },
-        { name: "port", message: "Server Port", initial: String(currentConfig.port) },
-        { name: "summarize", message: "Summarize (true/false)", initial: String(currentConfig.summarize) },
-        { name: "verbose", message: "Verbose Logs (true/false)", initial: String(currentConfig.verbose) }
+        { name: "port", message: "Server Port", initial: String(currentConfig.port) }
       ]
     });
-
     const answers = await formPrompt.run();
+
+    // 3. Feature Toggles
+    const summarizePrompt = new Toggle({
+      message: "Enable AI Summarization (Contextual Enrichment)?",
+      enabled: "Yes",
+      disabled: "No",
+      initial: currentConfig.summarize
+    });
+    const summarize = await summarizePrompt.run();
+
+    const verbosePrompt = new Toggle({
+      message: "Enable Verbose Debug Logs?",
+      enabled: "Yes",
+      disabled: "No",
+      initial: currentConfig.verbose
+    });
+    const verbose = await verbosePrompt.run();
     
-    // Type conversion
+    // Type conversion and merge
     const newConfig = {
-      ...answers,
       embeddingModel,
+      modelsPath: answers.modelsPath,
       port: parseInt(answers.port) || 3000,
-      summarize: answers.summarize === "true",
-      verbose: answers.verbose === "true"
+      summarize,
+      verbose
     };
 
     await saveConfig(newConfig);
