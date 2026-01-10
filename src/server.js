@@ -20,6 +20,7 @@ import {
   clearDatabase, 
   deleteFileData, 
   getFileDependencies,
+  getAllDependencies,
   findSymbolUsages,
   moveProjectToCollection
 } from "./db.js";
@@ -286,6 +287,50 @@ export async function handleApiRequest(req, res) {
       const config = await loadConfig();
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(config));
+      return true;
+    }
+
+    if (pathName === "/api/graph" && req.method === "GET") {
+      const deps = await getAllDependencies();
+      const nodes = [];
+      const links = [];
+      const nodeMap = new Map();
+
+      // 1. Create nodes
+      for (const d of deps) {
+        if (!nodeMap.has(d.filePath)) {
+          const node = { 
+            id: d.filePath, 
+            label: path.basename(d.filePath), 
+            group: d.projectName,
+            collection: d.collection
+          };
+          nodes.push(node);
+          nodeMap.set(d.filePath, node);
+        }
+      }
+
+      // 2. Create edges (Heuristic-based resolution)
+      for (const d of deps) {
+        const imports = JSON.parse(d.imports);
+        for (const imp of imports) {
+          const target = deps.find(other => 
+            other.filePath.endsWith(imp.source) || 
+            other.filePath.endsWith(imp.source + ".ts") ||
+            other.filePath.endsWith(imp.source + ".js") ||
+            other.filePath.endsWith(imp.source + ".dart") ||
+            other.filePath.endsWith(imp.source + ".java") ||
+            other.filePath.endsWith(imp.source + ".kt")
+          );
+
+          if (target && target.filePath !== d.filePath) {
+            links.push({ source: d.filePath, target: target.filePath });
+          }
+        }
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ nodes, links }));
       return true;
     }
   } catch (err) {

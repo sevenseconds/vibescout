@@ -158,6 +158,15 @@ export async function getFileDependencies(filePath: string) {
   };
 }
 
+export async function getAllDependencies() {
+  const db = await getMetaDb();
+  const tables = await db.tableNames();
+  if (!tables.includes("dependencies")) return [];
+  
+  const table = await db.openTable("dependencies");
+  return await table.query().toArray();
+}
+
 export async function findSymbolUsages(symbolName: string) {
   const db = await getMetaDb();
   const tables = await db.tableNames();
