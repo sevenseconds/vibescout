@@ -15,7 +15,7 @@ configureEnvironment(process.env.MODELS_PATH, process.env.OFFLINE_MODE === "true
 export class EmbeddingManager {
   constructor() {
     this.pipe = null;
-    this.modelName = process.env.EMBEDDING_MODEL || "Xenova/all-MiniLM-L6-v2";
+    this.modelName = process.env.EMBEDDING_MODEL || "Xenova/bge-small-en-v1.5";
   }
 
   async setModel(modelName) {

@@ -14,15 +14,15 @@ describe("Embedding Manager Configuration", () => {
 
   it("should use default model if environment variable is not set", () => {
     const manager = new EmbeddingManager();
-    expect(manager.getModel()).toBe("Xenova/all-MiniLM-L6-v2");
+    expect(manager.getModel()).toBe("Xenova/bge-small-en-v1.5");
   });
 
   it("should allow changing the model at runtime", async () => {
     const manager = new EmbeddingManager();
-    expect(manager.getModel()).toBe("Xenova/all-MiniLM-L6-v2");
-    
-    await manager.setModel("Xenova/bge-small-en-v1.5");
     expect(manager.getModel()).toBe("Xenova/bge-small-en-v1.5");
+    
+    await manager.setModel("Xenova/all-MiniLM-L6-v2");
+    expect(manager.getModel()).toBe("Xenova/all-MiniLM-L6-v2");
     expect(manager.pipe).toBeNull();
   });
 });

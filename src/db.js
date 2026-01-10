@@ -49,9 +49,10 @@ export async function createOrUpdateTable(data, modelName) {
       throw new Error(`Model mismatch! Database uses "${meta[0].model}" but you are trying to index with "${modelName}".`);
     }
   } else {
-    const reCheck = await db.tableNames();
-    if (!reCheck.includes(metaTableName)) {
+    try {
       await db.createTable(metaTableName, [{ model: modelName }]);
+    } catch (err) {
+      if (!err.message.includes("already exists")) throw err;
     }
   }
 
@@ -59,13 +60,16 @@ export async function createOrUpdateTable(data, modelName) {
     const table = await db.openTable(tableName);
     await table.add(data);
   } else {
-    const reCheck = await db.tableNames();
-    if (!reCheck.includes(tableName)) {
+    try {
       const table = await db.createTable(tableName, data);
       await table.createIndex("content", { config: lancedb.Index.fts() });
-    } else {
-      const table = await db.openTable(tableName);
-      await table.add(data);
+    } catch (err) {
+      if (err.message.includes("already exists")) {
+        const table = await db.openTable(tableName);
+        await table.add(data);
+      } else {
+        throw err;
+      }
     }
   }
 }
@@ -88,12 +92,16 @@ export async function updateDependencies(filePath, projectName, collection, meta
     await table.delete(`"filePath" = '${filePath}'`);
     await table.add([record]);
   } else {
-    const reCheck = await db.tableNames();
-    if (!reCheck.includes(depTableName)) {
+    try {
       await db.createTable(depTableName, [record]);
-    } else {
-      const table = await db.openTable(depTableName);
-      await table.add([record]);
+    } catch (err) {
+      if (err.message.includes("already exists")) {
+        const table = await db.openTable(depTableName);
+        await table.delete(`"filePath" = '${filePath}'`);
+        await table.add([record]);
+      } else {
+        throw err;
+      }
     }
   }
 }
@@ -246,15 +254,23 @@ export async function getProjectFiles(projectName) {
 }
 
 export async function clearDatabase() {
-  if (activeDb) {
-    if (typeof activeDb.close === "function") await activeDb.close();
-    activeDb = null;
-  }
+  await closeDb();
   if (await fs.pathExists(DB_PATH)) {
     try {
       await fs.remove(DB_PATH);
     } catch {
       // Ignore directory non-empty errors in parallel tests
     }
+  }
+}
+
+export async function closeDb() {
+  if (activeDb) {
+    // Note: Some versions of LanceDB JS might not have close(), 
+    // but we should attempt it or nullify the reference.
+    if (typeof activeDb.close === "function") {
+      await activeDb.close();
+    }
+    activeDb = null;
   }
 }

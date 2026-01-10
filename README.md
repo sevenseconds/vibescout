@@ -36,31 +36,31 @@ Searches the knowledge base using Hybrid Search and Reranking.
   - `collection` (string, optional).
   - `projectName` (string, optional).
 
-### 3. `watch_folder`
+### 4. `watch_folder`
 Starts a real-time watcher. Automatically updates the index when you add, edit, or delete files.
 
-### 4. `move_project`
+### 5. `move_project`
 Moves a project from one collection to another for better organization.
 
-### 5. `get_file_dependencies`
+### 6. `get_file_dependencies`
 Returns all imports and exports for a specific file.
 
-### 6. `find_symbol_usages`
+### 7. `find_symbol_usages`
 Finds all files that import a specific symbol (function, class, etc.).
 
-### 7. `list_knowledge_base`
+### 8. `list_knowledge_base`
 Displays all indexed projects grouped by their collections.
 
-### 8. `read_code_range`
+### 9. `read_code_range`
 Reads specific lines from a file.
 
-### 9. `get_current_model`
+### 10. `get_current_model`
 Returns the currently active Embedding and Summarizer models.
 
-### 10. `set_model`
+### 11. `set_model`
 Switch Embedding model (Options: `Xenova/all-MiniLM-L6-v2`, `Xenova/bge-small-en-v1.5`, `Xenova/bge-m3`).
 
-### 11. `clear_index`
+### 12. `clear_index`
 Deletes the local database. Use this before switching models.
 
 ## Installation
@@ -69,14 +69,28 @@ Deletes the local database. Use this before switching models.
 You can install VibeScout globally to use it as a standalone command:
 
 ```bash
-# From the project directory
-npm install -g .
-
-# Or directly from GitHub (if public)
-# npm install -g https://github.com/youruser/vibescout
+npm install -g @piashare/vibescout
 ```
 
 Once installed, you can run it anywhere using the `vibescout` command.
+
+## CLI Usage
+
+VibeScout can be used directly from the command line for indexing and searching without starting the MCP server.
+
+### Index a folder
+```bash
+vibescout index ./my-project "My Project Name"
+```
+
+### Search the knowledge base
+```bash
+vibescout search "how do I handle authentication?"
+```
+
+### Options
+- `--models-path <path>`: Specify local path for models.
+- `--offline`: Force offline mode.
 
 ## Client Integration
 
@@ -87,16 +101,23 @@ Add the following to your configuration:
 {
   "mcpServers": {
     "vibescout": {
-      "command": "vibescout",
-            "env": {
-              "EMBEDDING_MODEL": "Xenova/bge-small-en-v1.5",
-              "MODELS_PATH": "/path/to/your/local/models",
-              "OFFLINE_MODE": "true"
-            }
-          }
-        }
+      "command": "npx",
+      "args": ["-y", "@piashare/vibescout"],
+      "env": {
+        "EMBEDDING_MODEL": "Xenova/bge-small-en-v1.5",
+        "MODELS_PATH": "/path/to/your/local/models",
+        "OFFLINE_MODE": "false"
       }
-      
+    }
+  }
+}
+```
+
+### Claude Code (CLI)
+```bash
+claude mcp add vibescout -- npx -y @piashare/vibescout
+```
+
 ### Offline Mode & Custom Model Paths
 If you are behind a strict firewall or want to use VibeScout without an internet connection:
 
@@ -112,20 +133,5 @@ If you are behind a strict firewall or want to use VibeScout without an internet
 vibescout --models-path /path/to/models --offline
 ```
 
-### Client Integration
-      
-```
-
-### Claude Code (CLI)
-```bash
-claude mcp add vibescout -- vibescout
-```
-
-## Docker
-
-
-## Development
-
-- **Architecture**: Uses the **Strategy Pattern** for extractors located in `src/extractors/`.
-- **Testing**: `npm test` (Runs Vitest sequentially to prevent DB race conditions).
-- **Linting**: `npm run lint` (ESLint with 2-space indentation).
+## Contributing
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process.

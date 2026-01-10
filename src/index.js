@@ -14,6 +14,7 @@ import {
   hybridSearch, 
   listKnowledgeBase, 
   clearDatabase, 
+  closeDb,
   getStoredModel, 
   getFileHash, 
   bulkUpdateFileHashes,
@@ -27,6 +28,7 @@ import {
 import path from "path";
 import crypto from "crypto";
 import chokidar from "chokidar";
+import { Command } from "commander";
 
 const server = new Server(
   {
@@ -192,8 +194,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 export async function handleSearchCode(query, collection, projectName) {
   const currentModel = embeddingManager.getModel();
   const storedModel = await getStoredModel();
+  
   if (storedModel && storedModel !== currentModel) {
-    return { content: [{ type: "text", text: `Error: Model Mismatch! Database uses "${storedModel}".` }], isError: true };
+    console.error(`[Auto-Switch] Switching model from "${currentModel}" to stored model "${storedModel}" to match index.`);
+    await embeddingManager.setModel(storedModel);
   }
 
   const queryVector = await embeddingManager.generateEmbedding(query);
@@ -298,6 +302,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       { name: "get_current_model", description: "Get active models", inputSchema: { type: "object", properties: {} } },
+      {
+        name: "set_model",
+        description: "Switch Embedding model (e.g., Xenova/bge-small-en-v1.5). Note: You should clear the index after switching models.",
+        inputSchema: {
+          type: "object",
+          properties: { modelName: { type: "string" } },
+          required: ["modelName"],
+        },
+      },
       { name: "clear_index", description: "Clear entire database", inputSchema: { type: "object", properties: {} } },
     ],
   };
@@ -336,6 +349,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     if (name === "get_current_model") {
       return { content: [{ type: "text", text: `Embedding: ${embeddingManager.getModel()}\nSummarizer: ${summarizerManager.modelName}` }] };
+    }
+    if (name === "set_model") {
+      await embeddingManager.setModel(args.modelName);
+      return { content: [{ type: "text", text: `Embedding model set to ${args.modelName}. Please clear your index if switching architectures.` }] };
     }
     if (name === "list_knowledge_base") {
       const kb = await listKnowledgeBase();
@@ -413,27 +430,73 @@ async function indexSingleFile(filePath, projectName, collection) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  let modelsPath = process.env.MODELS_PATH;
-  let offlineMode = process.env.OFFLINE_MODE === "true";
+  const program = new Command();
 
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--models-path" && args[i + 1]) {
-      modelsPath = args[i + 1];
-      i++;
-    } else if (args[i] === "--offline") {
-      offlineMode = true;
+  program
+    .name("vibescout")
+    .description("Local Code Search MCP Server")
+    .version("0.1.0")
+    .option("--models-path <path>", "Path to local models directory", process.env.MODELS_PATH)
+    .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true");
+
+  program.hook("preAction", (thisCommand) => {
+    const opts = thisCommand.opts();
+    if (opts.modelsPath) {
+      configureEnvironment(opts.modelsPath, opts.offline);
     }
-  }
+  });
 
-  if (modelsPath) {
-    configureEnvironment(modelsPath, offlineMode);
-  }
+  program
+    .command("index")
+    .description("Index a folder")
+    .argument("<folderPath>", "Path to the folder to index")
+    .argument("[projectName]", "Name of the project (defaults to folder name)")
+    .action(async (folderPath, projectName) => {
+      console.log(`Starting indexing for ${folderPath}...`);
+      const result = await handleIndexFolder(folderPath, projectName, "default", true, false);
+      console.log(result.content[0].text);
+      await closeDb();
+      process.exit(0);
+    });
 
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Local Code Search MCP Server running");
-  if (modelsPath) console.error(`Using local models from: ${modelsPath}${offlineMode ? " (Offline Mode)" : ""}`);
+  program
+    .command("search")
+    .description("Search the knowledge base")
+    .argument("<query>", "Search query")
+    .action(async (query) => {
+      console.log(`Searching for: "${query}"...`);
+      const result = await handleSearchCode(query);
+      console.log(result.content[0].text);
+      await closeDb();
+      process.exit(0);
+    });
+
+  // Default action: Start MCP Server
+  program.action(async () => {
+    // If we are here, no subcommand was matched.
+    // However, if the user provided arguments that didn't match a command, commander might output help.
+    // We want to run the server if NO command is provided.
+    // But program.action on the root catches everything that isn't a subcommand if we aren't careful.
+    // Actually, simply calling parseAsync with no args defaults to help? No.
+    
+    // Check if we have arguments other than options.
+    // If the user just runs `vibescout`, we want the server.
+    
+    const opts = program.opts();
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error("Local Code Search MCP Server running");
+    if (opts.modelsPath) console.error(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
+  });
+
+  // Handle the case where the user runs with NO arguments (this invokes the root action)
+  if (process.argv.length === 2) {
+      // Manually trigger the server start if needed, or rely on program.action?
+      // program.parseAsync(process.argv) will trigger action handler.
+  }
+  
+  await program.parseAsync(process.argv);
+  process.exit(0);
 }
 
 main().catch(console.error);

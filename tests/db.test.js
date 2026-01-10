@@ -1,7 +1,11 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import { createOrUpdateTable, search, listKnowledgeBase, clearDatabase } from "../src/db.js";
 
 describe("LanceDB Manager with Multi-Project Support", () => {
+  beforeEach(async () => {
+    await clearDatabase();
+  });
+
   afterAll(async () => {
     await clearDatabase();
   });

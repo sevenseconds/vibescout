@@ -1,6 +1,6 @@
 {
-  "name": "vibescout",
-  "version": "0.5.1",
+  "name": "@sevenseconds/vibescout",
+  "version": "0.1.0",
   "description": "A high-performance local MCP server for semantic code search, summarization, and RAG.",
   "main": "src/index.js",
   "bin": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "vitest run",
+    "test": "vitest run --sequence.concurrent=false",
     "lint": "eslint ."
   },
   "keywords": [
@@ -24,12 +24,16 @@
   "author": "",
   "license": "ISC",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
     "@lancedb/lancedb": "^0.23.0",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "apache-arrow": "^18.0.0",
     "chokidar": "^5.0.0",
+    "commander": "^14.0.2",
     "crypto-js": "^4.2.0",
     "fs-extra": "^11.3.3",
     "glob": "^13.0.0",

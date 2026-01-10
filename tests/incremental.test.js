@@ -1,11 +1,17 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, vi, beforeEach } from "vitest";
 import { clearDatabase } from "../src/db.js";
 import { handleIndexFolder } from "../src/index.js";
 import path from "path";
 import fs from "fs-extra";
 
+vi.spyOn(process, "exit").mockImplementation(() => {});
+
 describe("Incremental Indexing", () => {
   const testDir = path.join(process.cwd(), "temp_incremental_test");
+
+  beforeEach(async () => {
+    await clearDatabase();
+  });
 
   afterAll(async () => {
     await fs.remove(testDir);
