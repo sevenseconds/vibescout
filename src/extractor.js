@@ -3,12 +3,16 @@ import path from "path";
 import { TypeScriptStrategy } from "./extractors/TypeScriptStrategy.js";
 import { MarkdownStrategy } from "./extractors/MarkdownStrategy.js";
 import { PythonStrategy } from "./extractors/PythonStrategy.js";
+import { GoStrategy } from "./extractors/GoStrategy.js";
+import { DartStrategy } from "./extractors/DartStrategy.js";
 
 // Strategy Registry
 const strategies = [
   TypeScriptStrategy,
   MarkdownStrategy,
-  PythonStrategy
+  PythonStrategy,
+  GoStrategy,
+  DartStrategy
 ];
 
 /**
