@@ -10,6 +10,7 @@ import { logger } from "./logger.js";
 import { 
   handleIndexFolder, 
   handleSearchCode, 
+  searchCode,
   indexSingleFile, 
   indexingProgress 
 } from "./core.js";
@@ -22,6 +23,7 @@ import {
   moveProjectToCollection
 } from "./db.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
+import { loadConfig } from "./config.js";
 
 export const server = new Server(
   {
@@ -227,3 +229,53 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
   }
 });
+
+/**
+ * REST API Handlers for Web UI
+ */
+export async function handleApiRequest(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const pathName = url.pathname;
+
+  res.setHeader("Content-Type", "application/json");
+
+  try {
+    if (pathName === "/api/kb" && req.method === "GET") {
+      const kb = await listKnowledgeBase();
+      res.end(JSON.stringify(kb));
+      return true;
+    }
+
+    if (pathName === "/api/search" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { query, collection, projectName } = JSON.parse(body);
+      const results = await searchCode(query, collection, projectName);
+      res.end(JSON.stringify(results));
+      return true;
+    }
+
+    if (pathName === "/api/stats" && req.method === "GET") {
+      const kb = await listKnowledgeBase();
+      const projectCount = Object.values(kb).reduce((acc, p) => acc + p.length, 0);
+      res.end(JSON.stringify({
+        collections: Object.keys(kb).length,
+        projects: projectCount,
+        status: "active"
+      }));
+      return true;
+    }
+
+    if (pathName === "/api/config" && req.method === "GET") {
+      const config = await loadConfig();
+      res.end(JSON.stringify(config));
+      return true;
+    }
+  } catch (err) {
+    res.writeHead(500);
+    res.end(JSON.stringify({ error: err.message }));
+    return true;
+  }
+
+  return false;
+}
