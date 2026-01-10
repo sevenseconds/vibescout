@@ -5,7 +5,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import http from "http";
 import { Command } from "commander";
 import { logger, LogLevel } from "./logger.js";
-import { configureEnvironment } from "./embeddings.js";
+import { configureEnvironment, embeddingManager } from "./embeddings.js";
 import { closeDb } from "./db.js";
 import { handleIndexFolder, handleSearchCode } from "./core.js";
 import { server } from "./server.js";
@@ -26,12 +26,16 @@ async function main() {
     .option("--port <number>", "Port for sse or http mode", config.port || process.env.PORT || 3000)
     .option("--verbose", "Enable verbose logging", config.verbose || false);
 
-  program.hook("preAction", (thisCommand) => {
+  program.hook("preAction", async (thisCommand) => {
     const opts = thisCommand.opts();
     logger.setLevel(opts.verbose ? LogLevel.DEBUG : LogLevel.INFO);
 
     if (opts.modelsPath) {
       configureEnvironment(opts.modelsPath, opts.offline);
+    }
+
+    if (config.embeddingModel) {
+      await embeddingManager.setModel(config.embeddingModel);
     }
   });
 

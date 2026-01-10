@@ -2,10 +2,18 @@ import fs from "fs-extra";
 import path from "path";
 import os from "os";
 import pkg from "enquirer";
-const { Form } = pkg;
+const { Form, Select } = pkg;
+import { env } from "@huggingface/transformers";
 
 const CONFIG_DIR = path.join(os.homedir(), ".vibescout");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+
+const RECOMMENDED_MODELS = [
+  { name: "Xenova/bge-small-en-v1.5", message: "BGE Small (Fast, Lightweight)" },
+  { name: "Xenova/all-MiniLM-L6-v2", message: "MiniLM (Balanced)" },
+  { name: "Xenova/bge-base-en-v1.5", message: "BGE Base (Higher Accuracy)" },
+  { name: "Xenova/paraphrase-multilingual-MiniLM-L12-v2", message: "Multilingual MiniLM" }
+];
 
 const DEFAULT_CONFIG = {
   modelsPath: "",
@@ -36,24 +44,38 @@ export async function saveConfig(config) {
 export async function interactiveConfig() {
   const currentConfig = await loadConfig();
 
-  const prompt = new Form({
-    name: "user",
-    message: "VibeScout Configuration (Use arrows to move, type to edit):",
-    choices: [
-      { name: "modelsPath", message: "Models Path", initial: currentConfig.modelsPath },
-      { name: "embeddingModel", message: "Embedding Model", initial: currentConfig.embeddingModel },
-      { name: "port", message: "Server Port", initial: String(currentConfig.port) },
-      { name: "summarize", message: "Summarize (true/false)", initial: String(currentConfig.summarize) },
-      { name: "verbose", message: "Verbose Logs (true/false)", initial: String(currentConfig.verbose) }
-    ]
+  // 1. Select Model
+  const modelPrompt = new Select({
+    name: "embeddingModel",
+    message: "Select Embedding Model:",
+    choices: RECOMMENDED_MODELS,
+    initial: RECOMMENDED_MODELS.findIndex(m => m.name === currentConfig.embeddingModel) || 0
   });
 
   try {
-    const answers = await prompt.run();
+    const embeddingModel = await modelPrompt.run();
+
+    // 2. Other settings via Form
+    // Display current modelsPath or the default transformers cache
+    const currentPathDisplay = currentConfig.modelsPath || env.cacheDir;
+
+    const formPrompt = new Form({
+      name: "settings",
+      message: "VibeScout Configuration (Use arrows to move, type to edit):",
+      choices: [
+        { name: "modelsPath", message: "Models Path", initial: currentConfig.modelsPath, hint: `(Default: ${env.cacheDir})` },
+        { name: "port", message: "Server Port", initial: String(currentConfig.port) },
+        { name: "summarize", message: "Summarize (true/false)", initial: String(currentConfig.summarize) },
+        { name: "verbose", message: "Verbose Logs (true/false)", initial: String(currentConfig.verbose) }
+      ]
+    });
+
+    const answers = await formPrompt.run();
     
     // Type conversion
     const newConfig = {
       ...answers,
+      embeddingModel,
       port: parseInt(answers.port) || 3000,
       summarize: answers.summarize === "true",
       verbose: answers.verbose === "true"
@@ -61,6 +83,9 @@ export async function interactiveConfig() {
 
     await saveConfig(newConfig);
     console.log(`\nConfig saved to ${CONFIG_FILE}`);
+    if (!newConfig.modelsPath) {
+      console.log(`Models will be stored in default location: ${env.cacheDir}`);
+    }
   } catch (err) {
     console.log("\nConfig update cancelled.");
   }
