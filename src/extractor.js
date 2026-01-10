@@ -2,11 +2,13 @@ import fs from "fs-extra";
 import path from "path";
 import { TypeScriptStrategy } from "./extractors/TypeScriptStrategy.js";
 import { MarkdownStrategy } from "./extractors/MarkdownStrategy.js";
+import { PythonStrategy } from "./extractors/PythonStrategy.js";
 
 // Strategy Registry
 const strategies = [
   TypeScriptStrategy,
-  MarkdownStrategy
+  MarkdownStrategy,
+  PythonStrategy
 ];
 
 /**

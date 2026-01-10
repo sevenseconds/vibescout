@@ -36,7 +36,7 @@ export let indexingProgress = {
 export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false) {
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
-  const filesOnDisk = await glob("**/*.{ts,js,md}", { cwd: absolutePath, ignore: ["**/node_modules/**", "**/dist/**"] });
+  const filesOnDisk = await glob("**/*.{ts,js,md,py}", { cwd: absolutePath, ignore: ["**/node_modules/**", "**/dist/**"] });
   const absoluteFilesOnDisk = new Set(filesOnDisk.map(f => path.join(absolutePath, f)));
   
   if (indexingProgress.active) {
