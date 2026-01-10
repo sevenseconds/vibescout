@@ -1,6 +1,6 @@
 {
   "name": "codebase",
-  "version": "1.0.0",
+  "version": "1.9.0",
   "description": "",
   "main": "src/index.js",
   "scripts": {
@@ -22,6 +22,7 @@
     "fs-extra": "^11.3.3",
     "glob": "^13.0.0",
     "tree-sitter": "^0.21.1",
+    "tree-sitter-markdown": "^0.7.1",
     "tree-sitter-typescript": "^0.23.2",
     "typescript": "^5.9.3"
   },

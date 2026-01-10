@@ -49,7 +49,7 @@ const CONCURRENCY_LIMIT = 4;
 export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true) {
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
-  const filesOnDisk = await glob("**/*.{ts,js}", { cwd: absolutePath, ignore: ["**/node_modules/**", "**/dist/**"] });
+  const filesOnDisk = await glob("**/*.{ts,js,md}", { cwd: absolutePath, ignore: ["**/node_modules/**", "**/dist/**"] });
   const absoluteFilesOnDisk = new Set(filesOnDisk.map(f => path.join(absolutePath, f)));
   
   let totalIndexed = 0;

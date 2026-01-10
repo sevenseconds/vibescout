@@ -1,36 +1,68 @@
 # Local MCP Code Search Server
 
-A Model Context Protocol (MCP) server for local semantic code search. This server uses **Transformers.js** for local embeddings (no internet required after initial model download) and **LanceDB** for efficient vector storage.
+A high-performance Model Context Protocol (MCP) server for local semantic code search. This server uses **Transformers.js** for local embeddings/summarization and **LanceDB** for efficient vector storage.
 
 ## Features
 
-- **Multi-Project Collections**: Group related codebases (e.g., "Company-A", "Personal") for targeted cross-project search.
-- **Hierarchical Context Retrieval**: Automatically summarizes functions and injects that context into logical sub-chunks. This ensures the AI never loses the "Big Picture" (Default: Enabled).
-- **Hybrid Search**: Combines **Semantic (Vector)** and **Exact Keyword (FTS)** search for maximum accuracy.
-- **Auto-Context (Reranking)**: Uses a local reranker model to surface the absolute most relevant snippets.
-- **Semantic Chunking**: Automatically slices large functions (>50 lines) into logical sub-blocks for higher search precision.
-- **BGE-M3 Support**: High-performance embedding model with 8k token context support.
-- **Parallel Indexing**: Processes multiple files concurrently for 3-5x faster speed.
-- **Incremental Indexing**: Skips unchanged files using MD5 hashing.
+- **Multi-Project Collections**: Group related codebases (e.g., "Frontend", "Backend") for targeted or global search.
+- **Hierarchical Context Retrieval**: Automatically summarizes functions and injects that context into logical sub-chunks. The AI never loses the "Big Picture".
+- **Hybrid Search**: Combines **Semantic (Vector)** and **Exact Keyword (FTS)** search for maximum recall and precision.
+- **Auto-Context (Reranking)**: Uses a local Cross-Encoder model to surface the absolute most relevant snippets.
+- **Structural Knowledge**: Tracks imports and exports to build a dependency graph of your codebase.
+- **Markdown Indexing**: Full support for `.md` documentation, split intelligently by headings.
+- **Semantic Chunking**: Automatically slices large functions (>50 lines) into logical sub-blocks.
+- **Incremental & Parallel Indexing**: Processes multiple files concurrently and skips unchanged files using MD5 hashing.
+- **Watch Mode**: Real-time monitoring of folders for automatic indexing of changes and deletions.
+- **Local & Private**: 100% local execution. No data ever leaves your machine.
 
 ## MCP Tools
 
 ### 1. `index_folder`
-Indexes a folder with Contextual Enrichment.
+Indexes a folder with Contextual Enrichment and Parallelism.
 - **Arguments**:
   - `folderPath` (string): Absolute path to the code.
   - `projectName` (string, optional).
   - `collection` (string, optional).
-  - `summarize` (boolean, optional): Default is `true`. Use hierarchical AI summaries for maximum search accuracy.
+  - `summarize` (boolean, optional): Default `true`. Uses AI to pre-summarize functions.
 
-### 2. `set_model`
-Changes the embedding model.
-- **Argument**: `modelName` (string) - Options: `Xenova/all-MiniLM-L6-v2` (fast), `Xenova/bge-small-en-v1.5`, or `Xenova/bge-m3` (elite).
+### 2. `search_code`
+Searches the knowledge base using Hybrid Search and Reranking.
+- **Arguments**:
+  - `query` (string): Natural language or keyword.
+  - `collection` (string, optional).
+  - `projectName` (string, optional).
+
+### 3. `watch_folder`
+Starts a real-time watcher. Automatically updates the index when you add, edit, or delete files.
+
+### 4. `move_project`
+Moves a project from one collection to another for better organization.
+
+### 5. `get_file_dependencies`
+Returns all imports and exports for a specific file.
+
+### 6. `find_symbol_usages`
+Finds all files that import a specific symbol (function, class, etc.).
+
+### 7. `list_knowledge_base`
+Displays all indexed projects grouped by their collections.
+
+### 8. `read_code_range`
+Reads specific lines from a file.
+
+### 9. `get_current_model`
+Returns the currently active Embedding and Summarizer models.
+
+### 10. `set_model`
+Switch Embedding model (Options: `Xenova/all-MiniLM-L6-v2`, `Xenova/bge-small-en-v1.5`, `Xenova/bge-m3`).
+
+### 11. `clear_index`
+Deletes the local database. Use this before switching models.
 
 ## Client Integration
 
-### 1. Claude Desktop
-Add this to your `claude_desktop_config.json` (usually at `~/Library/Application Support/Claude/claude_desktop_config.json`):
+### Claude Desktop / Gemini CLI / OpenCode
+Add the following to your configuration:
 
 ```json
 {
@@ -46,61 +78,13 @@ Add this to your `claude_desktop_config.json` (usually at `~/Library/Application
 }
 ```
 
-*Note: Default model is `Xenova/all-MiniLM-L6-v2`. You can switch to `Xenova/bge-small-en-v1.5` for potentially better accuracy at the cost of slightly more resources.*
-
-### 2. Claude Code (CLI)
-You can add the server via the CLI with the environment variable:
+### Claude Code (CLI)
 ```bash
 claude mcp add local-code-search --transport stdio -- npm start --prefix /path/to/your/project
 ```
 
-Or with a specific model:
-```bash
-claude mcp add local-code-search --transport stdio --env EMBEDDING_MODEL=Xenova/bge-small-en-v1.5 -- npm start --prefix /path/to/your/project
-```
-
-### 3. Gemini CLI
-Add this to your `~/.gemini/settings.json` (or `.gemini/settings.json` in your project):
-
-```json
-{
-  "mcpServers": {
-    "local-code-search": {
-      "command": "npm",
-      "args": ["start", "--prefix", "/path/to/your/project"],
-      "env": {
-        "EMBEDDING_MODEL": "Xenova/bge-small-en-v1.5"
-      }
-    }
-  }
-}
-```
-
-### 4. OpenCode IDE
-Add the following to your `opencode.json` or `~/.opencode.json`:
-
-```json
-{
-  "mcp": {
-    "local-code-search": {
-      "type": "local",
-      "command": ["npm", "start", "--prefix", "/path/to/your/project"],
-      "enabled": true,
-      "environment": {
-        "EMBEDDING_MODEL": "Xenova/bge-small-en-v1.5"
-      }
-    }
-  }
-}
-```
-
-*Note: Always use absolute paths for the `index.js` file.*
-
 ## Development
 
-- **Linting**: `npm run lint`
-- **Testing**: `npm test`
-- **Project Structure**:
-  - `src/`: Source code for the MCP server.
-  - `tests/`: Unit tests for extraction, embeddings, and database.
-  - `.lancedb/`: Local vector database storage (generated after indexing).
+- **Architecture**: Uses the **Strategy Pattern** for extractors located in `src/extractors/`.
+- **Testing**: `npm test` (Runs Vitest sequentially to prevent DB race conditions).
+- **Linting**: `npm run lint` (ESLint with 2-space indentation).

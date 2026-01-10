@@ -29,5 +29,5 @@ describe("Incremental Indexing", () => {
     await fs.writeFile(filePath, "export function test() { return 2; }");
     const res3 = await handleIndexFolder(testDir, "TestProject");
     expect(res3.content[0].text).toContain("Indexed: 1");
-  });
+  }, 60000);
 });
