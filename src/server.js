@@ -7,23 +7,25 @@ import path from "path";
 import fs from "fs-extra";
 import chokidar from "chokidar";
 import { logger } from "./logger.js";
-import { 
-  handleIndexFolder, 
-  handleSearchCode, 
+import {
+  handleIndexFolder,
+  handleSearchCode,
   searchCode,
   chatWithCode,
-  indexSingleFile, 
+  indexSingleFile,
   indexingProgress 
 } from "./core.js";
-import { 
-  listKnowledgeBase, 
-  clearDatabase, 
-  deleteFileData, 
+import {
+  listKnowledgeBase,
+  clearDatabase,
+  deleteFileData,
   getFileDependencies,
   getAllDependencies,
   findSymbolUsages,
-  moveProjectToCollection
+  moveProjectToCollection,
+  getWatchList
 } from "./db.js";
+import { watchProject, unwatchProject } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig } from "./config.js";
 
@@ -203,21 +205,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return { content: [{ type: "text", text: text || "Empty." }] };
     }
     if (name === "watch_folder") {
-      const absolutePath = path.resolve(args.folderPath);
-      const derivedProjectName = args.projectName || path.basename(absolutePath);
-      if (watchers.has(absolutePath)) return { content: [{ type: "text", text: "Already watching." }] };
-      const watcher = chokidar.watch(absolutePath, { 
-        ignored: ["**/node_modules/**", "**/.git/**"], 
-        persistent: true, 
-        ignoreInitial: true,
-        usePolling: process.env.USE_POLLING === "true",
-        interval: 1000
-      });
-      watcher.on("add", f => indexSingleFile(f, derivedProjectName, args.collection || "default"))
-        .on("change", f => indexSingleFile(f, derivedProjectName, args.collection || "default"))
-        .on("unlink", f => deleteFileData(f));
-      watchers.set(absolutePath, watcher);
-      return { content: [{ type: "text", text: `Watching ${derivedProjectName}` }] };
+      return await watchProject(args.folderPath, args.projectName, args.collection);
     }
     if (name === "read_code_range") {
       const content = await fs.readFile(args.filePath, "utf-8");
@@ -290,47 +278,33 @@ export async function handleApiRequest(req, res) {
       return true;
     }
 
-    if (pathName === "/api/graph" && req.method === "GET") {
-      const deps = await getAllDependencies();
-      const nodes = [];
-      const links = [];
-      const nodeMap = new Map();
-
-      // 1. Create nodes
-      for (const d of deps) {
-        if (!nodeMap.has(d.filePath)) {
-          const node = { 
-            id: d.filePath, 
-            label: path.basename(d.filePath), 
-            group: d.projectName,
-            collection: d.collection
-          };
-          nodes.push(node);
-          nodeMap.set(d.filePath, node);
-        }
-      }
-
-      // 2. Create edges (Heuristic-based resolution)
-      for (const d of deps) {
-        const imports = JSON.parse(d.imports);
-        for (const imp of imports) {
-          const target = deps.find(other => 
-            other.filePath.endsWith(imp.source) || 
-            other.filePath.endsWith(imp.source + ".ts") ||
-            other.filePath.endsWith(imp.source + ".js") ||
-            other.filePath.endsWith(imp.source + ".dart") ||
-            other.filePath.endsWith(imp.source + ".java") ||
-            other.filePath.endsWith(imp.source + ".kt")
-          );
-
-          if (target && target.filePath !== d.filePath) {
-            links.push({ source: d.filePath, target: target.filePath });
-          }
-        }
-      }
-
+    if (pathName === "/api/watchers" && req.method === "GET") {
+      const watchers = await getWatchList();
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ nodes, links }));
+      res.end(JSON.stringify(watchers));
+      return true;
+    }
+
+    if (pathName === "/api/watchers" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { folderPath, projectName, collection } = JSON.parse(body);
+      await watchProject(folderPath, projectName, collection);
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ success: true }));
+      return true;
+    }
+
+    if (pathName === "/api/watchers" && req.method === "DELETE") {
+      const folderPath = url.searchParams.get("folderPath");
+      if (folderPath) {
+        await unwatchProject(folderPath);
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: true }));
+      } else {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "folderPath required" }));
+      }
       return true;
     }
   } catch (err) {

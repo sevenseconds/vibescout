@@ -8,6 +8,7 @@ import { configureEnvironment, embeddingManager, summarizerManager } from "./emb
 import { closeDb, compactDatabase, initDB } from "./db.js";
 import { handleIndexFolder } from "./core.js";
 import { server, handleApiRequest } from "./server.js";
+import { initWatcher } from "./watcher.js";
 import { loadConfig, interactiveConfig } from "./config.js";
 import { interactiveSearch } from "./tui.js";
 import sirv from "sirv";
@@ -113,6 +114,10 @@ async function main() {
       apiToken: config.cloudflareToken,
       indexName: config.cloudflareVectorizeIndex
     });
+
+    await initWatcher();
+
+    const mode = opts.mcp === true ? "stdio" : opts.mcp;
   });
 
   program
@@ -126,6 +131,13 @@ async function main() {
     .command("ui")
     .description("Start the Web UI")
     .action(async () => {
+      await initDB({
+        type: config.dbProvider || "local",
+        accountId: config.cloudflareAccountId,
+        apiToken: config.cloudflareToken,
+        indexName: config.cloudflareVectorizeIndex
+      });
+      await initWatcher();
       const port = parseInt(program.opts().port);
       await startServer("http", port, true);
     });

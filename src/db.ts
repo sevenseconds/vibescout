@@ -251,6 +251,38 @@ export async function listKnowledgeBase() {
   return Object.fromEntries(Object.entries(projects).map(([col, projs]) => [col, Array.from(projs)]));
 }
 
+export async function getWatchList() {
+  const db = await getMetaDb();
+  const tables = await db.tableNames();
+  if (!tables.includes("watch_list")) return [];
+  const table = await db.openTable("watch_list");
+  return await table.query().toArray();
+}
+
+export async function addToWatchList(folderPath: string, projectName: string, collection: string) {
+  const db = await getMetaDb();
+  const tableName = "watch_list";
+  const tables = await db.tableNames();
+  const record = { folderPath, projectName, collection };
+
+  if (tables.includes(tableName)) {
+    const table = await db.openTable(tableName);
+    await table.delete(`"folderPath" = '${folderPath}'`);
+    await table.add([record]);
+  } else {
+    await db.createTable(tableName, [record]);
+  }
+}
+
+export async function removeFromWatchList(folderPath: string) {
+  const db = await getMetaDb();
+  const tables = await db.tableNames();
+  if (tables.includes("watch_list")) {
+    const table = await db.openTable("watch_list");
+    await table.delete(`"folderPath" = '${folderPath}'`);
+  }
+}
+
 export async function getProjectFiles() {
   const hashes = await loadHashes();
   return Object.keys(hashes);
