@@ -456,7 +456,7 @@ async function main() {
     .version("0.1.0")
     .option("--models-path <path>", "Path to local models directory", process.env.MODELS_PATH)
     .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
-    .option("--mcp <mode>", "MCP transport mode (stdio, sse, http)", "stdio")
+    .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", "stdio")
     .option("--port <number>", "Port for sse or http mode", process.env.PORT || 3000)
     .option("--verbose", "Enable verbose logging", false);
 
@@ -507,7 +507,7 @@ async function main() {
       logger.info(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
     }
 
-    const mode = opts.mcp;
+    const mode = (opts.mcp === true) ? "stdio" : opts.mcp;
     const port = parseInt(opts.port);
 
     if (mode === "sse") {
