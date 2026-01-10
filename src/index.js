@@ -4,6 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import http from "http";
+import { logger, LogLevel } from "./logger.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -200,7 +201,7 @@ export async function handleSearchCode(query, collection, projectName) {
   const storedModel = await getStoredModel();
   
   if (storedModel && storedModel !== currentModel) {
-    console.error(`[Auto-Switch] Switching model from "${currentModel}" to stored model "${storedModel}" to match index.`);
+    logger.info(`[Auto-Switch] Switching model from "${currentModel}" to stored model "${storedModel}" to match index.`);
     await embeddingManager.setModel(storedModel);
   }
 
@@ -442,7 +443,7 @@ async function indexSingleFile(filePath, projectName, collection) {
     }
     await updateFileHash(filePath, hash);
   } catch (err) {
-    console.error(`[Watcher] Error: ${err.message}`);
+    logger.error(`[Watcher] Error: ${err.message}`);
   }
 }
 
@@ -456,10 +457,13 @@ async function main() {
     .option("--models-path <path>", "Path to local models directory", process.env.MODELS_PATH)
     .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
     .option("--mcp <mode>", "MCP transport mode (stdio, sse, http)", "stdio")
-    .option("--port <number>", "Port for sse or http mode", process.env.PORT || 3000);
+    .option("--port <number>", "Port for sse or http mode", process.env.PORT || 3000)
+    .option("--verbose", "Enable verbose logging", false);
 
   program.hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
+    logger.setLevel(opts.verbose ? LogLevel.DEBUG : LogLevel.INFO);
+
     if (opts.modelsPath) {
       configureEnvironment(opts.modelsPath, opts.offline);
     }
@@ -500,14 +504,14 @@ async function main() {
     }
 
     if (opts.modelsPath) {
-      console.error(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
+      logger.info(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
     }
 
-    const port = parseInt(opts.port);
     const mode = opts.mcp;
+    const port = parseInt(opts.port);
 
     if (mode === "sse") {
-      console.error(`Starting MCP SSE Server on port ${port}...`);
+      logger.info(`Starting MCP SSE Server on port ${port}...`);
       const httpServer = http.createServer(async (req, res) => {
         if (req.url === "/sse") {
           const transport = new SSEServerTransport("/messages", res);
@@ -522,7 +526,7 @@ async function main() {
     }
 
     if (mode === "http") {
-      console.error(`Starting MCP HTTP Streamable Server on port ${port}...`);
+      logger.info(`Starting MCP HTTP Streamable Server on port ${port}...`);
       const transport = new StreamableHTTPServerTransport();
       await server.connect(transport);
 
@@ -530,7 +534,7 @@ async function main() {
         try {
           await transport.handleRequest(req, res);
         } catch (err) {
-          console.error("Error handling request:", err);
+          logger.error("Error handling request:", err);
           if (!res.headersSent) {
             res.writeHead(500);
             res.end("Internal Server Error");
@@ -544,7 +548,7 @@ async function main() {
     if (mode === "stdio") {
       const transport = new StdioServerTransport();
       await server.connect(transport);
-      console.error("Local Code Search MCP Server running (stdio)");
+      logger.info("Local Code Search MCP Server running (stdio)");
     }
   });
 

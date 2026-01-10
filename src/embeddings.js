@@ -1,4 +1,5 @@
 import { pipeline, env } from "@huggingface/transformers";
+import { logger } from "./logger.js";
 
 export function configureEnvironment(modelsPath, offlineMode = false) {
   if (modelsPath) {
@@ -31,15 +32,15 @@ export class EmbeddingManager {
 
   async getPipe() {
     if (!this.pipe) {
-      console.error(`[Embedding] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
+      logger.debug(`[Embedding] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
       this.pipe = await pipeline("feature-extraction", this.modelName, {
         progress_callback: (progress) => {
           if (progress.status === "progress") {
-            console.error(`[Embedding] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+            logger.debug(`[Embedding] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
           }
         }
       });
-      console.error("[Embedding] Model loaded.");
+      logger.debug("[Embedding] Model loaded.");
     }
     return this.pipe;
   }
@@ -59,15 +60,15 @@ class RerankerManager {
 
   async getPipe() {
     if (!this.pipe) {
-      console.error(`[Reranker] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
+      logger.debug(`[Reranker] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
       this.pipe = await pipeline("text-classification", this.modelName, {
         progress_callback: (progress) => {
           if (progress.status === "progress") {
-            console.error(`[Reranker] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+            logger.debug(`[Reranker] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
           }
         }
       });
-      console.error("[Reranker] Model loaded.");
+      logger.debug("[Reranker] Model loaded.");
     }
     return this.pipe;
   }
@@ -98,15 +99,15 @@ class SummarizerManager {
 
   async getPipe() {
     if (!this.pipe) {
-      console.error(`[Summarizer/BART] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
+      logger.debug(`[Summarizer/BART] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
       this.pipe = await pipeline("summarization", this.modelName, {
         progress_callback: (progress) => {
           if (progress.status === "progress") {
-            console.error(`[Summarizer/BART] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+            logger.debug(`[Summarizer/BART] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
           }
         }
       });
-      console.error("[Summarizer/BART] Model loaded.");
+      logger.debug("[Summarizer/BART] Model loaded.");
     }
     return this.pipe;
   }
@@ -123,7 +124,7 @@ class SummarizerManager {
       });
       return output[0].summary_text;
     } catch (err) {
-      console.error(`Summarization error: ${err.message}`);
+      logger.error(`Summarization error: ${err.message}`);
       return "";
     }
   }
