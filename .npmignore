@@ -1,0 +1,30 @@
+# Source control
+.git
+.gitignore
+.geminiignore
+.editorconfig
+
+# Tests and Coverage
+tests/
+coverage/
+vitest.config.js
+eslint.config.js
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# Documentation for local dev
+EXAMPLE-AGENTS.md
+EXAMPLE-CLAUDE.md
+EXAMPLE-GEMINI.md
+CLAUDE.md
+GEMINI.md
+AGENTS.md
+
+# Local Data
+.lancedb/
+data/
+*.log
+.gemini-clipboard/
+.claude/
