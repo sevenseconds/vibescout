@@ -1,9 +1,17 @@
 import * as lancedb from "@lancedb/lancedb";
 import path from "path";
 import fs from "fs-extra";
+import os from "os";
 
-const DB_NAME = process.env.NODE_ENV === "test" ? ".lancedb_test" : ".lancedb";
-const DB_PATH = path.join(process.cwd(), DB_NAME);
+const HOME_DIR = os.homedir();
+const GLOBAL_DATA_DIR = path.join(HOME_DIR, ".vibescout", "data");
+
+const isTest = process.env.NODE_ENV === "test";
+const DB_ROOT = isTest 
+  ? path.join(process.cwd(), ".lancedb_test") 
+  : (process.env.VIBESCOUT_DB_PATH || GLOBAL_DATA_DIR);
+
+const DB_PATH = DB_ROOT;
 const HASH_FILE = path.join(DB_PATH, "hashes.json");
 
 let activeDb = null;
