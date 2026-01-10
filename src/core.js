@@ -2,6 +2,7 @@ import { glob } from "glob";
 import fs from "fs-extra";
 import path from "path";
 import crypto from "crypto";
+import ignore from "ignore";
 import { extractCodeBlocks } from "./extractor.js";
 import { embeddingManager, rerankerManager, summarizerManager } from "./embeddings.js";
 import { logger } from "./logger.js";
@@ -16,8 +17,32 @@ import {
   getProjectFiles,
   updateDependencies
 } from "./db.js";
+import { exec } from "child_process";
+import { promisify } from "util";
+const execAsync = promisify(exec);
 
 const CONCURRENCY_LIMIT = 4;
+
+/**
+ * Helper to load ignore patterns from .vibeignore and .gitignore
+ */
+async function getIgnoreFilter(folderPath) {
+  const ig = ignore();
+  
+  // Default ignores
+  ig.add([".git", "node_modules", "dist", ".lancedb", ".lancedb_test", ".vibescout"]);
+
+  const ignoreFiles = [".gitignore", ".vibeignore"];
+  for (const file of ignoreFiles) {
+    const filePath = path.join(folderPath, file);
+    if (await fs.pathExists(filePath)) {
+      const content = await fs.readFile(filePath, "utf-8");
+      ig.add(content);
+    }
+  }
+  
+  return ig;
+}
 
 // Global state for progress tracking
 export let indexingProgress = {
@@ -36,7 +61,18 @@ export let indexingProgress = {
 export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false) {
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
-  const filesOnDisk = await glob("**/*.{ts,js,md,py,go,dart,java,kt,kts,json,toml,xml,html,svg}", { cwd: absolutePath, ignore: ["**/node_modules/**", "**/dist/**"] });
+  
+  const ig = await getIgnoreFilter(absolutePath);
+  
+  // Get all potential files
+  const allFiles = await glob("**/*.{ts,js,md,py,go,dart,java,kt,kts,json,toml,xml,html,svg}", { 
+    cwd: absolutePath,
+    dot: true,
+    nodir: true
+  });
+
+  // Filter files using ignore patterns
+  const filesOnDisk = allFiles.filter(file => !ig.ignores(file));
   const absoluteFilesOnDisk = new Set(filesOnDisk.map(f => path.join(absolutePath, f)));
   
   if (indexingProgress.active) {
@@ -161,10 +197,6 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
     };
   }
 }
-
-import { exec } from "child_process";
-import { promisify } from "util";
-const execAsync = promisify(exec);
 
 /**
  * Shared search logic that returns raw result objects

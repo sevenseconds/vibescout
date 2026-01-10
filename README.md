@@ -8,6 +8,7 @@ A high-performance Model Context Protocol (MCP) server for local semantic code s
 - **Multi-Project Collections**: Group related codebases (e.g., "Frontend", "Backend") for targeted or global search.
 - **Hierarchical Context Retrieval**: Automatically summarizes functions and injects that context into logical sub-chunks. The AI never loses the "Big Picture".
 - **Interactive TUI**: Beautiful table-based search results with AI context previews and one-click file opening.
+- **Project-level Exclusions**: Full support for `.vibeignore` and `.gitignore` files to control exactly what gets indexed.
 - **Persistent Configuration**: Dedicated `config` command to manage your local setup visually.
 - **Hybrid Search**: Combines **Semantic (Vector)** and **Exact Keyword (FTS)** search for maximum recall and precision.
 - **Auto-Context (Reranking)**: Uses a local Cross-Encoder model to surface the absolute most relevant snippets.
