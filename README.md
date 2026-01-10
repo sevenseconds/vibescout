@@ -63,6 +63,44 @@ Switch Embedding model (Options: `Xenova/all-MiniLM-L6-v2`, `Xenova/bge-small-en
 ### 11. `clear_index`
 Deletes the local database. Use this before switching models.
 
+## Docker
+
+You can run VibeScout in a container to keep your environment clean and isolated.
+
+### Using Docker Compose
+
+The easiest way to manage one or more projects is with `docker-compose.yml`.
+
+1.  **Mount your projects**: Edit `docker-compose.yml` to mount a parent directory containing your codebases:
+    ```yaml
+    volumes:
+      - ./data:/app/.lancedb
+      - /path/to/your/workspaces:/projects:ro
+    ```
+2.  **Start the server**:
+    ```bash
+    docker-compose up -d
+    ```
+
+### Handling Multiple Projects
+If you mount a root workspace folder (e.g., `~/Workspaces` to `/projects`), you can index any sub-folder by referring to its path **inside** the container.
+
+**Tip for LLMs**: When using VibeScout in Docker, tell your AI:
+> "I am running VibeScout in Docker. My local projects are mounted at `/projects`. To index a project, use the path `/projects/<project-folder-name>`."
+
+### Using Docker CLI
+
+```bash
+# Build the image
+docker build -t vibescout .
+
+# Run the container
+docker run -it \
+  -v $(pwd)/.lancedb:/app/.lancedb \
+  -v /path/to/your/workspaces:/projects:ro \
+  vibescout
+```
+
 ## Client Integration
 
 ### Claude Desktop / Gemini CLI / OpenCode
