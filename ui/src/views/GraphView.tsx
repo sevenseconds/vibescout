@@ -44,9 +44,14 @@ export default function GraphView() {
     const fetchGraph = async () => {
       try {
         const response = await axios.get('/api/graph');
-        setData(response.data);
+        if (response.data && response.data.nodes) {
+          setData(response.data);
+        } else {
+          setData({ nodes: [], links: [] });
+        }
       } catch (err) {
         console.error(err);
+        setData({ nodes: [], links: [] });
       } finally {
         setLoading(false);
       }
@@ -215,7 +220,7 @@ export default function GraphView() {
 
         {/* Graph Area */}
         <div className="h-full w-full">
-          {data.nodes.length > 0 ? (
+          {data?.nodes?.length > 0 ? (
             <ForceGraph2D
               ref={fgRef}
               graphData={data}

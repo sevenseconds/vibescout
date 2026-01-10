@@ -17,6 +17,7 @@ import {
   listKnowledgeBase, 
   clearDatabase, 
   getFileDependencies,
+  getAllDependencies,
   findSymbolUsages,
   moveProjectToCollection,
   getWatchList,
@@ -324,6 +325,55 @@ export async function handleApiRequest(req, res) {
         res.writeHead(400);
         res.end(JSON.stringify({ error: "folderPath required" }));
       }
+      return true;
+    }
+
+    if (pathName === "/api/graph" && req.method === "GET") {
+      const deps = await getAllDependencies();
+      const nodes = [];
+      const links = [];
+      
+      if (!deps || deps.length === 0) {
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ nodes, links }));
+        return true;
+      }
+
+      const nodeMap = new Map();
+
+      for (const d of deps) {
+        if (!nodeMap.has(d.filePath)) {
+          const node = { 
+            id: d.filePath, 
+            label: path.basename(d.filePath), 
+            group: d.projectName,
+            collection: d.collection
+          };
+          nodes.push(node);
+          nodeMap.set(d.filePath, node);
+        }
+      }
+
+      for (const d of deps) {
+        const imports = JSON.parse(d.imports);
+        for (const imp of imports) {
+          const target = deps.find(other => 
+            other.filePath.endsWith(imp.source) || 
+            other.filePath.endsWith(imp.source + ".ts") ||
+            other.filePath.endsWith(imp.source + ".js") ||
+            other.filePath.endsWith(imp.source + ".dart") ||
+            other.filePath.endsWith(imp.source + ".java") ||
+            other.filePath.endsWith(imp.source + ".kt")
+          );
+
+          if (target && target.filePath !== d.filePath) {
+            links.push({ source: d.filePath, target: target.filePath });
+          }
+        }
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ nodes, links }));
       return true;
     }
   } catch (err) {
