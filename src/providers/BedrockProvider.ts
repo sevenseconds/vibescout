@@ -1,7 +1,7 @@
 import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { fromIni } from "@aws-sdk/credential-provider-node";
+import { fromIni } from "@aws-sdk/credential-providers";
 
 export class BedrockProvider implements EmbeddingProvider, SummarizerProvider {
   name: string = "bedrock";

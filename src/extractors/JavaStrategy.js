@@ -99,7 +99,9 @@ export const JavaStrategy = {
         const nameNode = node.child(1); // Usually the name
         if (nameNode) {
           const source = nameNode.text;
-          metadata.imports.push({ source, symbols: [] });
+          const parts = source.split(".");
+          const symbols = [parts[parts.length - 1]];
+          metadata.imports.push({ source, symbols });
         }
       }
 

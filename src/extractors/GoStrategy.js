@@ -91,9 +91,18 @@ export const GoStrategy = {
       // Dependency Extraction
       if (node.type === "import_spec") {
         const pathNode = node.childForFieldName("path");
+        const nameNode = node.childForFieldName("name"); // Alias
         if (pathNode) {
           const source = pathNode.text.replace(/['"]/g, "");
-          metadata.imports.push({ source, symbols: [] });
+          const symbols = [];
+          if (nameNode) {
+            symbols.push(nameNode.text);
+          } else {
+            // Default symbol is the last part of the path
+            const parts = source.split("/");
+            symbols.push(parts[parts.length - 1]);
+          }
+          metadata.imports.push({ source, symbols });
         }
       }
 

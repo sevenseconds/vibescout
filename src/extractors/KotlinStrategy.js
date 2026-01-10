@@ -115,8 +115,11 @@ export const KotlinStrategy = {
       if (node.type === "import_header") {
         const idNode = node.children.find(c => c.type === "identifier");
         if (idNode) {
-          const source = idNode.text + (node.children.some(c => c.type === "wildcard_import") ? ".*" : "");
-          metadata.imports.push({ source, symbols: [] });
+          const isWildcard = node.children.some(c => c.type === "wildcard_import");
+          const source = idNode.text + (isWildcard ? ".*" : "");
+          const parts = idNode.text.split(".");
+          const symbols = [parts[parts.length - 1]];
+          metadata.imports.push({ source, symbols });
         }
       }
 

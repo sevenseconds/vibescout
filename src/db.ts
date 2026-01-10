@@ -2,9 +2,9 @@ import * as lancedb from "@lancedb/lancedb";
 import path from "path";
 import fs from "fs-extra";
 import os from "os";
-import { LanceDBProvider } from "./db/LanceDBProvider.js";
-import { VectorizeProvider } from "./db/VectorizeProvider.js";
-import { VectorDBProvider, DBConfig, VectorResult } from "./db/base.js";
+import { LanceDBProvider } from "./database/LanceDBProvider.js";
+import { VectorizeProvider } from "./database/VectorizeProvider.js";
+import { VectorDBProvider, DBConfig, VectorResult } from "./database/base.js";
 
 const HOME_DIR = os.homedir();
 const GLOBAL_DATA_DIR = path.join(HOME_DIR, ".vibescout", "data");
@@ -177,7 +177,12 @@ export async function findSymbolUsages(symbolName: string) {
   
   return all.filter(row => {
     const imports = JSON.parse(row.imports);
-    return imports.some((imp: any) => imp.symbols.includes(symbolName));
+    return imports.some((imp: any) => 
+      (imp.symbols && imp.symbols.includes(symbolName)) || 
+      imp.source === symbolName ||
+      imp.source.endsWith("." + symbolName) ||
+      imp.source.endsWith("/" + symbolName)
+    );
   }).map(row => ({ filePath: row.filePath, projectName: row.projectName, collection: row.collection }));
 }
 

@@ -102,8 +102,24 @@ export const PythonStrategy = {
         const sourceNode = node.childForFieldName("module_name");
         if (sourceNode) {
           const source = sourceNode.text;
-          // Simple extraction for now
-          metadata.imports.push({ source, symbols: [] });
+          const symbols = [];
+          
+          // Look for aliased_import or identifier children
+          for (let i = 0; i < node.childCount; i++) {
+            const child = node.child(i);
+            if (child.type === "aliased_import") {
+              const nameNode = child.childForFieldName("name");
+              const aliasNode = child.childForFieldName("alias");
+              if (aliasNode) symbols.push(aliasNode.text);
+              else if (nameNode) symbols.push(nameNode.text);
+            } else if (child.type === "identifier") {
+              // Check if it's part of the imported names (not the from part)
+              if (child.previousSibling && (child.previousSibling.text === "import" || child.previousSibling.text === ",")) {
+                symbols.push(child.text);
+              }
+            }
+          }
+          metadata.imports.push({ source, symbols });
         }
       }
 
