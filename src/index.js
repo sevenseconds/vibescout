@@ -9,19 +9,21 @@ import { configureEnvironment } from "./embeddings.js";
 import { closeDb } from "./db.js";
 import { handleIndexFolder, handleSearchCode } from "./core.js";
 import { server } from "./server.js";
+import { loadConfig, interactiveConfig } from "./config.js";
 
 async function main() {
+  const config = await loadConfig();
   const program = new Command();
 
   program
     .name("vibescout")
     .description("Local Code Search MCP Server")
     .version("0.1.0")
-    .option("--models-path <path>", "Path to local models directory", process.env.MODELS_PATH)
+    .option("--models-path <path>", "Path to local models directory", config.modelsPath || process.env.MODELS_PATH)
     .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
-    .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", (val) => val === true ? "stdio" : val, "stdio")
-    .option("--port <number>", "Port for sse or http mode", process.env.PORT || 3000)
-    .option("--verbose", "Enable verbose logging", false);
+    .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", "stdio")
+    .option("--port <number>", "Port for sse or http mode", config.port || process.env.PORT || 3000)
+    .option("--verbose", "Enable verbose logging", config.verbose || false);
 
   program.hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
@@ -33,13 +35,20 @@ async function main() {
   });
 
   program
+    .command("config")
+    .description("Interactive configuration TUI")
+    .action(async () => {
+      await interactiveConfig();
+    });
+
+  program
     .command("index")
     .description("Index a folder")
     .argument("<folderPath>", "Path to the folder to index")
     .argument("[projectName]", "Name of the project (defaults to folder name)")
     .action(async (folderPath, projectName) => {
       console.log(`Starting indexing for ${folderPath}...`);
-      const result = await handleIndexFolder(folderPath, projectName, "default", true, false);
+      const result = await handleIndexFolder(folderPath, projectName, "default", config.summarize, false);
       console.log(result.content[0].text);
       await closeDb();
     });
@@ -70,7 +79,7 @@ async function main() {
       logger.info(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
     }
 
-    const mode = opts.mcp;
+    const mode = opts.mcp === true ? "stdio" : opts.mcp;
     const port = parseInt(opts.port);
 
     if (mode === "sse") {
