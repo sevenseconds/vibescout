@@ -31,8 +31,15 @@ export class EmbeddingManager {
 
   async getPipe() {
     if (!this.pipe) {
-      // Supports Xenova/all-MiniLM-L6-v2, Xenova/bge-small-en-v1.5, or Xenova/bge-m3
-      this.pipe = await pipeline("feature-extraction", this.modelName);
+      console.error(`[Embedding] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
+      this.pipe = await pipeline("feature-extraction", this.modelName, {
+        progress_callback: (progress) => {
+          if (progress.status === "progress") {
+             console.error(`[Embedding] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+          }
+        }
+      });
+      console.error(`[Embedding] Model loaded.`);
     }
     return this.pipe;
   }
@@ -52,7 +59,15 @@ class RerankerManager {
 
   async getPipe() {
     if (!this.pipe) {
-      this.pipe = await pipeline("text-classification", this.modelName);
+      console.error(`[Reranker] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
+      this.pipe = await pipeline("text-classification", this.modelName, {
+         progress_callback: (progress) => {
+          if (progress.status === "progress") {
+             console.error(`[Reranker] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+          }
+        }
+      });
+      console.error(`[Reranker] Model loaded.`);
     }
     return this.pipe;
   }
@@ -83,7 +98,15 @@ class SummarizerManager {
 
   async getPipe() {
     if (!this.pipe) {
-      this.pipe = await pipeline("summarization", this.modelName);
+      console.error(`[Summarizer/BART] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
+      this.pipe = await pipeline("summarization", this.modelName, {
+         progress_callback: (progress) => {
+          if (progress.status === "progress") {
+             console.error(`[Summarizer/BART] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+          }
+        }
+      });
+      console.error(`[Summarizer/BART] Model loaded.`);
     }
     return this.pipe;
   }
