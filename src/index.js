@@ -10,6 +10,7 @@ import { closeDb } from "./db.js";
 import { handleIndexFolder, handleSearchCode } from "./core.js";
 import { server } from "./server.js";
 import { loadConfig, interactiveConfig } from "./config.js";
+import { interactiveSearch } from "./tui.js";
 
 async function main() {
   const config = await loadConfig();
@@ -58,9 +59,7 @@ async function main() {
     .description("Search the knowledge base")
     .argument("<query>", "Search query")
     .action(async (query) => {
-      console.log(`Searching for: "${query}"...`);
-      const result = await handleSearchCode(query);
-      console.log(result.content[0].text);
+      await interactiveSearch(query);
       await closeDb();
     });
 

@@ -162,10 +162,14 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   }
 }
 
+import { exec } from "child_process";
+import { promisify } from "util";
+const execAsync = promisify(exec);
+
 /**
- * Tool: search_code
+ * Shared search logic that returns raw result objects
  */
-export async function handleSearchCode(query, collection, projectName) {
+export async function searchCode(query, collection, projectName) {
   const currentModel = embeddingManager.getModel();
   const storedModel = await getStoredModel();
   
@@ -176,7 +180,14 @@ export async function handleSearchCode(query, collection, projectName) {
 
   const queryVector = await embeddingManager.generateEmbedding(query);
   const rawResults = await hybridSearch(query, queryVector, { collection, projectName, limit: 15 });
-  const results = await rerankerManager.rerank(query, rawResults, 5);
+  return await rerankerManager.rerank(query, rawResults, 10);
+}
+
+/**
+ * Tool: search_code (MCP Wrapper)
+ */
+export async function handleSearchCode(query, collection, projectName) {
+  const results = await searchCode(query, collection, projectName);
 
   const formattedResults = results.map(r => 
     `[Score: ${r.rerankScore.toFixed(4)}] [Project: ${r.projectName}]
@@ -186,6 +197,24 @@ Summary: ${r.summary || "N/A"}
   ).join("\n\n");
 
   return { content: [{ type: "text", text: formattedResults || "No matches found." }] };
+}
+
+/**
+ * Helper to open file in default editor/browser
+ */
+export async function openFile(filePath, line = 1) {
+  const platform = process.platform;
+  try {
+    if (platform === "darwin") {
+      await execAsync(`open "${filePath}"`);
+    } else if (platform === "win32") {
+      await execAsync(`start "" "${filePath}"`);
+    } else {
+      await execAsync(`xdg-open "${filePath}"`);
+    }
+  } catch (err) {
+    logger.error(`Failed to open file: ${err.message}`);
+  }
 }
 
 export async function indexSingleFile(filePath, projectName, collection) {
