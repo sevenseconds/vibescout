@@ -455,7 +455,8 @@ async function main() {
     .version("0.1.0")
     .option("--models-path <path>", "Path to local models directory", process.env.MODELS_PATH)
     .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
-    .option("--mcp <mode>", "MCP transport mode (stdio, sse, http)");
+    .option("--mcp <mode>", "MCP transport mode (stdio, sse, http)")
+    .option("--port <number>", "Port for sse or http mode", process.env.PORT || 3000);
 
   program.hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
@@ -501,7 +502,7 @@ async function main() {
       console.error(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
     }
 
-    const port = process.env.PORT || 3000;
+    const port = parseInt(opts.port);
 
     if (mode === "sse") {
       console.error(`Starting MCP SSE Server on port ${port}...`);

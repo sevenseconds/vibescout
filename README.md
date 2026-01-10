@@ -69,14 +69,14 @@ Deletes the local database. Use this before switching models.
 You can install VibeScout globally to use it as a standalone command:
 
 ```bash
-npm install -g @piashare/vibescout
+npm install -g @sevenseconds/vibescout
 ```
 
 Once installed, you can run it anywhere using the `vibescout` command.
 
 ## CLI Usage
 
-VibeScout can be used directly from the command line for indexing and searching without starting the MCP server.
+VibeScout can be used directly from the command line for indexing and searching, or as an MCP server.
 
 ### Index a folder
 ```bash
@@ -89,8 +89,30 @@ vibescout search "how do I handle authentication?"
 ```
 
 ### Options
+- `--mcp <mode>`: Specify the MCP transport mode. Options: `stdio` (default), `sse`, `http`.
 - `--models-path <path>`: Specify local path for models.
 - `--offline`: Force offline mode.
+- `--port <number>`: Port for `sse` or `http` server (default: 3000, can also be set via `PORT` env).
+
+### Transport Modes
+
+#### Stdio (Default)
+Ideal for local use with Claude Desktop or Gemini CLI.
+```bash
+vibescout
+```
+
+#### SSE (Server-Sent Events)
+Starts an HTTP server with an `/sse` endpoint.
+```bash
+vibescout --mcp sse
+```
+
+#### HTTP (Streamable)
+Starts a modern streamable HTTP server using the latest MCP spec.
+```bash
+vibescout --mcp http
+```
 
 ## Client Integration
 
@@ -102,7 +124,7 @@ Add the following to your configuration:
   "mcpServers": {
     "vibescout": {
       "command": "npx",
-      "args": ["-y", "@piashare/vibescout"],
+      "args": ["-y", "@sevenseconds/vibescout"],
       "env": {
         "EMBEDDING_MODEL": "Xenova/bge-small-en-v1.5",
         "MODELS_PATH": "/path/to/your/local/models",
@@ -115,7 +137,7 @@ Add the following to your configuration:
 
 ### Claude Code (CLI)
 ```bash
-claude mcp add vibescout -- npx -y @piashare/vibescout
+claude mcp add vibescout -- npx -y @sevenseconds/vibescout
 ```
 
 ### Offline Mode & Custom Model Paths
