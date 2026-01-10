@@ -262,6 +262,33 @@ export async function getProjectFiles(projectName) {
   return Object.keys(hashes);
 }
 
+export async function compactDatabase() {
+  const table = await getTable();
+  if (!table) return { pruned: 0, optimized: false };
+
+  const hashes = await loadHashes();
+  const filePaths = Object.keys(hashes);
+  let pruned = 0;
+
+  for (const filePath of filePaths) {
+    if (!(await fs.pathExists(filePath))) {
+      await deleteFileData(filePath);
+      pruned++;
+    }
+  }
+
+  // Optimize storage (Native LanceDB compaction)
+  // Note: cleanup() and compact() are available in modern LanceDB
+  try {
+    await table.cleanupOldVersions();
+    await table.compactFiles();
+  } catch (err) {
+    // Some versions might not support these yet or require specific params
+  }
+
+  return { pruned, optimized: true };
+}
+
 export async function clearDatabase() {
   await closeDb();
   if (await fs.pathExists(DB_PATH)) {

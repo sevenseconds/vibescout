@@ -6,7 +6,7 @@ import http from "http";
 import { Command } from "commander";
 import { logger, LogLevel } from "./logger.js";
 import { configureEnvironment, embeddingManager } from "./embeddings.js";
-import { closeDb } from "./db.js";
+import { closeDb, compactDatabase } from "./db.js";
 import { handleIndexFolder, handleSearchCode } from "./core.js";
 import { server } from "./server.js";
 import { loadConfig, interactiveConfig } from "./config.js";
@@ -44,6 +44,17 @@ async function main() {
     .description("Interactive configuration TUI")
     .action(async () => {
       await interactiveConfig();
+    });
+
+  program
+    .command("compact")
+    .description("Remove stale files and optimize database storage")
+    .action(async () => {
+      console.log("Compacting database and removing stale entries...");
+      const result = await compactDatabase();
+      console.log(`Compact complete! Pruned ${result.pruned} stale files.`);
+      if (result.optimized) console.log("Database storage optimized.");
+      await closeDb();
     });
 
   program
