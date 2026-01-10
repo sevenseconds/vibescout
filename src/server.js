@@ -5,30 +5,25 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import path from "path";
 import fs from "fs-extra";
-import chokidar from "chokidar";
 import { logger } from "./logger.js";
-import {
-  handleIndexFolder,
-  handleSearchCode,
+import { 
+  handleIndexFolder, 
+  handleSearchCode, 
   searchCode,
   chatWithCode,
-  indexSingleFile,
   indexingProgress 
 } from "./core.js";
-import {
-  listKnowledgeBase,
-  clearDatabase,
-  deleteFileData,
+import { 
+  listKnowledgeBase, 
+  clearDatabase, 
   getFileDependencies,
-  getAllDependencies,
   findSymbolUsages,
   moveProjectToCollection,
   getWatchList,
   addChatMessage,
   getChatMessages,
   clearChatMessages
-} from "./db.js";
-import { watchProject, unwatchProject } from "./watcher.js";
+} from "./db.js";import { watchProject, unwatchProject } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig } from "./config.js";
 
@@ -43,8 +38,6 @@ export const server = new Server(
     },
   }
 );
-
-const watchers = new Map();
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -263,8 +256,8 @@ export async function handleApiRequest(req, res) {
       const response = await chatWithCode(query, collection, projectName, history);
       
       // Persist messages
-      await addChatMessage('user', query);
-      await addChatMessage('assistant', response);
+      await addChatMessage("user", query);
+      await addChatMessage("assistant", response);
 
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ response }));

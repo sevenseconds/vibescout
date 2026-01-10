@@ -119,8 +119,6 @@ async function main() {
     });
 
     await initWatcher();
-
-    const mode = opts.mcp === true ? "stdio" : opts.mcp;
   });
 
   program

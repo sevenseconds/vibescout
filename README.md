@@ -5,13 +5,12 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 ## 🚀 Features
 
 - **Web Dashboard**: A modern React-based UI for visual searching, chatting with your code, and managing your knowledge base.
-- **Chat with Code (RAG)**: Ask natural language questions about your codebase. VibeScout retrieves relevant context and answers using your preferred AI provider.
+- **Chat with Code (RAG)**: Ask natural language questions about your codebase. VibeScout maintains persistent conversation history and answers using your preferred AI provider.
+- **Visual Dependency Graph**: Explore your codebase architecture visually. Understand how files and symbols are connected across projects.
 - **Multi-Language Support**: Robust semantic extraction for **TypeScript/JS**, **Python**, **Go**, **Java**, **Kotlin**, **Dart**, **Markdown**, **JSON**, **TOML**, and **XML**.
-- **Multi-Provider AI**: Flexible support for **Ollama**, **LM Studio**, **OpenAI**, **Google Gemini**, **Cloudflare Workers AI**, or built-in **Transformers.js**.
+- **Multi-Provider AI**: Flexible support for **Ollama**, **LM Studio**, **OpenAI**, **Google Gemini**, **AWS Bedrock**, **Z.AI**, **Cloudflare Workers AI**, or built-in **Transformers.js**.
 - **Hybrid Storage**: Use local **LanceDB** for speed or **Cloudflare Vectorize** for cloud-synchronized embeddings.
-- **Multi-Project Collections**: Group related codebases (e.g., "Frontend", "Backend") for targeted or global search.
-- **Hierarchical Context Retrieval**: Automatically summarizes functions to ensure the AI never loses the "Big Picture".
-- **Interactive TUI**: Beautiful table-based search results and visual configuration directly in your terminal.
+- **Persistent Watchers**: Automated background indexing. Add a folder once, and VibeScout keeps it in sync forever.
 - **Project-level Exclusions**: Support for `.vibeignore` and `.gitignore` to control exactly what gets indexed.
 - **Local & Private**: Secure by design. By default, 100% of execution and data stays on your machine.
 
@@ -53,19 +52,16 @@ vibescout index ./my-app "My Project"
 vibescout compact
 ```
 
-### Options
-- `--mcp [mode]`: MCP transport mode. Options: `stdio` (default), `sse`, `http`.
-- `--port <number>`: Port for Web UI and HTTP/SSE modes (default: 3000).
-- `--verbose`: Show detailed debug logs and AI model loading progress.
-
 ## 🤖 Supported Providers
 
 | Provider | Type | Description |
 | :--- | :--- | :--- |
 | **Local** | Built-in | Transformers.js (BGE, MiniLM). No setup required. |
 | **Ollama** | Local API | Offload to your local Ollama instance. |
-| **LM Studio** | Local API | OpenAI-compatible local server. |
+| **LM Studio** | Local API | OpenAI-compatible local server preset. |
+| **Bedrock** | Cloud | AWS Bedrock (Claude 3, Titan). Supports AWS Profiles. |
 | **Gemini** | Cloud | Google Generative AI (1.5 Flash/Pro). |
+| **Z.AI** | Cloud | BigModel.cn (GLM series) integration. |
 | **OpenAI** | Cloud | Standard OpenAI API or compatible (DeepSeek, Groq). |
 | **Cloudflare** | Cloud | Workers AI & Vectorize integration. |
 
