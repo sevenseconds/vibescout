@@ -20,26 +20,21 @@ export async function interactiveSearch(query, collection, projectName) {
     const cols = {
       project: Math.max(...results.map(r => `${r.collection}/${r.projectName}`.length), 15),
       file: Math.max(...results.map(r => path.basename(r.filePath).length), 10),
-      line: Math.max(...results.map(r => String(r.startLine).length), 4),
-      name: Math.max(...results.map(r => r.name.length), 15),
-      type: Math.max(...results.map(r => r.type.length), 8)
+      symbol: Math.max(...results.map(r => `${r.type}:${r.name}`.length), 20)
     };
 
     // Limit max widths to avoid overflow
     cols.project = Math.min(cols.project, 20);
     cols.file = Math.min(cols.file, 20);
-    cols.name = Math.min(cols.name, 20);
-    cols.type = Math.min(cols.type, 10);
-    const summaryWidth = 40;
+    cols.symbol = Math.min(cols.symbol, 30);
+    const summaryWidth = 50;
 
     const header = 
       chalk.bold.underline(
         "  " +
         "Context".padEnd(cols.project) + "  " +
         "File".padEnd(cols.file) + "  " +
-        "Line".padEnd(cols.line) + "  " +
-        "Symbol".padEnd(cols.name) + "  " +
-        "Type".padEnd(cols.type) + "  " +
+        "Symbol".padEnd(cols.symbol) + "  " +
         "Summary"
       );
     
@@ -48,9 +43,7 @@ export async function interactiveSearch(query, collection, projectName) {
     const choices = results.map((r, i) => {
       const projectContext = `${r.collection}/${r.projectName}`.substring(0, cols.project).padEnd(cols.project);
       const fileName = path.basename(r.filePath).substring(0, cols.file).padEnd(cols.file);
-      const lineInfo = String(r.startLine).padEnd(cols.line);
-      const symbolName = r.name.substring(0, cols.name).padEnd(cols.name);
-      const typeInfo = r.type.substring(0, cols.type).padEnd(cols.type);
+      const symbolInfo = `${r.type}:${r.name}`.substring(0, cols.symbol).padEnd(cols.symbol);
       
       // Truncated summary for the column
       const summaryText = (r.summary || r.content.replace(/\n/g, " "))
@@ -62,11 +55,9 @@ export async function interactiveSearch(query, collection, projectName) {
         message: 
           chalk.magenta(projectContext) + "  " +
           chalk.green(fileName) + "  " +
-          chalk.dim(lineInfo) + "  " +
-          chalk.bold(symbolName) + "  " +
-          chalk.blue(typeInfo) + "  " +
+          chalk.bold(symbolInfo) + "  " +
           chalk.italic.dim(summaryText),
-        hint: `\n      ${chalk.cyan("Score:")} ${chalk.dim(r.rerankScore.toFixed(4))}`
+        hint: `\n      ${chalk.cyan("Score:")} ${chalk.dim(r.rerankScore.toFixed(4))} ${chalk.dim(`(Line ${r.startLine})`)}`
       };
     });
 
