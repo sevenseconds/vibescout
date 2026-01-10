@@ -62,4 +62,30 @@ export class CloudflareProvider implements EmbeddingProvider, SummarizerProvider
       return "";
     }
   }
+
+  async generateResponse(prompt: string, context: string): Promise<string> {
+    try {
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/ai/run/${this.modelName || "@cf/meta/llama-3-8b-instruct"}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${this.apiToken}` },
+          body: JSON.stringify({
+            messages: [
+              { role: "system", content: "You are a code assistant. Answer using the provided context." },
+              { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
+            ]
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error(`Cloudflare error: ${response.statusText}`);
+
+      const data = await response.json() as { result: { response: string } };
+      return data.result.response.trim();
+    } catch (err: any) {
+      logger.error(`Cloudflare Response generation failed: ${err.message}`);
+      return "Cloudflare failed to generate response.";
+    }
+  }
 }

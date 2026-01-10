@@ -6,6 +6,7 @@ export interface EmbeddingProvider {
 export interface SummarizerProvider {
   name: string;
   summarize(text: string): Promise<string>;
+  generateResponse(prompt: string, context: string): Promise<string>;
 }
 
 export interface ProviderConfig {

@@ -118,6 +118,10 @@ class SummarizerManager {
   async summarize(text: string): Promise<string> {
     return this.provider.summarize(text);
   }
+
+  async generateResponse(prompt: string, context: string): Promise<string> {
+    return this.provider.generateResponse(prompt, context);
+  }
 }
 
 export const embeddingManager = new EmbeddingManager();

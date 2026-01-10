@@ -70,4 +70,32 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
       return "";
     }
   }
+
+  async generateResponse(prompt: string, context: string): Promise<string> {
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.modelName,
+          messages: [
+            { role: "system", content: "You are a code assistant. Answer questions based on the provided code context." },
+            { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
+          ],
+          max_tokens: 500,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`OpenAI error: ${response.statusText}`);
+
+      const data = await response.json() as { choices: [{ message: { content: string } }] };
+      return data.choices[0].message.content.trim();
+    } catch (err: any) {
+      logger.error(`OpenAI Response generation failed: ${err.message}`);
+      return "OpenAI failed to generate response.";
+    }
+  }
 }

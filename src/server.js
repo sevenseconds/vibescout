@@ -11,6 +11,7 @@ import {
   handleIndexFolder, 
   handleSearchCode, 
   searchCode,
+  chatWithCode,
   indexSingleFile, 
   indexingProgress 
 } from "./core.js";
@@ -256,6 +257,16 @@ export async function handleApiRequest(req, res) {
       const results = await searchCode(query, collection, projectName);
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(results));
+      return true;
+    }
+
+    if (pathName === "/api/chat" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { query, collection, projectName } = JSON.parse(body);
+      const response = await chatWithCode(query, collection, projectName);
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ response }));
       return true;
     }
 

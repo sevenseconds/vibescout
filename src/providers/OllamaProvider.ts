@@ -55,4 +55,25 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
       return "";
     }
   }
+
+  async generateResponse(prompt: string, context: string): Promise<string> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
+        method: "POST",
+        body: JSON.stringify({
+          model: this.modelName,
+          prompt: `You are a code assistant. Use the following code context to answer the user's question.\n\nContext:\n${context}\n\nQuestion: ${prompt}`,
+          stream: false,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Ollama error: ${response.statusText}`);
+
+      const data = await response.json() as { response: string };
+      return data.response.trim();
+    } catch (err: any) {
+      logger.error(`Ollama Response generation failed: ${err.message}`);
+      return "Ollama failed to generate response.";
+    }
+  }
 }

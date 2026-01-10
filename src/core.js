@@ -232,6 +232,24 @@ Summary: ${r.summary || "N/A"}
 }
 
 /**
+ * RAG-based Chat Logic
+ */
+export async function chatWithCode(query, collection, projectName) {
+  const results = await searchCode(query, collection, projectName);
+  
+  if (results.length === 0) {
+    return "I couldn't find any relevant code to answer your question.";
+  }
+
+  // Format context for the LLM
+  const context = results.map(r => 
+    `File: ${r.filePath}\nProject: ${r.projectName}\nCode:\n${r.content}`
+  ).join("\n\n---\n\n");
+
+  return await summarizerManager.generateResponse(query, context);
+}
+
+/**
  * Helper to open file in default editor/browser
  */
 export async function openFile(filePath) {
