@@ -89,7 +89,7 @@ vibescout search "how do I handle authentication?"
 ```
 
 ### Options
-- `--mcp <mode>`: Specify the MCP transport mode. Options: `stdio` (default), `sse`, `http`.
+- `--mcp [mode]`: Specify the MCP transport mode. Options: `stdio` (default), `sse`, `http`.
 - `--models-path <path>`: Specify local path for models.
 - `--offline`: Force offline mode.
 - `--port <number>`: Port for `sse` or `http` server (default: 3000, can also be set via `PORT` env).
