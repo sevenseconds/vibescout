@@ -5,6 +5,8 @@ import { OllamaProvider } from "./providers/OllamaProvider.js";
 import { OpenAIProvider } from "./providers/OpenAIProvider.js";
 import { CloudflareProvider } from "./providers/CloudflareProvider.js";
 import { GeminiProvider } from "./providers/GeminiProvider.js";
+import { ZAIProvider } from "./providers/ZAIProvider.js";
+import { BedrockProvider } from "./providers/BedrockProvider.js";
 import { EmbeddingProvider, SummarizerProvider, ProviderConfig } from "./providers/base.js";
 
 export function configureEnvironment(modelsPath: string, offlineMode: boolean = false) {
@@ -38,6 +40,10 @@ export class EmbeddingManager {
       this.provider = new CloudflareProvider(config.modelName, config.accountId || "", config.apiKey || "");
     } else if (config.type === 'gemini') {
       this.provider = new GeminiProvider(config.modelName, config.apiKey || "");
+    } else if (config.type === 'zai') {
+      this.provider = new ZAIProvider(config.modelName, config.apiKey || "");
+    } else if (config.type === 'bedrock') {
+      this.provider = new BedrockProvider(config.modelName, config.awsRegion || "us-east-1", config.awsProfile);
     } else {
       this.provider = new LocalProvider(config.modelName);
     }
@@ -110,6 +116,10 @@ class SummarizerManager {
       this.provider = new CloudflareProvider(config.modelName, config.accountId || "", config.apiKey || "");
     } else if (config.type === 'gemini') {
       this.provider = new GeminiProvider(config.modelName, config.apiKey || "");
+    } else if (config.type === 'zai') {
+      this.provider = new ZAIProvider(config.modelName, config.apiKey || "");
+    } else if (config.type === 'bedrock') {
+      this.provider = new BedrockProvider(config.modelName, config.awsRegion || "us-east-1", config.awsProfile);
     } else {
       this.provider = new LocalProvider(config.modelName);
     }

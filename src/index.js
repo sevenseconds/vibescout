@@ -101,8 +101,11 @@ async function main() {
         (config.provider === "openai" || config.provider === "lmstudio") ? config.openaiBaseUrl : undefined,
       apiKey: config.provider === "gemini" ? config.geminiKey :
         config.provider === "cloudflare" ? config.cloudflareToken :
-          config.openaiKey,
-      accountId: config.cloudflareAccountId
+          config.provider === "zai" ? config.zaiKey :
+            config.openaiKey,
+      accountId: config.cloudflareAccountId,
+      awsRegion: config.awsRegion,
+      awsProfile: config.awsProfile
     };
 
     await embeddingManager.setProvider(providerConfig);

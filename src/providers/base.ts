@@ -15,9 +15,11 @@ export interface SummarizerProvider {
 }
 
 export interface ProviderConfig {
-  type: 'local' | 'ollama' | 'openai' | 'cloudflare' | 'gemini';
+  type: 'local' | 'ollama' | 'openai' | 'cloudflare' | 'gemini' | 'zai' | 'bedrock';
   modelName: string;
   baseUrl?: string;
   apiKey?: string;
   accountId?: string;
+  awsRegion?: string;
+  awsProfile?: string;
 }

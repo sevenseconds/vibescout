@@ -27,6 +27,9 @@ const DEFAULT_CONFIG = {
   cloudflareToken: "",
   cloudflareVectorizeIndex: "",
   geminiKey: "",
+  zaiKey: "",
+  awsRegion: "us-east-1",
+  awsProfile: "default",
   port: 3000,
   summarize: true,
   verbose: false
@@ -64,23 +67,13 @@ export async function interactiveConfig() {
         { name: "lmstudio", message: "LM Studio (Local OpenAI-compatible)" },
         { name: "openai", message: "OpenAI (Cloud)" },
         { name: "gemini", message: "Google Gemini (Cloud)" },
+        { name: "zai", message: "Z.AI (BigModel.cn)" },
+        { name: "bedrock", message: "AWS Bedrock (Cloud)" },
         { name: "cloudflare", message: "Cloudflare Workers AI (Cloud)" }
       ],
-      initial: ["local", "ollama", "lmstudio", "openai", "gemini", "cloudflare"].indexOf(currentConfig.provider)
+      initial: ["local", "ollama", "lmstudio", "openai", "gemini", "zai", "bedrock", "cloudflare"].indexOf(currentConfig.provider)
     });
     const provider = await providerPrompt.run();
-
-    // 2. Select DB Provider
-    const dbProviderPrompt = new Select({
-      name: "dbProvider",
-      message: "Select Database Provider (Vectors):",
-      choices: [
-        { name: "local", message: "Local (LanceDB - Built-in)" },
-        { name: "cloudflare", message: "Cloudflare Vectorize (Cloud)" }
-      ],
-      initial: ["local", "cloudflare"].indexOf(currentConfig.dbProvider)
-    });
-    const dbProvider = await dbProviderPrompt.run();
 
     let embeddingModel = currentConfig.embeddingModel;
     let ollamaUrl = currentConfig.ollamaUrl;
@@ -90,6 +83,9 @@ export async function interactiveConfig() {
     let cloudflareToken = currentConfig.cloudflareToken;
     let cloudflareVectorizeIndex = currentConfig.cloudflareVectorizeIndex;
     let geminiKey = currentConfig.geminiKey;
+    let zaiKey = currentConfig.zaiKey;
+    let awsRegion = currentConfig.awsRegion;
+    let awsProfile = currentConfig.awsProfile;
 
     if (provider === "local") {
       const modelPrompt = new Select({
@@ -138,6 +134,32 @@ export async function interactiveConfig() {
       openaiKey = answers.key;
       openaiBaseUrl = answers.baseUrl;
       embeddingModel = answers.model;
+    } else if (provider === "zai") {
+      const zaiForm = new Form({
+        name: "zai",
+        message: "Z.AI Configuration:",
+        choices: [
+          { name: "key", message: "API Key", initial: currentConfig.zaiKey },
+          { name: "model", message: "Model Name (e.g. glm-4)", initial: currentConfig.embeddingModel }
+        ]
+      });
+      const answers = await zaiForm.run();
+      zaiKey = answers.key;
+      embeddingModel = answers.model;
+    } else if (provider === "bedrock") {
+      const bedrockForm = new Form({
+        name: "bedrock",
+        message: "AWS Bedrock Configuration:",
+        choices: [
+          { name: "region", message: "AWS Region", initial: currentConfig.awsRegion },
+          { name: "profile", message: "AWS Profile", initial: currentConfig.awsProfile },
+          { name: "model", message: "Model ID (e.g. anthropic.claude-3-sonnet-20240229-v1:0)", initial: currentConfig.embeddingModel }
+        ]
+      });
+      const answers = await bedrockForm.run();
+      awsRegion = answers.region;
+      awsProfile = answers.profile;
+      embeddingModel = answers.model;
     } else if (provider === "gemini") {
       const geminiForm = new Form({
         name: "gemini",
@@ -166,7 +188,18 @@ export async function interactiveConfig() {
       embeddingModel = answers.model;
     }
 
-    // Additional configuration if DB provider is cloudflare
+    // 2. Select DB Provider
+    const dbProviderPrompt = new Select({
+      name: "dbProvider",
+      message: "Select Database Provider (Vectors):",
+      choices: [
+        { name: "local", message: "Local (LanceDB - Built-in)" },
+        { name: "cloudflare", message: "Cloudflare Vectorize (Cloud)" }
+      ],
+      initial: ["local", "cloudflare"].indexOf(currentConfig.dbProvider)
+    });
+    const dbProvider = await dbProviderPrompt.run();
+
     if (dbProvider === "cloudflare") {
       const vectorizeForm = new Form({
         name: "vectorize",
@@ -218,6 +251,9 @@ export async function interactiveConfig() {
       cloudflareToken,
       cloudflareVectorizeIndex,
       geminiKey,
+      zaiKey,
+      awsRegion,
+      awsProfile,
       modelsPath: answers.modelsPath,
       port: parseInt(answers.port) || 3000,
       summarize,
