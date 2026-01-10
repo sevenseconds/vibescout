@@ -23,7 +23,7 @@ export async function interactiveSearch(query, collection, projectName) {
       const typeInfo = chalk.blue(`[${r.type}]`);
       const scoreInfo = chalk.dim(`(${r.rerankScore.toFixed(2)})`);
       const symbolName = chalk.bold(r.name);
-      const project = chalk.magenta(`@${r.projectName}`);
+      const projectContext = chalk.magenta(`@${r.collection}/${r.projectName}`);
 
       // Create a nice preview hint
       let preview = "";
@@ -35,7 +35,7 @@ export async function interactiveSearch(query, collection, projectName) {
 
       return {
         name: String(i),
-        message: `${fileName}${lineInfo} ${symbolName} ${typeInfo} ${project}`,
+        message: `${fileName}${lineInfo} ${symbolName} ${typeInfo} ${projectContext}`,
         hint: `\n    ${preview} ${scoreInfo}`
       };
     });
