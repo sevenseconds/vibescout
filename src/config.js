@@ -96,7 +96,7 @@ export async function interactiveConfig() {
     if (!newConfig.modelsPath) {
       console.log(`Models will be stored in default location: ${env.cacheDir}`);
     }
-  } catch (err) {
+  } catch {
     console.log("\nConfig update cancelled.");
   }
 }

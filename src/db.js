@@ -257,7 +257,7 @@ export async function listKnowledgeBase() {
   return Object.fromEntries(Object.entries(projects).map(([col, projs]) => [col, Array.from(projs)]));
 }
 
-export async function getProjectFiles(projectName) {
+export async function getProjectFiles() {
   const hashes = await loadHashes();
   return Object.keys(hashes);
 }
@@ -282,7 +282,7 @@ export async function compactDatabase() {
   try {
     await table.cleanupOldVersions();
     await table.compactFiles();
-  } catch (err) {
+  } catch {
     // Some versions might not support these yet or require specific params
   }
 

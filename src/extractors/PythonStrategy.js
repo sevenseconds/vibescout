@@ -102,8 +102,6 @@ export const PythonStrategy = {
         const sourceNode = node.childForFieldName("module_name");
         if (sourceNode) {
           const source = sourceNode.text;
-          const symbols = [];
-          const list = node.children.find(c => c.type === "dotted_name" || c.type === "aliased_import" || c.type === "wildcard_import");
           // Simple extraction for now
           metadata.imports.push({ source, symbols: [] });
         }

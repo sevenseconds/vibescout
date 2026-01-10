@@ -202,7 +202,7 @@ Summary: ${r.summary || "N/A"}
 /**
  * Helper to open file in default editor/browser
  */
-export async function openFile(filePath, line = 1) {
+export async function openFile(filePath) {
   const platform = process.platform;
   try {
     if (platform === "darwin") {

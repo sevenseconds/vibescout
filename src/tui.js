@@ -70,7 +70,7 @@ export async function interactiveSearch(query, collection, projectName) {
 
       const next = await nextAction.run();
       if (next === "back") return showResults();
-    } catch (err) {
+    } catch {
       // Cancelled
     }
   }

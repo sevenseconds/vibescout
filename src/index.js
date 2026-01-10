@@ -7,7 +7,7 @@ import { Command } from "commander";
 import { logger, LogLevel } from "./logger.js";
 import { configureEnvironment, embeddingManager } from "./embeddings.js";
 import { closeDb, compactDatabase } from "./db.js";
-import { handleIndexFolder, handleSearchCode } from "./core.js";
+import { handleIndexFolder } from "./core.js";
 import { server } from "./server.js";
 import { loadConfig, interactiveConfig } from "./config.js";
 import { interactiveSearch } from "./tui.js";
