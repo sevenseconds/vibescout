@@ -35,11 +35,11 @@ export class EmbeddingManager {
       this.pipe = await pipeline("feature-extraction", this.modelName, {
         progress_callback: (progress) => {
           if (progress.status === "progress") {
-             console.error(`[Embedding] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+            console.error(`[Embedding] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
           }
         }
       });
-      console.error(`[Embedding] Model loaded.`);
+      console.error("[Embedding] Model loaded.");
     }
     return this.pipe;
   }
@@ -61,13 +61,13 @@ class RerankerManager {
     if (!this.pipe) {
       console.error(`[Reranker] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
       this.pipe = await pipeline("text-classification", this.modelName, {
-         progress_callback: (progress) => {
+        progress_callback: (progress) => {
           if (progress.status === "progress") {
-             console.error(`[Reranker] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+            console.error(`[Reranker] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
           }
         }
       });
-      console.error(`[Reranker] Model loaded.`);
+      console.error("[Reranker] Model loaded.");
     }
     return this.pipe;
   }
@@ -100,13 +100,13 @@ class SummarizerManager {
     if (!this.pipe) {
       console.error(`[Summarizer/BART] Loading model: ${this.modelName} from ${env.localModelPath || "Hugging Face"}...`);
       this.pipe = await pipeline("summarization", this.modelName, {
-         progress_callback: (progress) => {
+        progress_callback: (progress) => {
           if (progress.status === "progress") {
-             console.error(`[Summarizer/BART] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
+            console.error(`[Summarizer/BART] Loading ${progress.file}: ${Math.round(progress.progress)}%`);
           }
         }
       });
-      console.error(`[Summarizer/BART] Model loaded.`);
+      console.error("[Summarizer/BART] Model loaded.");
     }
     return this.pipe;
   }

@@ -18,6 +18,7 @@ import {
   getStoredModel, 
   getFileHash, 
   bulkUpdateFileHashes,
+  updateFileHash,
   deleteFileData, 
   getProjectFiles,
   updateDependencies,
@@ -33,7 +34,7 @@ import { Command } from "commander";
 const server = new Server(
   {
     name: "vibescout",
-    version: "1.9.0",
+    version: "0.5.0",
   },
   {
     capabilities: {
@@ -214,34 +215,35 @@ export async function handleSearchCode(query, collection, projectName) {
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
-            {
-              name: "index_folder",
-              description: "Index a folder with Contextual AI Enrichment.",
-              inputSchema: {
-                type: "object",
-                properties: {
-                  folderPath: { type: "string" },
-                  projectName: { type: "string" },
-                  collection: { type: "string" },
-                  summarize: { 
-                    type: "boolean", 
-                    description: "Use Hierarchical Context (pre-summarize functions). Slower but significantly more accurate. Default is true." 
-                  },
-                  background: {
-                    type: "boolean",
-                    description: "If true, starts indexing in the background and returns immediately. Recommended for large projects."
-                  }
-                },
-                required: ["folderPath"],
-              },
+      {
+        name: "index_folder",
+        description: "Index a folder with Contextual AI Enrichment.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            folderPath: { type: "string" },
+            projectName: { type: "string" },
+            collection: { type: "string" },
+            summarize: {
+              type: "boolean",
+              description: "Use Hierarchical Context (pre-summarize functions). Slower but significantly more accurate. Default is true."
             },
-            {
-              name: "get_indexing_status",
-              description: "Check the progress of the current background indexing task.",
-              inputSchema: { type: "object", properties: {} },
-            },
-            {
-              name: "search_code",        description: "Search across knowledge base with Reranking.",
+            background: {
+              type: "boolean",
+              description: "If true, starts indexing in the background and returns immediately. Recommended for large projects."
+            }
+          },
+          required: ["folderPath"],
+        },
+      },
+      {
+        name: "get_indexing_status",
+        description: "Check the progress of the current background indexing task.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "search_code",
+        description: "Search across knowledge base with Reranking.",
         inputSchema: {
           type: "object",
           properties: {
@@ -282,7 +284,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["symbolName"],
         },
       },
-      { name: "list_knowledge_base", description: "List all indexed projects", inputSchema: { type: "object", properties: {} } },
+      {
+        name: "list_knowledge_base",
+        description: "List all indexed projects",
+        inputSchema: { type: "object", properties: {} }
+      },
       {
         name: "watch_folder",
         description: "Watch a folder for real-time indexing",
@@ -301,7 +307,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["filePath", "startLine", "endLine"],
         },
       },
-      { name: "get_current_model", description: "Get active models", inputSchema: { type: "object", properties: {} } },
+      {
+        name: "get_current_model",
+        description: "Get active models",
+        inputSchema: { type: "object", properties: {} }
+      },
       {
         name: "set_model",
         description: "Switch Embedding model (e.g., Xenova/bge-small-en-v1.5). Note: You should clear the index after switching models.",
@@ -311,7 +321,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["modelName"],
         },
       },
-      { name: "clear_index", description: "Clear entire database", inputSchema: { type: "object", properties: {} } },
+      {
+        name: "clear_index",
+        description: "Clear entire database",
+        inputSchema: { type: "object", properties: {} }
+      },
     ],
   };
 });
@@ -371,8 +385,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         interval: 1000
       });
       watcher.on("add", f => indexSingleFile(f, derivedProjectName, args.collection || "default"))
-             .on("change", f => indexSingleFile(f, derivedProjectName, args.collection || "default"))
-             .on("unlink", f => deleteFileData(f));
+        .on("change", f => indexSingleFile(f, derivedProjectName, args.collection || "default"))
+        .on("unlink", f => deleteFileData(f));
       watchers.set(absolutePath, watcher);
       return { content: [{ type: "text", text: `Watching ${derivedProjectName}` }] };
     }
@@ -456,7 +470,6 @@ async function main() {
       const result = await handleIndexFolder(folderPath, projectName, "default", true, false);
       console.log(result.content[0].text);
       await closeDb();
-      process.exit(0);
     });
 
   program
@@ -468,20 +481,18 @@ async function main() {
       const result = await handleSearchCode(query);
       console.log(result.content[0].text);
       await closeDb();
-      process.exit(0);
     });
 
   // Default action: Start MCP Server
   program.action(async () => {
-    // If we are here, no subcommand was matched.
-    // However, if the user provided arguments that didn't match a command, commander might output help.
-    // We want to run the server if NO command is provided.
-    // But program.action on the root catches everything that isn't a subcommand if we aren't careful.
-    // Actually, simply calling parseAsync with no args defaults to help? No.
-    
-    // Check if we have arguments other than options.
-    // If the user just runs `vibescout`, we want the server.
-    
+    // If running in a terminal (interactive mode), show help instead of hanging.
+    // The MCP server requires input via stdin (pipes), so running it directly in a TTY 
+    // without input redirection is usually unintentional.
+    if (process.stdin.isTTY) {
+      program.help();
+      return;
+    }
+
     const opts = program.opts();
     const transport = new StdioServerTransport();
     await server.connect(transport);
@@ -489,14 +500,7 @@ async function main() {
     if (opts.modelsPath) console.error(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
   });
 
-  // Handle the case where the user runs with NO arguments (this invokes the root action)
-  if (process.argv.length === 2) {
-      // Manually trigger the server start if needed, or rely on program.action?
-      // program.parseAsync(process.argv) will trigger action handler.
-  }
-  
   await program.parseAsync(process.argv);
-  process.exit(0);
 }
 
 main().catch(console.error);
