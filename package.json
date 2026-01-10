@@ -4,7 +4,7 @@
   "description": "A high-performance local MCP server for semantic code search, summarization, and RAG.",
   "main": "src/index.js",
   "bin": {
-    "vibescout": "src/index.js"
+    "vibescout": "bin/vibescout.js"
   },
   "scripts": {
     "start": "node src/index.js",
@@ -55,7 +55,6 @@
     "@eslint/js": "^9.39.2",
     "@types/node": "^25.0.5",
     "eslint": "^9.39.2",
-    "tsx": "^4.21.0",
     "vitest": "^4.0.16"
   }
 }
