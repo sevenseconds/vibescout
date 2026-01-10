@@ -16,8 +16,17 @@ const RECOMMENDED_MODELS = [
 ];
 
 const DEFAULT_CONFIG = {
+  provider: "local",
+  dbProvider: "local",
   modelsPath: "",
   embeddingModel: "Xenova/bge-small-en-v1.5",
+  ollamaUrl: "http://localhost:11434",
+  openaiKey: "",
+  openaiBaseUrl: "https://api.openai.com/v1",
+  cloudflareAccountId: "",
+  cloudflareToken: "",
+  cloudflareVectorizeIndex: "",
+  geminiKey: "",
   port: 3000,
   summarize: true,
   verbose: false
@@ -45,46 +54,170 @@ export async function interactiveConfig() {
   const currentConfig = await loadConfig();
 
   try {
-    // 1. Select Model
-    const modelPrompt = new Select({
-      name: "embeddingModel",
-      message: "Select Embedding Model:",
-      choices: RECOMMENDED_MODELS,
-      initial: RECOMMENDED_MODELS.findIndex(m => m.name === currentConfig.embeddingModel) || 0
+    // 1. Select AI Provider
+    const providerPrompt = new Select({
+      name: "provider",
+      message: "Select AI Provider (Embeddings/Summary):",
+      choices: [
+        { name: "local", message: "Local (Transformers.js - Built-in)" },
+        { name: "ollama", message: "Ollama (Local API)" },
+        { name: "lmstudio", message: "LM Studio (Local OpenAI-compatible)" },
+        { name: "openai", message: "OpenAI (Cloud)" },
+        { name: "gemini", message: "Google Gemini (Cloud)" },
+        { name: "cloudflare", message: "Cloudflare Workers AI (Cloud)" }
+      ],
+      initial: ["local", "ollama", "lmstudio", "openai", "gemini", "cloudflare"].indexOf(currentConfig.provider)
     });
-    const embeddingModel = await modelPrompt.run();
+    const provider = await providerPrompt.run();
 
-    // 2. Basic settings via Form
+    // 2. Select DB Provider
+    const dbProviderPrompt = new Select({
+      name: "dbProvider",
+      message: "Select Database Provider (Vectors):",
+      choices: [
+        { name: "local", message: "Local (LanceDB - Built-in)" },
+        { name: "cloudflare", message: "Cloudflare Vectorize (Cloud)" }
+      ],
+      initial: ["local", "cloudflare"].indexOf(currentConfig.dbProvider)
+    });
+    const dbProvider = await dbProviderPrompt.run();
+
+    let embeddingModel = currentConfig.embeddingModel;
+    let ollamaUrl = currentConfig.ollamaUrl;
+    let openaiKey = currentConfig.openaiKey;
+    let openaiBaseUrl = currentConfig.openaiBaseUrl;
+    let cloudflareAccountId = currentConfig.cloudflareAccountId;
+    let cloudflareToken = currentConfig.cloudflareToken;
+    let cloudflareVectorizeIndex = currentConfig.cloudflareVectorizeIndex;
+    let geminiKey = currentConfig.geminiKey;
+
+    if (provider === "local") {
+      const modelPrompt = new Select({
+        name: "embeddingModel",
+        message: "Select Local Embedding Model:",
+        choices: RECOMMENDED_MODELS,
+        initial: RECOMMENDED_MODELS.findIndex(m => m.name === currentConfig.embeddingModel) || 0
+      });
+      embeddingModel = await modelPrompt.run();
+    } else if (provider === "ollama") {
+      const ollamaForm = new Form({
+        name: "ollama",
+        message: "Ollama Configuration:",
+        choices: [
+          { name: "url", message: "Ollama URL", initial: currentConfig.ollamaUrl },
+          { name: "model", message: "Ollama Model Name", initial: currentConfig.embeddingModel }
+        ]
+      });
+      const answers = await ollamaForm.run();
+      ollamaUrl = answers.url;
+      embeddingModel = answers.model;
+    } else if (provider === "lmstudio") {
+      const lmForm = new Form({
+        name: "lmstudio",
+        message: "LM Studio Configuration:",
+        choices: [
+          { name: "url", message: "Base URL", initial: currentConfig.openaiBaseUrl || "http://localhost:1234/v1" },
+          { name: "model", message: "Model Name", initial: currentConfig.embeddingModel }
+        ]
+      });
+      const answers = await lmForm.run();
+      openaiBaseUrl = answers.url;
+      embeddingModel = answers.model;
+      openaiKey = "not-needed";
+    } else if (provider === "openai") {
+      const openaiForm = new Form({
+        name: "openai",
+        message: "OpenAI Configuration:",
+        choices: [
+          { name: "key", message: "API Key", initial: currentConfig.openaiKey },
+          { name: "baseUrl", message: "Base URL", initial: currentConfig.openaiBaseUrl },
+          { name: "model", message: "Model Name", initial: currentConfig.embeddingModel }
+        ]
+      });
+      const answers = await openaiForm.run();
+      openaiKey = answers.key;
+      openaiBaseUrl = answers.baseUrl;
+      embeddingModel = answers.model;
+    } else if (provider === "gemini") {
+      const geminiForm = new Form({
+        name: "gemini",
+        message: "Google Gemini Configuration:",
+        choices: [
+          { name: "key", message: "API Key", initial: currentConfig.geminiKey },
+          { name: "model", message: "Model Name", initial: currentConfig.embeddingModel || "text-embedding-004" }
+        ]
+      });
+      const answers = await geminiForm.run();
+      geminiKey = answers.key;
+      embeddingModel = answers.model;
+    } else if (provider === "cloudflare") {
+      const cfForm = new Form({
+        name: "cloudflare",
+        message: "Cloudflare Workers AI Configuration:",
+        choices: [
+          { name: "accountId", message: "Account ID", initial: currentConfig.cloudflareAccountId },
+          { name: "token", message: "API Token", initial: currentConfig.cloudflareToken },
+          { name: "model", message: "Embedding Model", initial: currentConfig.embeddingModel || "@cf/baai/bge-small-en-v1.5" }
+        ]
+      });
+      const answers = await cfForm.run();
+      cloudflareAccountId = answers.accountId;
+      cloudflareToken = answers.token;
+      embeddingModel = answers.model;
+    }
+
+    // Additional configuration if DB provider is cloudflare
+    if (dbProvider === "cloudflare") {
+      const vectorizeForm = new Form({
+        name: "vectorize",
+        message: "Cloudflare Vectorize Configuration:",
+        choices: [
+          { name: "accountId", message: "Account ID", initial: cloudflareAccountId || currentConfig.cloudflareAccountId },
+          { name: "token", message: "API Token", initial: cloudflareToken || currentConfig.cloudflareToken },
+          { name: "indexName", message: "Index Name", initial: currentConfig.cloudflareVectorizeIndex }
+        ]
+      });
+      const answers = await vectorizeForm.run();
+      cloudflareAccountId = answers.accountId;
+      cloudflareToken = answers.token;
+      cloudflareVectorizeIndex = answers.indexName;
+    }
+
+    // 3. Basic settings via Form
     const formPrompt = new Form({
       name: "settings",
-      message: "VibeScout Settings (Use arrows to move, type to edit):",
+      message: "General Settings:",
       choices: [
-        { name: "modelsPath", message: "Models Path", initial: currentConfig.modelsPath, hint: `(Default: ${env.cacheDir})` },
+        { name: "modelsPath", message: "Local Cache Path (Transformers.js only)", initial: currentConfig.modelsPath, hint: `(Default: ${env.cacheDir})` },
         { name: "port", message: "Server Port", initial: String(currentConfig.port) }
       ]
     });
     const answers = await formPrompt.run();
 
-    // 3. Feature Toggles
+    // 4. Feature Toggles
     const summarizePrompt = new Toggle({
-      message: "Enable AI Summarization (Contextual Enrichment)?",
-      enabled: "Yes",
-      disabled: "No",
+      message: "Enable AI Summarization?",
       initial: currentConfig.summarize
     });
     const summarize = await summarizePrompt.run();
 
     const verbosePrompt = new Toggle({
       message: "Enable Verbose Debug Logs?",
-      enabled: "Yes",
-      disabled: "No",
       initial: currentConfig.verbose
     });
     const verbose = await verbosePrompt.run();
     
-    // Type conversion and merge
     const newConfig = {
+      provider,
+      dbProvider,
       embeddingModel,
+      ollamaUrl,
+      openaiKey,
+      openaiBaseUrl,
+      cloudflareAccountId,
+      cloudflareToken,
+      cloudflareVectorizeIndex,
+      geminiKey,
       modelsPath: answers.modelsPath,
       port: parseInt(answers.port) || 3000,
       summarize,
@@ -93,9 +226,6 @@ export async function interactiveConfig() {
 
     await saveConfig(newConfig);
     console.log(`\nConfig saved to ${CONFIG_FILE}`);
-    if (!newConfig.modelsPath) {
-      console.log(`Models will be stored in default location: ${env.cacheDir}`);
-    }
   } catch {
     console.log("\nConfig update cancelled.");
   }

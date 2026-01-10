@@ -1,0 +1,29 @@
+export interface VectorResult {
+  collection: string;
+  projectName: string;
+  name: string;
+  type: string;
+  filePath: string;
+  startLine: number;
+  endLine: number;
+  comments: string;
+  content: string;
+  summary?: string;
+  rerankScore?: number;
+  vector?: number[];
+}
+
+export interface VectorDBProvider {
+  name: string;
+  insert(data: VectorResult[]): Promise<void>;
+  search(embedding: number[], options: { collection?: string; projectName?: string; limit?: number }): Promise<VectorResult[]>;
+  deleteByFile(filePath: string): Promise<void>;
+  clear(): Promise<void>;
+}
+
+export interface DBConfig {
+  type: 'local' | 'cloudflare';
+  accountId?: string;
+  apiToken?: string;
+  indexName?: string;
+}

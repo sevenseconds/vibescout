@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
-import { createOrUpdateTable, search, listKnowledgeBase, clearDatabase } from "../src/db.js";
+import { createOrUpdateTable, search, listKnowledgeBase, clearDatabase, updateDependencies } from "../src/db.js";
 
 describe("LanceDB Manager with Multi-Project Support", () => {
   beforeEach(async () => {
@@ -43,6 +43,10 @@ describe("LanceDB Manager with Multi-Project Support", () => {
 
     await createOrUpdateTable(data1, "test-model");
     await createOrUpdateTable(data2, "test-model");
+
+    // Populate metadata for listKnowledgeBase
+    await updateDependencies("a.ts", "Proj-A", "Work", { imports: [], exports: [] });
+    await updateDependencies("b.ts", "Proj-B", "Personal", { imports: [], exports: [] });
     
     // Test Knowledge Base Listing
     const kb = await listKnowledgeBase();

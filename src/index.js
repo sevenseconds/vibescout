@@ -5,8 +5,8 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import http from "http";
 import { Command } from "commander";
 import { logger, LogLevel } from "./logger.js";
-import { configureEnvironment, embeddingManager } from "./embeddings.js";
-import { closeDb, compactDatabase } from "./db.js";
+import { configureEnvironment, embeddingManager, summarizerManager } from "./embeddings.js";
+import { closeDb, compactDatabase, initDB } from "./db.js";
 import { handleIndexFolder } from "./core.js";
 import { server } from "./server.js";
 import { loadConfig, interactiveConfig } from "./config.js";
@@ -34,9 +34,28 @@ async function main() {
       configureEnvironment(opts.modelsPath, opts.offline);
     }
 
-    if (config.embeddingModel) {
-      await embeddingManager.setModel(config.embeddingModel);
-    }
+    // Initialize AI Providers from Config
+    const providerConfig = {
+      type: (config.provider === "lmstudio" ? "openai" : config.provider) || "local",
+      modelName: config.embeddingModel || "Xenova/bge-small-en-v1.5",
+      baseUrl: config.provider === "ollama" ? config.ollamaUrl :
+        (config.provider === "openai" || config.provider === "lmstudio") ? config.openaiBaseUrl : undefined,
+      apiKey: config.provider === "gemini" ? config.geminiKey :
+        config.provider === "cloudflare" ? config.cloudflareToken :
+          config.openaiKey,
+      accountId: config.cloudflareAccountId
+    };
+
+    await embeddingManager.setProvider(providerConfig);
+    await summarizerManager.setProvider(providerConfig);
+
+    // Initialize DB Provider from Config
+    await initDB({
+      type: config.dbProvider || "local",
+      accountId: config.cloudflareAccountId,
+      apiToken: config.cloudflareToken,
+      indexName: config.cloudflareVectorizeIndex
+    });
   });
 
   program

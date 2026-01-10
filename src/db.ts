@@ -2,6 +2,9 @@ import * as lancedb from "@lancedb/lancedb";
 import path from "path";
 import fs from "fs-extra";
 import os from "os";
+import { LanceDBProvider } from "./db/LanceDBProvider.js";
+import { VectorizeProvider } from "./db/VectorizeProvider.js";
+import { VectorDBProvider, DBConfig, VectorResult } from "./db/base.js";
 
 const HOME_DIR = os.homedir();
 const GLOBAL_DATA_DIR = path.join(HOME_DIR, ".vibescout", "data");
@@ -14,23 +17,38 @@ const DB_ROOT = isTest
 const DB_PATH = DB_ROOT;
 const HASH_FILE = path.join(DB_PATH, "hashes.json");
 
-let activeDb = null;
+let activeMetaDb: lancedb.Connection | null = null;
+let vectorProvider: VectorDBProvider | null = null;
 
-async function getDb() {
+async function getMetaDb() {
   await fs.ensureDir(DB_PATH);
-  if (!activeDb) {
-    activeDb = await lancedb.connect(DB_PATH);
+  if (!activeMetaDb) {
+    activeMetaDb = await lancedb.connect(DB_PATH);
   }
-  return activeDb;
+  return activeMetaDb;
+}
+
+export async function initDB(config: DBConfig) {
+  if (config.type === 'cloudflare' && config.accountId && config.apiToken && config.indexName) {
+    vectorProvider = new VectorizeProvider(config.accountId, config.apiToken, config.indexName);
+  } else {
+    vectorProvider = new LanceDBProvider(DB_PATH);
+  }
+}
+
+function getProvider(): VectorDBProvider {
+  if (!vectorProvider) {
+    vectorProvider = new LanceDBProvider(DB_PATH);
+  }
+  return vectorProvider;
 }
 
 export async function getTable() {
-  const db = await getDb();
-  try {
-    return await db.openTable("code_search");
-  } catch {
-    return null;
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    return p.getTable();
   }
+  return null;
 }
 
 async function loadHashes() {
@@ -40,14 +58,13 @@ async function loadHashes() {
   return {};
 }
 
-async function saveHashes(hashes) {
+async function saveHashes(hashes: any) {
   await fs.ensureDir(DB_PATH);
   await fs.writeJson(HASH_FILE, hashes);
 }
 
-export async function createOrUpdateTable(data, modelName) {
-  const db = await getDb();
-  const tableName = "code_search";
+export async function createOrUpdateTable(data: VectorResult[], modelName: string) {
+  const db = await getMetaDb();
   const metaTableName = "metadata";
   const tables = await db.tableNames();
   
@@ -60,31 +77,16 @@ export async function createOrUpdateTable(data, modelName) {
   } else {
     try {
       await db.createTable(metaTableName, [{ model: modelName }]);
-    } catch (err) {
+    } catch (err: any) {
       if (!err.message.includes("already exists")) throw err;
     }
   }
 
-  if (tables.includes(tableName)) {
-    const table = await db.openTable(tableName);
-    await table.add(data);
-  } else {
-    try {
-      const table = await db.createTable(tableName, data);
-      await table.createIndex("content", { config: lancedb.Index.fts() });
-    } catch (err) {
-      if (err.message.includes("already exists")) {
-        const table = await db.openTable(tableName);
-        await table.add(data);
-      } else {
-        throw err;
-      }
-    }
-  }
+  await getProvider().insert(data);
 }
 
-export async function updateDependencies(filePath, projectName, collection, metadata) {
-  const db = await getDb();
+export async function updateDependencies(filePath: string, projectName: string, collection: string, metadata: any) {
+  const db = await getMetaDb();
   const depTableName = "dependencies";
   const tables = await db.tableNames();
   
@@ -103,7 +105,7 @@ export async function updateDependencies(filePath, projectName, collection, meta
   } else {
     try {
       await db.createTable(depTableName, [record]);
-    } catch (err) {
+    } catch (err: any) {
       if (err.message.includes("already exists")) {
         const table = await db.openTable(depTableName);
         await table.delete(`"filePath" = '${filePath}'`);
@@ -115,20 +117,23 @@ export async function updateDependencies(filePath, projectName, collection, meta
   }
 }
 
-export async function moveProjectToCollection(projectName, newCollection) {
-  const db = await getDb();
+export async function moveProjectToCollection(projectName: string, newCollection: string) {
+  const db = await getMetaDb();
   const tables = await db.tableNames();
   
-  // 1. Update code_search table
-  if (tables.includes("code_search")) {
-    const table = await db.openTable("code_search");
-    await table.update({
-      values: { collection: `'${newCollection}'` },
-      where: `"projectName" = '${projectName}'`
-    });
+  // 1. Update code_search table (if local)
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    const table = await p.getTable();
+    if (table) {
+      await table.update({
+        values: { collection: `'${newCollection}'` },
+        where: `"projectName" = '${projectName}'`
+      });
+    }
   }
 
-  // 2. Update dependencies table
+  // 2. Update dependencies table (always local)
   if (tables.includes("dependencies")) {
     const depTable = await db.openTable("dependencies");
     await depTable.update({
@@ -138,8 +143,8 @@ export async function moveProjectToCollection(projectName, newCollection) {
   }
 }
 
-export async function getFileDependencies(filePath) {
-  const db = await getDb();
+export async function getFileDependencies(filePath: string) {
+  const db = await getMetaDb();
   const tables = await db.tableNames();
   if (!tables.includes("dependencies")) return null;
   
@@ -153,8 +158,8 @@ export async function getFileDependencies(filePath) {
   };
 }
 
-export async function findSymbolUsages(symbolName) {
-  const db = await getDb();
+export async function findSymbolUsages(symbolName: string) {
+  const db = await getMetaDb();
   const tables = await db.tableNames();
   if (!tables.includes("dependencies")) return [];
   
@@ -163,22 +168,22 @@ export async function findSymbolUsages(symbolName) {
   
   return all.filter(row => {
     const imports = JSON.parse(row.imports);
-    return imports.some(imp => imp.symbols.includes(symbolName));
+    return imports.some((imp: any) => imp.symbols.includes(symbolName));
   }).map(row => ({ filePath: row.filePath, projectName: row.projectName, collection: row.collection }));
 }
 
-export async function getFileHash(filePath) {
+export async function getFileHash(filePath: string) {
   const hashes = await loadHashes();
   return hashes[filePath] || null;
 }
 
-export async function updateFileHash(filePath, hash) {
+export async function updateFileHash(filePath: string, hash: string) {
   const hashes = await loadHashes();
   hashes[filePath] = hash;
   await saveHashes(hashes);
 }
 
-export async function bulkUpdateFileHashes(updates) {
+export async function bulkUpdateFileHashes(updates: { filePath: string, hash: string }[]) {
   const hashes = await loadHashes();
   for (const { filePath, hash } of updates) {
     hashes[filePath] = hash;
@@ -186,11 +191,10 @@ export async function bulkUpdateFileHashes(updates) {
   await saveHashes(hashes);
 }
 
-export async function deleteFileData(filePath) {
-  const table = await getTable();
-  if (table) await table.delete(`"filePath" = '${filePath}'`);
+export async function deleteFileData(filePath: string) {
+  await getProvider().deleteByFile(filePath);
   
-  const db = await getDb();
+  const db = await getMetaDb();
   const tables = await db.tableNames();
   if (tables.includes("dependencies")) {
     const depTable = await db.openTable("dependencies");
@@ -202,42 +206,20 @@ export async function deleteFileData(filePath) {
   await saveHashes(hashes);
 }
 
-export async function hybridSearch(queryText, embedding, options = {}) {
-  const table = await getTable();
-  if (!table) return [];
-  const vectorResults = await table.vectorSearch(embedding).limit(options.limit ? options.limit * 2 : 20).toArray();
-  const ftsResults = await table.search(queryText).limit(options.limit ? options.limit * 2 : 20).toArray();
-  const seen = new Set();
-  const combined = [...ftsResults, ...vectorResults].filter(item => {
-    const id = `${item.filePath}-${item.startLine}-${item.name}`;
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-  let filteredResults = combined;
-  if (options.collection) filteredResults = filteredResults.filter(r => r.collection === options.collection);
-  if (options.projectName) filteredResults = filteredResults.filter(r => r.projectName === options.projectName);
-  return filteredResults.slice(0, options.limit || 5);
+export async function hybridSearch(queryText: string, embedding: number[], options = {}) {
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    return p.hybridSearch(queryText, embedding, options);
+  }
+  return p.search(embedding, options);
 }
 
-export async function search(embedding, options = {}) {
-  const table = await getTable();
-  if (!table) return [];
-  
-  const rawResults = await table
-    .vectorSearch(embedding)
-    .limit(options.limit ? options.limit * 5 : 50)
-    .toArray();
-    
-  let filteredResults = rawResults;
-  if (options.collection) filteredResults = filteredResults.filter(r => r.collection === options.collection);
-  if (options.projectName) filteredResults = filteredResults.filter(r => r.projectName === options.projectName);
-
-  return filteredResults.slice(0, options.limit || 5);
+export async function search(embedding: number[], options = {}) {
+  return getProvider().search(embedding, options);
 }
 
 export async function getStoredModel() {
-  const db = await getDb();
+  const db = await getMetaDb();
   const tables = await db.tableNames();
   if (!tables.includes("metadata")) return null;
   const metaTable = await db.openTable("metadata");
@@ -246,10 +228,13 @@ export async function getStoredModel() {
 }
 
 export async function listKnowledgeBase() {
-  const table = await getTable();
-  if (!table) return [];
+  const db = await getMetaDb();
+  const tables = await db.tableNames();
+  if (!tables.includes("dependencies")) return {};
+  
+  const table = await db.openTable("dependencies");
   const allData = await table.query().select(["collection", "projectName"]).toArray();
-  const projects = {};
+  const projects: Record<string, Set<string>> = {};
   allData.forEach(row => {
     if (!projects[row.collection]) projects[row.collection] = new Set();
     projects[row.collection].add(row.projectName);
@@ -263,9 +248,7 @@ export async function getProjectFiles() {
 }
 
 export async function compactDatabase() {
-  const table = await getTable();
-  if (!table) return { pruned: 0, optimized: false };
-
+  const p = getProvider();
   const hashes = await loadHashes();
   const filePaths = Object.keys(hashes);
   let pruned = 0;
@@ -277,13 +260,14 @@ export async function compactDatabase() {
     }
   }
 
-  // Optimize storage (Native LanceDB compaction)
-  // Note: cleanup() and compact() are available in modern LanceDB
-  try {
-    await table.cleanupOldVersions();
-    await table.compactFiles();
-  } catch {
-    // Some versions might not support these yet or require specific params
+  if (p instanceof LanceDBProvider) {
+    const table = await p.getTable();
+    if (table) {
+      try {
+        await table.cleanupOldVersions();
+        await table.compactFiles();
+      } catch { }
+    }
   }
 
   return { pruned, optimized: true };
@@ -291,22 +275,19 @@ export async function compactDatabase() {
 
 export async function clearDatabase() {
   await closeDb();
+  await getProvider().clear();
   if (await fs.pathExists(DB_PATH)) {
     try {
       await fs.remove(DB_PATH);
-    } catch {
-      // Ignore directory non-empty errors in parallel tests
-    }
+    } catch { }
   }
 }
 
 export async function closeDb() {
-  if (activeDb) {
-    // Note: Some versions of LanceDB JS might not have close(), 
-    // but we should attempt it or nullify the reference.
-    if (typeof activeDb.close === "function") {
-      await activeDb.close();
-    }
-    activeDb = null;
+  activeMetaDb = null;
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    await p.close();
   }
+  vectorProvider = null;
 }

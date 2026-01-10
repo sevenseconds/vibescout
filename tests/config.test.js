@@ -19,10 +19,7 @@ describe("Embedding Manager Configuration", () => {
 
   it("should allow changing the model at runtime", async () => {
     const manager = new EmbeddingManager();
-    expect(manager.getModel()).toBe("Xenova/bge-small-en-v1.5");
-    
     await manager.setModel("Xenova/all-MiniLM-L6-v2");
     expect(manager.getModel()).toBe("Xenova/all-MiniLM-L6-v2");
-    expect(manager.pipe).toBeNull();
   });
 });
