@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -7,7 +8,7 @@ import {
 import { glob } from "glob";
 import fs from "fs-extra";
 import { extractCodeBlocks } from "./extractor.js";
-import { embeddingManager, rerankerManager, summarizerManager } from "./embeddings.js";
+import { embeddingManager, rerankerManager, summarizerManager, configureEnvironment } from "./embeddings.js";
 import { 
   createOrUpdateTable, 
   hybridSearch, 
@@ -412,9 +413,27 @@ async function indexSingleFile(filePath, projectName, collection) {
 }
 
 async function main() {
+  const args = process.argv.slice(2);
+  let modelsPath = process.env.MODELS_PATH;
+  let offlineMode = process.env.OFFLINE_MODE === "true";
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--models-path" && args[i + 1]) {
+      modelsPath = args[i + 1];
+      i++;
+    } else if (args[i] === "--offline") {
+      offlineMode = true;
+    }
+  }
+
+  if (modelsPath) {
+    configureEnvironment(modelsPath, offlineMode);
+  }
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("Local Code Search MCP Server running");
+  if (modelsPath) console.error(`Using local models from: ${modelsPath}${offlineMode ? " (Offline Mode)" : ""}`);
 }
 
 main().catch(console.error);

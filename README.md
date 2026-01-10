@@ -63,45 +63,20 @@ Switch Embedding model (Options: `Xenova/all-MiniLM-L6-v2`, `Xenova/bge-small-en
 ### 11. `clear_index`
 Deletes the local database. Use this before switching models.
 
-## Docker
+## Installation
 
-You can run VibeScout in a container to keep your environment clean and isolated.
-
-### Using Docker Compose
-
-The easiest way to manage one or more projects is with `docker-compose.yml`.
-
-1.  **Mount your projects**: Edit `docker-compose.yml` to mount a parent directory containing your codebases:
-    ```yaml
-    volumes:
-      - ./data:/app/.lancedb
-      - /path/to/your/workspaces:/projects:ro
-    ```
-2.  **Start the server**:
-    ```bash
-    docker-compose up -d
-    ```
-
-### Handling Multiple Projects
-If you mount a root workspace folder (e.g., `~/Workspaces` to `/projects`), you can index any sub-folder by referring to its path **inside** the container.
-
-**Tip for LLMs**: When using VibeScout in Docker, you should provide context to your AI so it knows where to look. We provide templates (`CLAUDE.md`, `GEMINI.md`, `AGENTS.md`) that you can copy into your target projects.
-
-These files tell the AI:
-> "I am running VibeScout in Docker. My local projects are mounted at `/projects`. To index a project, use the path `/projects/<project-folder-name>`."
-
-### Using Docker CLI
+### Global Installation (Recommended)
+You can install VibeScout globally to use it as a standalone command:
 
 ```bash
-# Build the image
-docker build -t vibescout .
+# From the project directory
+npm install -g .
 
-# Run the container
-docker run -it \
-  -v $(pwd)/.lancedb:/app/.lancedb \
-  -v /path/to/your/workspaces:/projects:ro \
-  vibescout
+# Or directly from GitHub (if public)
+# npm install -g https://github.com/youruser/vibescout
 ```
+
+Once installed, you can run it anywhere using the `vibescout` command.
 
 ## Client Integration
 
@@ -112,20 +87,42 @@ Add the following to your configuration:
 {
   "mcpServers": {
     "vibescout": {
-      "command": "npm",
-      "args": ["start", "--prefix", "/path/to/your/project"],
-      "env": {
-        "EMBEDDING_MODEL": "Xenova/bge-small-en-v1.5"
+      "command": "vibescout",
+            "env": {
+              "EMBEDDING_MODEL": "Xenova/bge-small-en-v1.5",
+              "MODELS_PATH": "/path/to/your/local/models",
+              "OFFLINE_MODE": "true"
+            }
+          }
+        }
       }
-    }
-  }
-}
+      
+### Offline Mode & Custom Model Paths
+If you are behind a strict firewall or want to use VibeScout without an internet connection:
+
+1.  **Download models**: Download the required models from Hugging Face (Xenova's versions) to a local directory.
+2.  **Configuration**: You can use either environment variables or CLI flags.
+
+**Option A: Environment Variables**
+- `MODELS_PATH`: Absolute path to the directory containing your model folders.
+- `OFFLINE_MODE`: Set to `true` to prevent any attempts to connect to the Hugging Face Hub.
+
+**Option B: CLI Arguments**
+```bash
+vibescout --models-path /path/to/models --offline
+```
+
+### Client Integration
+      
 ```
 
 ### Claude Code (CLI)
 ```bash
-claude mcp add vibescout --transport stdio -- npm start --prefix /path/to/your/project
+claude mcp add vibescout -- vibescout
 ```
+
+## Docker
+
 
 ## Development
 

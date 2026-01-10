@@ -1,4 +1,16 @@
-import { pipeline } from "@huggingface/transformers";
+import { pipeline, env } from "@huggingface/transformers";
+
+export function configureEnvironment(modelsPath, offlineMode = false) {
+  if (modelsPath) {
+    env.localModelPath = modelsPath;
+    if (offlineMode) {
+      env.allowRemoteModels = false;
+    }
+  }
+}
+
+// Initial configuration from environment variables
+configureEnvironment(process.env.MODELS_PATH, process.env.OFFLINE_MODE === "true");
 
 export class EmbeddingManager {
   constructor() {
