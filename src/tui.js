@@ -2,28 +2,52 @@ import pkg from "enquirer";
 const { Select } = pkg;
 import { searchCode, openFile } from "./core.js";
 import path from "path";
+import chalk from "chalk";
 
 export async function interactiveSearch(query, collection, projectName) {
   const results = await searchCode(query, collection, projectName);
 
   if (results.length === 0) {
-    console.log("No matches found.");
+    console.log(chalk.yellow("\nNo matches found."));
     return;
   }
 
   async function showResults() {
-    const choices = results.map((r, i) => ({
-      name: String(i),
-      message: `${path.basename(r.filePath)}:${r.startLine} - ${r.name} [Score: ${r.rerankScore.toFixed(2)}]`,
-      hint: r.summary ? r.summary.substring(0, 50) + "..." : ""
-    }));
+    console.clear();
+    console.log(chalk.cyan(`\nSearch results for: "${chalk.bold(query)}"`));
+    console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
-    choices.push({ name: "exit", message: "Exit", hint: "" });
+    const choices = results.map((r, i) => {
+      const fileName = chalk.green(path.basename(r.filePath));
+      const lineInfo = chalk.dim(`:${r.startLine}`);
+      const typeInfo = chalk.blue(`[${r.type}]`);
+      const scoreInfo = chalk.dim(`(${r.rerankScore.toFixed(2)})`);
+      const symbolName = chalk.bold(r.name);
+      const project = chalk.magenta(`@${r.projectName}`);
+
+      // Create a nice preview hint
+      let preview = "";
+      if (r.summary) {
+        preview = chalk.italic(r.summary.substring(0, 100));
+      } else {
+        preview = chalk.dim(r.content.substring(0, 100).replace(/\n/g, " "));
+      }
+
+      return {
+        name: String(i),
+        message: `${fileName}${lineInfo} ${symbolName} ${typeInfo} ${project}`,
+        hint: `\n    ${preview} ${scoreInfo}`
+      };
+    });
+
+    choices.push({ name: "exit", message: chalk.red("Exit"), hint: "" });
 
     const prompt = new Select({
       name: "result",
-      message: `Search results for "${query}" (Select to open):`,
-      choices
+      message: "Select a result to open in your editor:",
+      choices,
+      // Increase visible choices
+      limit: 10
     });
 
     try {
@@ -31,12 +55,21 @@ export async function interactiveSearch(query, collection, projectName) {
       if (answer === "exit") return;
 
       const selected = results[parseInt(answer)];
-      console.log(`\nOpening ${selected.filePath}:${selected.startLine}...`);
+      console.log(chalk.cyan(`\nOpening ${chalk.bold(selected.filePath)}...`));
       await openFile(selected.filePath, selected.startLine);
       
-      // Return to list after opening? Or exit?
-      // Usually users want to return to list.
-      return showResults();
+      // Prompt to continue or exit
+      const nextAction = new Select({
+        name: "next",
+        message: "What's next?",
+        choices: [
+          { name: "back", message: "Back to results" },
+          { name: "exit", message: "Exit" }
+        ]
+      });
+
+      const next = await nextAction.run();
+      if (next === "back") return showResults();
     } catch (err) {
       // Cancelled
     }
