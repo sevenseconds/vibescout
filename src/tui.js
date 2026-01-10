@@ -18,17 +18,19 @@ export async function interactiveSearch(query, collection, projectName) {
     
     // Calculate column widths
     const cols = {
+      project: Math.max(...results.map(r => `${r.collection}/${r.projectName}`.length), 15),
       file: Math.max(...results.map(r => path.basename(r.filePath).length), 10),
       line: Math.max(...results.map(r => String(r.startLine).length), 4),
       name: Math.max(...results.map(r => r.name.length), 15),
-      type: Math.max(...results.map(r => r.type.length), 8),
-      project: Math.max(...results.map(r => `${r.collection}/${r.projectName}`.length), 15)
+      type: Math.max(...results.map(r => r.type.length), 8)
     };
 
     // Limit max widths to avoid overflow
-    cols.file = Math.min(cols.file, 25);
-    cols.name = Math.min(cols.name, 30);
-    cols.project = Math.min(cols.project, 30);
+    cols.project = Math.min(cols.project, 20);
+    cols.file = Math.min(cols.file, 20);
+    cols.name = Math.min(cols.name, 20);
+    cols.type = Math.min(cols.type, 10);
+    const summaryWidth = 40;
 
     const header = 
       chalk.bold.underline(
@@ -37,7 +39,8 @@ export async function interactiveSearch(query, collection, projectName) {
         "File".padEnd(cols.file) + "  " +
         "Line".padEnd(cols.line) + "  " +
         "Symbol".padEnd(cols.name) + "  " +
-        "Type"
+        "Type".padEnd(cols.type) + "  " +
+        "Summary"
       );
     
     console.log(`\n${header}`);
@@ -47,15 +50,12 @@ export async function interactiveSearch(query, collection, projectName) {
       const fileName = path.basename(r.filePath).substring(0, cols.file).padEnd(cols.file);
       const lineInfo = String(r.startLine).padEnd(cols.line);
       const symbolName = r.name.substring(0, cols.name).padEnd(cols.name);
-      const typeInfo = r.type;
-
-      // Create a nice preview hint
-      let preview = "";
-      if (r.summary) {
-        preview = chalk.italic(r.summary.substring(0, 100));
-      } else {
-        preview = chalk.dim(r.content.substring(0, 100).replace(/\n/g, " "));
-      }
+      const typeInfo = r.type.substring(0, cols.type).padEnd(cols.type);
+      
+      // Truncated summary for the column
+      const summaryText = (r.summary || r.content.replace(/\n/g, " "))
+        .substring(0, summaryWidth)
+        .padEnd(summaryWidth);
 
       return {
         name: String(i),
@@ -64,8 +64,9 @@ export async function interactiveSearch(query, collection, projectName) {
           chalk.green(fileName) + "  " +
           chalk.dim(lineInfo) + "  " +
           chalk.bold(symbolName) + "  " +
-          chalk.blue(typeInfo),
-        hint: `\n      ${preview} ${chalk.dim(`(${r.rerankScore.toFixed(2)})`)}`
+          chalk.blue(typeInfo) + "  " +
+          chalk.italic.dim(summaryText),
+        hint: `\n      ${chalk.cyan("Score:")} ${chalk.dim(r.rerankScore.toFixed(4))}`
       };
     });
 
