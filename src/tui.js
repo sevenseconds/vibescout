@@ -15,15 +15,39 @@ export async function interactiveSearch(query, collection, projectName) {
   async function showResults() {
     console.clear();
     console.log(chalk.cyan(`\nSearch results for: "${chalk.bold(query)}"`));
-    console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+    
+    // Calculate column widths
+    const cols = {
+      file: Math.max(...results.map(r => path.basename(r.filePath).length), 10),
+      line: Math.max(...results.map(r => String(r.startLine).length), 4),
+      name: Math.max(...results.map(r => r.name.length), 15),
+      type: Math.max(...results.map(r => r.type.length), 8),
+      project: Math.max(...results.map(r => `${r.collection}/${r.projectName}`.length), 15)
+    };
+
+    // Limit max widths to avoid overflow
+    cols.file = Math.min(cols.file, 25);
+    cols.name = Math.min(cols.name, 30);
+    cols.project = Math.min(cols.project, 25);
+
+    const header = 
+      chalk.bold.underline(
+        "  " +
+        "File".padEnd(cols.file) + "  " +
+        "Line".padEnd(cols.line) + "  " +
+        "Symbol".padEnd(cols.name) + "  " +
+        "Type".padEnd(cols.type) + "  " +
+        "Context"
+      );
+    
+    console.log(`\n${header}`);
 
     const choices = results.map((r, i) => {
-      const fileName = chalk.green(path.basename(r.filePath));
-      const lineInfo = chalk.dim(`:${r.startLine}`);
-      const typeInfo = chalk.blue(`[${r.type}]`);
-      const scoreInfo = chalk.dim(`(${r.rerankScore.toFixed(2)})`);
-      const symbolName = chalk.bold(r.name);
-      const projectContext = chalk.magenta(`@${r.collection}/${r.projectName}`);
+      const fileName = path.basename(r.filePath).substring(0, cols.file).padEnd(cols.file);
+      const lineInfo = String(r.startLine).padEnd(cols.line);
+      const symbolName = r.name.substring(0, cols.name).padEnd(cols.name);
+      const typeInfo = r.type.padEnd(cols.type);
+      const projectContext = `${r.collection}/${r.projectName}`.substring(0, cols.project);
 
       // Create a nice preview hint
       let preview = "";
@@ -35,8 +59,13 @@ export async function interactiveSearch(query, collection, projectName) {
 
       return {
         name: String(i),
-        message: `${fileName}${lineInfo} ${symbolName} ${typeInfo} ${projectContext}`,
-        hint: `\n    ${preview} ${scoreInfo}`
+        message: 
+          chalk.green(fileName) + "  " +
+          chalk.dim(lineInfo) + "  " +
+          chalk.bold(symbolName) + "  " +
+          chalk.blue(typeInfo) + "  " +
+          chalk.magenta(projectContext),
+        hint: `\n      ${preview} ${chalk.dim(`(${r.rerankScore.toFixed(2)})`)}`
       };
     });
 
@@ -44,9 +73,8 @@ export async function interactiveSearch(query, collection, projectName) {
 
     const prompt = new Select({
       name: "result",
-      message: "Select a result to open in your editor:",
+      message: "Select a result to open:",
       choices,
-      // Increase visible choices
       limit: 10
     });
 
