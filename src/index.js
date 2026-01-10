@@ -345,7 +345,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const absolutePath = path.resolve(args.folderPath);
       const derivedProjectName = args.projectName || path.basename(absolutePath);
       if (watchers.has(absolutePath)) return { content: [{ type: "text", text: "Already watching." }] };
-      const watcher = chokidar.watch(absolutePath, { ignored: ["**/node_modules/**", "**/.git/**"], persistent: true, ignoreInitial: true });
+      const watcher = chokidar.watch(absolutePath, { 
+        ignored: ["**/node_modules/**", "**/.git/**"], 
+        persistent: true, 
+        ignoreInitial: true,
+        usePolling: process.env.USE_POLLING === "true",
+        interval: 1000
+      });
       watcher.on("add", f => indexSingleFile(f, derivedProjectName, args.collection || "default"))
              .on("change", f => indexSingleFile(f, derivedProjectName, args.collection || "default"))
              .on("unlink", f => deleteFileData(f));

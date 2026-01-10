@@ -1,0 +1,11 @@
+services:
+  vibescout:
+    build: .
+    volumes:
+      # Persist the search index
+      - ./data:/app/.lancedb
+      # Mount your project to be indexed (Change this path to your actual project)
+      - /path/to/your/workspace:/projects:ro
+    environment:
+      - EMBEDDING_MODEL=Xenova/bge-small-en-v1.5
+      - USE_POLLING=true
