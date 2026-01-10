@@ -5,6 +5,8 @@ import { MarkdownStrategy } from "./extractors/MarkdownStrategy.js";
 import { PythonStrategy } from "./extractors/PythonStrategy.js";
 import { GoStrategy } from "./extractors/GoStrategy.js";
 import { DartStrategy } from "./extractors/DartStrategy.js";
+import { JavaStrategy } from "./extractors/JavaStrategy.js";
+import { KotlinStrategy } from "./extractors/KotlinStrategy.js";
 
 // Strategy Registry
 const strategies = [
@@ -12,7 +14,9 @@ const strategies = [
   MarkdownStrategy,
   PythonStrategy,
   GoStrategy,
-  DartStrategy
+  DartStrategy,
+  JavaStrategy,
+  KotlinStrategy
 ];
 
 /**

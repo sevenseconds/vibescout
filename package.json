@@ -40,6 +40,8 @@
     "tree-sitter": "^0.21.1",
     "tree-sitter-dart": "^1.0.0",
     "tree-sitter-go": "^0.21.0",
+    "tree-sitter-java": "^0.21.0",
+    "tree-sitter-kotlin": "^0.3.8",
     "tree-sitter-markdown": "^0.7.1",
     "tree-sitter-python": "^0.21.0",
     "tree-sitter-typescript": "^0.23.2",
