@@ -23,10 +23,11 @@ import {
   getWatchList,
   addChatMessage,
   getChatMessages,
-  clearChatMessages
-} from "./db.js";import { watchProject, unwatchProject } from "./watcher.js";
+  clearChatMessages,
+  initDB
+} from "./db.js";import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, saveConfig } from "./config.js";
 
 export const server = new Server(
   {
@@ -295,6 +296,45 @@ export async function handleApiRequest(req, res) {
       const config = await loadConfig();
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(config));
+      return true;
+    }
+
+    if (pathName === "/api/config" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const newConfig = JSON.parse(body);
+      
+      await saveConfig(newConfig);
+
+      // Re-initialize managers with new config
+      const providerConfig = {
+        type: (newConfig.provider === "lmstudio" ? "openai" : newConfig.provider) || "local",
+        modelName: newConfig.embeddingModel || "Xenova/bge-small-en-v1.5",
+        baseUrl: newConfig.provider === "ollama" ? newConfig.ollamaUrl :
+          (newConfig.provider === "openai" || newConfig.provider === "lmstudio") ? newConfig.openaiBaseUrl : undefined,
+        apiKey: newConfig.provider === "gemini" ? newConfig.geminiKey :
+          newConfig.provider === "cloudflare" ? newConfig.cloudflareToken :
+            newConfig.provider === "zai" ? newConfig.zaiKey :
+              newConfig.openaiKey,
+        accountId: newConfig.cloudflareAccountId,
+        awsRegion: newConfig.awsRegion,
+        awsProfile: newConfig.awsProfile
+      };
+
+      await embeddingManager.setProvider(providerConfig);
+      await summarizerManager.setProvider(providerConfig);
+
+      await initDB({
+        type: newConfig.dbProvider || "local",
+        accountId: newConfig.cloudflareAccountId,
+        apiToken: newConfig.cloudflareToken,
+        indexName: newConfig.cloudflareVectorizeIndex
+      });
+
+      await initWatcher();
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ success: true }));
       return true;
     }
 
