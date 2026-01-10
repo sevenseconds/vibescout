@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "vitest run --sequence.concurrent=false",
+    "test": "vitest run --fileParallelism=false",
     "lint": "eslint ."
   },
   "keywords": [
