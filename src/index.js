@@ -455,7 +455,7 @@ async function main() {
     .version("0.1.0")
     .option("--models-path <path>", "Path to local models directory", process.env.MODELS_PATH)
     .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
-    .option("--mcp <mode>", "MCP transport mode (stdio, sse, http)")
+    .option("--mcp <mode>", "MCP transport mode (stdio, sse, http)", "stdio")
     .option("--port <number>", "Port for sse or http mode", process.env.PORT || 3000);
 
   program.hook("preAction", (thisCommand) => {
@@ -491,9 +491,10 @@ async function main() {
   // Default action: Start MCP Server
   program.action(async () => {
     const opts = program.opts();
-    const mode = opts.mcp || (process.stdin.isTTY ? null : "stdio");
-
-    if (!mode) {
+    const isDefaultMode = program.getOptionValueSource("mcp") === "default";
+    
+    // If running in a terminal without an explicit transport mode, show help.
+    if (isDefaultMode && process.stdin.isTTY && process.argv.length === 2) {
       program.help();
       return;
     }
@@ -503,6 +504,7 @@ async function main() {
     }
 
     const port = parseInt(opts.port);
+    const mode = opts.mcp;
 
     if (mode === "sse") {
       console.error(`Starting MCP SSE Server on port ${port}...`);
