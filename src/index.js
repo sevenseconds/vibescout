@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import http from "http";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -451,7 +454,8 @@ async function main() {
     .description("Local Code Search MCP Server")
     .version("0.1.0")
     .option("--models-path <path>", "Path to local models directory", process.env.MODELS_PATH)
-    .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true");
+    .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
+    .option("--mcp <mode>", "MCP transport mode (stdio, sse, http)");
 
   program.hook("preAction", (thisCommand) => {
     const opts = thisCommand.opts();
@@ -485,19 +489,60 @@ async function main() {
 
   // Default action: Start MCP Server
   program.action(async () => {
-    // If running in a terminal (interactive mode), show help instead of hanging.
-    // The MCP server requires input via stdin (pipes), so running it directly in a TTY 
-    // without input redirection is usually unintentional.
-    if (process.stdin.isTTY) {
+    const opts = program.opts();
+    const mode = opts.mcp || (process.stdin.isTTY ? null : "stdio");
+
+    if (!mode) {
       program.help();
       return;
     }
 
-    const opts = program.opts();
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error("Local Code Search MCP Server running");
-    if (opts.modelsPath) console.error(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
+    if (opts.modelsPath) {
+      console.error(`Using local models from: ${opts.modelsPath}${opts.offline ? " (Offline Mode)" : ""}`);
+    }
+
+    const port = process.env.PORT || 3000;
+
+    if (mode === "sse") {
+      console.error(`Starting MCP SSE Server on port ${port}...`);
+      const httpServer = http.createServer(async (req, res) => {
+        if (req.url === "/sse") {
+          const transport = new SSEServerTransport("/messages", res);
+          await server.connect(transport);
+        } else {
+          res.writeHead(404);
+          res.end("Not Found. Use /sse for connection.");
+        }
+      });
+      httpServer.listen(port);
+      return;
+    }
+
+    if (mode === "http") {
+      console.error(`Starting MCP HTTP Streamable Server on port ${port}...`);
+      const transport = new StreamableHTTPServerTransport();
+      await server.connect(transport);
+
+      const httpServer = http.createServer(async (req, res) => {
+        try {
+          await transport.handleRequest(req, res);
+        } catch (err) {
+          console.error("Error handling request:", err);
+          if (!res.headersSent) {
+            res.writeHead(500);
+            res.end("Internal Server Error");
+          }
+        }
+      });
+      httpServer.listen(port);
+      return;
+    }
+
+    if (mode === "stdio") {
+      const transport = new StdioServerTransport();
+      await server.connect(transport);
+      console.error("Local Code Search MCP Server running (stdio)");
+    }
   });
 
   await program.parseAsync(process.argv);
