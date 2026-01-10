@@ -1,4 +1,4 @@
-# Local MCP Code Search Server
+# VibeScout: Local MCP Code Search Server
 
 A high-performance Model Context Protocol (MCP) server for local semantic code search. This server uses **Transformers.js** for local embeddings/summarization and **LanceDB** for efficient vector storage.
 
@@ -24,8 +24,12 @@ Indexes a folder with Contextual Enrichment and Parallelism.
   - `projectName` (string, optional).
   - `collection` (string, optional).
   - `summarize` (boolean, optional): Default `true`. Uses AI to pre-summarize functions.
+  - `background` (boolean, optional): If `true`, runs in background and returns immediately.
 
-### 2. `search_code`
+### 2. `get_indexing_status`
+Check progress of current background indexing task.
+
+### 3. `search_code`
 Searches the knowledge base using Hybrid Search and Reranking.
 - **Arguments**:
   - `query` (string): Natural language or keyword.
@@ -67,7 +71,7 @@ Add the following to your configuration:
 ```json
 {
   "mcpServers": {
-    "local-code-search": {
+    "vibescout": {
       "command": "npm",
       "args": ["start", "--prefix", "/path/to/your/project"],
       "env": {
@@ -80,7 +84,7 @@ Add the following to your configuration:
 
 ### Claude Code (CLI)
 ```bash
-claude mcp add local-code-search --transport stdio -- npm start --prefix /path/to/your/project
+claude mcp add vibescout --transport stdio -- npm start --prefix /path/to/your/project
 ```
 
 ## Development

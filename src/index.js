@@ -29,7 +29,7 @@ import chokidar from "chokidar";
 
 const server = new Server(
   {
-    name: "local-code-search",
+    name: "vibescout",
     version: "1.9.0",
   },
   {
@@ -42,108 +42,147 @@ const server = new Server(
 const watchers = new Map();
 const CONCURRENCY_LIMIT = 4;
 
+// Global state for progress tracking
+let indexingProgress = {
+  active: false,
+  projectName: "",
+  totalFiles: 0,
+  processedFiles: 0,
+  status: "idle"
+};
+
 /**
  * Tool: index_folder
  * @param {boolean} summarize - Default is now TRUE for high accuracy
+ * @param {boolean} background - If true, return immediately and index in background
  */
-export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true) {
+export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false) {
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
   const filesOnDisk = await glob("**/*.{ts,js,md}", { cwd: absolutePath, ignore: ["**/node_modules/**", "**/dist/**"] });
   const absoluteFilesOnDisk = new Set(filesOnDisk.map(f => path.join(absolutePath, f)));
   
-  let totalIndexed = 0;
-  let skipped = 0;
-  let pruned = 0;
-
-  const knownFiles = await getProjectFiles(derivedProjectName);
-  for (const knownFile of knownFiles) {
-    if (knownFile.startsWith(absolutePath) && !absoluteFilesOnDisk.has(knownFile)) {
-      await deleteFileData(knownFile);
-      pruned++;
-    }
+  if (indexingProgress.active) {
+    return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
   }
 
-  const queue = [...filesOnDisk];
-  const hashUpdates = [];
-  
-  const processFile = async (file) => {
-    const filePath = path.join(absolutePath, file);
+  // Update progress state
+  indexingProgress = {
+    active: true,
+    projectName: derivedProjectName,
+    totalFiles: filesOnDisk.length,
+    processedFiles: 0,
+    status: "indexing"
+  };
+
+  const runIndexing = async () => {
     try {
-      const content = await fs.readFile(filePath, "utf-8");
-      const hash = crypto.createHash("md5").update(content).digest("hex");
-      const existingHash = await getFileHash(filePath);
+      let totalIndexed = 0;
+      let skipped = 0;
+      let pruned = 0;
 
-      if (existingHash === hash) {
-        skipped++;
-        return;
+      // 1. Pruning
+      const knownFiles = await getProjectFiles(derivedProjectName);
+      for (const knownFile of knownFiles) {
+        if (knownFile.startsWith(absolutePath) && !absoluteFilesOnDisk.has(knownFile)) {
+          await deleteFileData(knownFile);
+          pruned++;
+        }
       }
 
-      if (existingHash) await deleteFileData(filePath);
+      const queue = [...filesOnDisk];
+      const hashUpdates = [];
+      
+      const processFile = async (file) => {
+        const filePath = path.join(absolutePath, file);
+        try {
+          const content = await fs.readFile(filePath, "utf-8");
+          const hash = crypto.createHash("md5").update(content).digest("hex");
+          const existingHash = await getFileHash(filePath);
 
-      const { blocks, metadata } = await extractCodeBlocks(filePath);
-      await updateDependencies(filePath, derivedProjectName, collection, metadata);
-
-      if (blocks.length > 0) {
-        // --- Hierarchical Summarization Logic ---
-        const parentSummaries = new Map();
-        
-        // 1. First pass: Generate summaries for parent blocks (classes/methods/functions)
-        if (summarize) {
-          const parents = blocks.filter(b => b.type !== "chunk");
-          for (const parent of parents) {
-            const summary = await summarizerManager.summarize(parent.content);
-            parentSummaries.set(parent.name, summary);
+          if (existingHash === hash) {
+            skipped++;
+            indexingProgress.processedFiles++;
+            return;
           }
+
+          if (existingHash) await deleteFileData(filePath);
+
+          const { blocks, metadata } = await extractCodeBlocks(filePath);
+          await updateDependencies(filePath, derivedProjectName, collection, metadata);
+
+          if (blocks.length > 0) {
+            const parentSummaries = new Map();
+            if (summarize) {
+              const parents = blocks.filter(b => b.type !== "chunk");
+              for (const parent of parents) {
+                const summary = await summarizerManager.summarize(parent.content);
+                parentSummaries.set(parent.name, summary);
+              }
+            }
+
+            const dataToInsert = [];
+            for (const block of blocks) {
+              const summary = block.type === "chunk" 
+                ? parentSummaries.get(block.parentName) || "" 
+                : parentSummaries.get(block.name) || "";
+
+              const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
+              const textToEmbed = `Collection: ${collection}\nProject: ${derivedProjectName}\nFile: ${file}\nType: ${block.type}\nName: ${block.name}\nComments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
+
+              const vector = await embeddingManager.generateEmbedding(textToEmbed);
+              dataToInsert.push({
+                vector, collection, projectName: derivedProjectName, name: block.name, type: block.type,
+                filePath, startLine: block.startLine, endLine: block.endLine,
+                comments: block.comments, content: block.content, summary
+              });
+            }
+            await createOrUpdateTable(dataToInsert, embeddingManager.getModel());
+            totalIndexed += blocks.length;
+          }
+          hashUpdates.push({ filePath, hash });
+          indexingProgress.processedFiles++;
+        } catch (err) {
+          console.error(`Error processing ${file}: ${err.message}`);
+          indexingProgress.processedFiles++;
         }
+      };
 
-        const dataToInsert = [];
-        for (const block of blocks) {
-          // If this is a chunk, it inherits context from its parent's summary
-          const summary = block.type === "chunk" 
-            ? parentSummaries.get(block.parentName) || "" 
-            : parentSummaries.get(block.name) || "";
-
-          const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
-          const textToEmbed = `
-            Collection: ${collection}
-            Project: ${derivedProjectName}
-            File: ${file}
-            Type: ${block.type}
-            Name: ${block.name}
-            Comments: ${block.comments}
-            Code: ${contextPrefix}${block.content.substring(0, 500)}
-          `.trim();
-
-          const vector = await embeddingManager.generateEmbedding(textToEmbed);
-          dataToInsert.push({
-            vector, collection, projectName: derivedProjectName, name: block.name, type: block.type,
-            filePath, startLine: block.startLine, endLine: block.endLine,
-            comments: block.comments, content: block.content, summary
-          });
+      const workers = new Array(CONCURRENCY_LIMIT).fill(null).map(async () => {
+        while (queue.length > 0) {
+          const file = queue.shift();
+          if (file) await processFile(file);
         }
-        await createOrUpdateTable(dataToInsert, embeddingManager.getModel());
-        totalIndexed += blocks.length;
-      }
-      hashUpdates.push({ filePath, hash });
+      });
+
+      await Promise.all(workers);
+      if (hashUpdates.length > 0) await bulkUpdateFileHashes(hashUpdates);
+      
+      indexingProgress.active = false;
+      indexingProgress.status = "completed";
+      console.error(`[VibeScout] Indexing complete for ${derivedProjectName}`);
+      
+      return { totalIndexed, skipped, pruned };
     } catch (err) {
-      console.error(`Error processing ${file}: ${err.message}`);
+      indexingProgress.active = false;
+      indexingProgress.status = `error: ${err.message}`;
+      throw err;
     }
   };
 
-  const workers = new Array(CONCURRENCY_LIMIT).fill(null).map(async () => {
-    while (queue.length > 0) {
-      const file = queue.shift();
-      if (file) await processFile(file);
-    }
-  });
-
-  await Promise.all(workers);
-  if (hashUpdates.length > 0) await bulkUpdateFileHashes(hashUpdates);
-
-  return {
-    content: [{ type: "text", text: `Sync complete. Indexed: ${totalIndexed} blocks (Hierarchical Summarization: ${summarize}), Skipped: ${skipped}, Pruned: ${pruned}.` }],
-  };
+  if (background) {
+    // Fire and forget
+    runIndexing().catch(console.error);
+    return {
+      content: [{ type: "text", text: `Started background indexing for "${derivedProjectName}" (${filesOnDisk.length} files). You can check progress using "get_indexing_status".` }],
+    };
+  } else {
+    // Wait for completion
+    const result = await runIndexing();
+    return {
+      content: [{ type: "text", text: `Sync complete. Indexed: ${result.totalIndexed} blocks, Skipped: ${result.skipped}, Pruned: ${result.pruned}.` }],
+    };
+  }
 }
 
 /**
@@ -170,26 +209,34 @@ export async function handleSearchCode(query, collection, projectName) {
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
-      {
-        name: "index_folder",
-        description: "Index a folder with Contextual AI Enrichment.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            folderPath: { type: "string" },
-            projectName: { type: "string" },
-            collection: { type: "string" },
-            summarize: { 
-              type: "boolean", 
-              description: "Use Hierarchical Context (pre-summarize functions). Slower but significantly more accurate. Default is true."
-            }
-          },
-          required: ["folderPath"],
-        },
-      },
-      {
-        name: "search_code",
-        description: "Search across knowledge base with Reranking.",
+            {
+              name: "index_folder",
+              description: "Index a folder with Contextual AI Enrichment.",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  folderPath: { type: "string" },
+                  projectName: { type: "string" },
+                  collection: { type: "string" },
+                  summarize: { 
+                    type: "boolean", 
+                    description: "Use Hierarchical Context (pre-summarize functions). Slower but significantly more accurate. Default is true." 
+                  },
+                  background: {
+                    type: "boolean",
+                    description: "If true, starts indexing in the background and returns immediately. Recommended for large projects."
+                  }
+                },
+                required: ["folderPath"],
+              },
+            },
+            {
+              name: "get_indexing_status",
+              description: "Check the progress of the current background indexing task.",
+              inputSchema: { type: "object", properties: {} },
+            },
+            {
+              name: "search_code",        description: "Search across knowledge base with Reranking.",
         inputSchema: {
           type: "object",
           properties: {
@@ -259,9 +306,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   try {
     if (name === "index_folder") {
-      // Allow explicit false, otherwise default to true
       const shouldSummarize = args.summarize !== undefined ? args.summarize : true;
-      return await handleIndexFolder(args.folderPath, args.projectName, args.collection, shouldSummarize);
+      return await handleIndexFolder(args.folderPath, args.projectName, args.collection, shouldSummarize, !!args.background);
+    }
+    if (name === "get_indexing_status") {
+      const { active, projectName, totalFiles, processedFiles, status } = indexingProgress;
+      if (!active && status === "idle") return { content: [{ type: "text", text: "No indexing task has been run yet." }] };
+      
+      const percent = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
+      const msg = active 
+        ? `Indexing "${projectName}": ${percent}% complete (${processedFiles}/${totalFiles} files).`
+        : `Last task ("${projectName}") status: ${status}.`;
+      
+      return { content: [{ type: "text", text: msg }] };
     }
     if (name === "search_code") return await handleSearchCode(args.query, args.collection, args.projectName);
     if (name === "move_project") {
