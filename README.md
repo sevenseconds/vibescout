@@ -8,6 +8,7 @@ A Model Context Protocol (MCP) server for local semantic code search. This serve
 - **AI-Generated Summaries**: Optional step during indexing to summarize function intent (uses `distilbart`).
 - **Hybrid Search**: Combines **Semantic (Vector)** and **Exact Keyword (FTS)** search for maximum accuracy.
 - **Auto-Context (Reranking)**: Uses a local reranker model to surface the absolute most relevant snippets.
+- **Semantic Chunking**: Automatically slices large functions (>50 lines) into logical sub-blocks for higher search precision.
 - **BGE-M3 Support**: High-performance embedding model with 8k token context support.
 - **Parallel Indexing**: Processes multiple files concurrently for 3-5x faster speed.
 - **Incremental Indexing**: Skips unchanged files using MD5 hashing.

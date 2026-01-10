@@ -34,4 +34,36 @@ function internal() {}
       await fs.remove(testFile);
     }
   });
+
+  it("should chunk large functions into logical pieces", async () => {
+    const testFile = path.join(process.cwd(), "large_file_test.ts");
+    // Create a function longer than 50 lines
+    const lines = new Array(60).fill("  console.log('padding');").join("\n");
+    const content = `
+      /**
+       * Giant logic function
+       */
+      export function giantFunction() {
+        if (true) {
+          console.log("split point 1");
+        }
+        ${lines}
+        try {
+          console.log("split point 2");
+        } catch(e) {}
+      }
+    `;
+    await fs.writeFile(testFile, content);
+
+    try {
+      const { blocks } = await extractCodeBlocks(testFile);
+      
+      const chunks = blocks.filter(b => b.type === "chunk");
+      expect(chunks.length).toBeGreaterThan(1);
+      expect(chunks[0].name).toContain("giantFunction (Chunk");
+      expect(chunks[0].comments).toContain("Giant logic function"); // Context inheritance
+    } finally {
+      await fs.remove(testFile);
+    }
+  });
 });

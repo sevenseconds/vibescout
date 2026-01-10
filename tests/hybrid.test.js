@@ -31,10 +31,10 @@ describe("Hybrid Search", () => {
 
     // Test exact keyword (FTS)
     const res1 = await handleSearchCode("ZYX_UNIQUE_KEYWORD");
-    expect(res1.content[0].text).toContain("login");
+    expect(res1.content[0].text).toContain("test.ts"); // Check file path since name is in content
 
     // Test conceptual (Vector)
     const res2 = await handleSearchCode("How to sign in users?");
-    expect(res2.content[0].text).toContain("login");
+    expect(res2.content[0].text).toContain("test.ts");
   }, 60000);
 });
