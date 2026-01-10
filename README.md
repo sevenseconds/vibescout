@@ -85,7 +85,9 @@ The easiest way to manage one or more projects is with `docker-compose.yml`.
 ### Handling Multiple Projects
 If you mount a root workspace folder (e.g., `~/Workspaces` to `/projects`), you can index any sub-folder by referring to its path **inside** the container.
 
-**Tip for LLMs**: When using VibeScout in Docker, tell your AI:
+**Tip for LLMs**: When using VibeScout in Docker, you should provide context to your AI so it knows where to look. We provide templates (`CLAUDE.md`, `GEMINI.md`, `AGENTS.md`) that you can copy into your target projects.
+
+These files tell the AI:
 > "I am running VibeScout in Docker. My local projects are mounted at `/projects`. To index a project, use the path `/projects/<project-folder-name>`."
 
 ### Using Docker CLI
