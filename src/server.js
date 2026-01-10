@@ -237,11 +237,14 @@ export async function handleApiRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathName = url.pathname;
 
-  res.setHeader("Content-Type", "application/json");
+  if (!pathName.startsWith("/api/")) {
+    return false;
+  }
 
   try {
     if (pathName === "/api/kb" && req.method === "GET") {
       const kb = await listKnowledgeBase();
+      res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(kb));
       return true;
     }
@@ -251,6 +254,7 @@ export async function handleApiRequest(req, res) {
       for await (const chunk of req) body += chunk;
       const { query, collection, projectName } = JSON.parse(body);
       const results = await searchCode(query, collection, projectName);
+      res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(results));
       return true;
     }
@@ -258,6 +262,7 @@ export async function handleApiRequest(req, res) {
     if (pathName === "/api/stats" && req.method === "GET") {
       const kb = await listKnowledgeBase();
       const projectCount = Object.values(kb).reduce((acc, p) => acc + p.length, 0);
+      res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({
         collections: Object.keys(kb).length,
         projects: projectCount,
@@ -268,12 +273,15 @@ export async function handleApiRequest(req, res) {
 
     if (pathName === "/api/config" && req.method === "GET") {
       const config = await loadConfig();
+      res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(config));
       return true;
     }
   } catch (err) {
-    res.writeHead(500);
-    res.end(JSON.stringify({ error: err.message }));
+    if (!res.headersSent) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message }));
+    }
     return true;
   }
 

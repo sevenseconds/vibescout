@@ -54,7 +54,7 @@ async function startServer(mode, port, isUI = false) {
       }
 
       // 3. Handle UI assets
-      if (assets) {
+      if (assets && !res.headersSent) {
         assets(req, res);
       } else if (!res.headersSent) {
         res.writeHead(404);
