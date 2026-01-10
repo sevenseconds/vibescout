@@ -5,72 +5,26 @@ A Model Context Protocol (MCP) server for local semantic code search. This serve
 ## Features
 
 - **Multi-Project Collections**: Group related codebases (e.g., "Company-A", "Personal") for targeted cross-project search.
+- **AI-Generated Summaries**: Optional step during indexing to summarize function intent (uses `distilbart`).
 - **Hybrid Search**: Combines **Semantic (Vector)** and **Exact Keyword (FTS)** search for maximum accuracy.
-- **Auto-Context (Reranking)**: Uses a local reranker model (`bge-reranker-base`) to surface the most relevant code snippets.
-- **Incremental Indexing**: Uses file hashing to skip unchanged files, making re-indexing near-instant.
-- **Parallel Indexing**: Processes multiple files concurrently using a safe concurrency pool for 3-5x faster indexing.
-- **Resilient Extraction**: Powered by **Tree-sitter** to accurately extract code even with syntax errors.
-- **Local & Private**: Everything runs on your machine—no data ever leaves your local environment.
+- **Auto-Context (Reranking)**: Uses a local reranker model to surface the absolute most relevant snippets.
+- **BGE-M3 Support**: High-performance embedding model with 8k token context support.
+- **Parallel Indexing**: Processes multiple files concurrently for 3-5x faster speed.
+- **Incremental Indexing**: Skips unchanged files using MD5 hashing.
 
 ## MCP Tools
 
 ### 1. `index_folder`
-Indexes a folder. Uses **parallel processing** and incremental hashing to only process new or changed files.
+Indexes a folder. 
 - **Arguments**:
   - `folderPath` (string): Absolute path to the code.
-  - `projectName` (string, optional): Display name for the project.
-  - `collection` (string, optional): Group name (default: "default").
-
-### 2. `search_code`
-Searches your knowledge base using Hybrid Search and Reranking.
-- **Arguments**:
-  - `query` (string): Natural language or keyword query.
-  - `collection` (string, optional): Search only within this collection.
-  - `projectName` (string, optional): Search only within this specific project.
-
-### 3. `move_project`
-Moves a project from one collection to another.
-- **Arguments**:
-  - `projectName` (string).
-  - `newCollection` (string).
-
-### 4. `get_file_dependencies`
-Returns all imports and exports for a specific file. Useful for mapping how modules interact.
-- **Argument**: `filePath` (string).
-
-### 5. `find_symbol_usages`
-Finds all files across your knowledge base that import a specific symbol (function, class, etc.).
-- **Argument**: `symbolName` (string).
-
-### 6. `list_knowledge_base`
-Displays all indexed projects and their assigned collections.
-
-### 7. `watch_folder`
-Starts a real-time watcher on a folder. It will automatically:
-- Index new files when added.
-- Re-index files when they are changed.
-- Remove code from the index when a file is deleted.
-- **Arguments**:
-  - `folderPath` (string): Absolute path to the folder.
   - `projectName` (string, optional).
   - `collection` (string, optional).
+  - `summarize` (boolean, optional): Set to `true` to generate AI summaries for each code block (slower indexing, higher accuracy).
 
-### 8. `read_code_range`
-Reads specific lines from a file (useful for inspecting search results).
-- **Arguments**:
-  - `filePath` (string) - Absolute path to the file.
-  - `startLine` (number)
-  - `endLine` (number)
-
-### 9. `get_current_model`
-Returns the name of the currently active embedding model.
-
-### 10. `set_model`
-Changes the embedding model at runtime.
-- **Argument**: `modelName` (string) - One of `Xenova/all-MiniLM-L6-v2` or `Xenova/bge-small-en-v1.5`.
-
-### 11. `clear_index`
-Deletes the local vector database and file hashes. Use this before re-indexing with a different model.
+### 2. `set_model`
+Changes the embedding model.
+- **Argument**: `modelName` (string) - Options: `Xenova/all-MiniLM-L6-v2` (fast), `Xenova/bge-small-en-v1.5`, or `Xenova/bge-m3` (elite).
 
 ## Client Integration
 
