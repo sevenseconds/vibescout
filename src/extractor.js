@@ -21,7 +21,6 @@ export async function extractCodeBlocks(filePath) {
 
   function getComments(node) {
     const commentNodes = [];
-    // If the function is wrapped in an export statement, the comments are on the export statement
     const targetNode = node.parent?.type === "export_statement" ? node.parent : node;
     
     let prev = targetNode.previousSibling;
@@ -68,7 +67,7 @@ export async function extractCodeBlocks(filePath) {
       const content = node.text;
 
       // Add the main block
-      blocks.push({
+      const mainBlock = {
         name,
         type,
         startLine,
@@ -76,7 +75,8 @@ export async function extractCodeBlocks(filePath) {
         comments,
         content,
         filePath
-      });
+      };
+      blocks.push(mainBlock);
 
       // --- Smart Chunking for Large Blocks ---
       if (lineCount > CHUNK_LINE_THRESHOLD) {
@@ -88,24 +88,22 @@ export async function extractCodeBlocks(filePath) {
 
           for (let i = 0; i < bodyNode.childCount; i++) {
             const child = bodyNode.child(i);
-            // Skip non-named nodes like braces
             if (!child.isNamed) continue;
 
             if (currentChunkStart === -1) currentChunkStart = child.startPosition.row + 1;
             currentChunk.push(child.text);
 
             const currentLines = (child.endPosition.row + 1) - currentChunkStart;
-
-            // Split if child is a logical block or current chunk is getting large
             const isLogicalSplit = ["if_statement", "try_statement", "switch_statement", "for_statement", "while_statement"].includes(child.type);
             
             if (isLogicalSplit || currentLines >= 20) {
               blocks.push({
                 name: `${name} (Chunk ${chunkIndex++})`,
                 type: "chunk",
+                parentName: name, // Link to parent for hierarchical context
                 startLine: currentChunkStart,
                 endLine: child.endPosition.row + 1,
-                comments: comments, // Inherit parent context
+                comments: comments,
                 content: currentChunk.join("\n"),
                 filePath
               });
@@ -114,11 +112,11 @@ export async function extractCodeBlocks(filePath) {
             }
           }
           
-          // Add remaining lines as a chunk
           if (currentChunk.length > 0) {
             blocks.push({
               name: `${name} (Chunk ${chunkIndex})`,
               type: "chunk",
+              parentName: name,
               startLine: currentChunkStart,
               endLine: bodyNode.endPosition.row,
               comments: comments,

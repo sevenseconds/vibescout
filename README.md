@@ -5,7 +5,7 @@ A Model Context Protocol (MCP) server for local semantic code search. This serve
 ## Features
 
 - **Multi-Project Collections**: Group related codebases (e.g., "Company-A", "Personal") for targeted cross-project search.
-- **AI-Generated Summaries**: Optional step during indexing to summarize function intent (uses `distilbart`).
+- **Hierarchical Context Retrieval**: Automatically summarizes functions and injects that context into logical sub-chunks. This ensures the AI never loses the "Big Picture" (Default: Enabled).
 - **Hybrid Search**: Combines **Semantic (Vector)** and **Exact Keyword (FTS)** search for maximum accuracy.
 - **Auto-Context (Reranking)**: Uses a local reranker model to surface the absolute most relevant snippets.
 - **Semantic Chunking**: Automatically slices large functions (>50 lines) into logical sub-blocks for higher search precision.
@@ -16,12 +16,12 @@ A Model Context Protocol (MCP) server for local semantic code search. This serve
 ## MCP Tools
 
 ### 1. `index_folder`
-Indexes a folder. 
+Indexes a folder with Contextual Enrichment.
 - **Arguments**:
   - `folderPath` (string): Absolute path to the code.
   - `projectName` (string, optional).
   - `collection` (string, optional).
-  - `summarize` (boolean, optional): Set to `true` to generate AI summaries for each code block (slower indexing, higher accuracy).
+  - `summarize` (boolean, optional): Default is `true`. Use hierarchical AI summaries for maximum search accuracy.
 
 ### 2. `set_model`
 Changes the embedding model.
