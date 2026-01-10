@@ -7,6 +7,9 @@ import { GoStrategy } from "./extractors/GoStrategy.js";
 import { DartStrategy } from "./extractors/DartStrategy.js";
 import { JavaStrategy } from "./extractors/JavaStrategy.js";
 import { KotlinStrategy } from "./extractors/KotlinStrategy.js";
+import { JsonStrategy } from "./extractors/JsonStrategy.js";
+import { TomlStrategy } from "./extractors/TomlStrategy.js";
+import { XmlStrategy } from "./extractors/XmlStrategy.js";
 
 // Strategy Registry
 const strategies = [
@@ -16,7 +19,10 @@ const strategies = [
   GoStrategy,
   DartStrategy,
   JavaStrategy,
-  KotlinStrategy
+  KotlinStrategy,
+  JsonStrategy,
+  TomlStrategy,
+  XmlStrategy
 ];
 
 /**
