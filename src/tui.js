@@ -28,26 +28,26 @@ export async function interactiveSearch(query, collection, projectName) {
     // Limit max widths to avoid overflow
     cols.file = Math.min(cols.file, 25);
     cols.name = Math.min(cols.name, 30);
-    cols.project = Math.min(cols.project, 25);
+    cols.project = Math.min(cols.project, 30);
 
     const header = 
       chalk.bold.underline(
         "  " +
+        "Context".padEnd(cols.project) + "  " +
         "File".padEnd(cols.file) + "  " +
         "Line".padEnd(cols.line) + "  " +
         "Symbol".padEnd(cols.name) + "  " +
-        "Type".padEnd(cols.type) + "  " +
-        "Context"
+        "Type"
       );
     
     console.log(`\n${header}`);
 
     const choices = results.map((r, i) => {
+      const projectContext = `${r.collection}/${r.projectName}`.substring(0, cols.project).padEnd(cols.project);
       const fileName = path.basename(r.filePath).substring(0, cols.file).padEnd(cols.file);
       const lineInfo = String(r.startLine).padEnd(cols.line);
       const symbolName = r.name.substring(0, cols.name).padEnd(cols.name);
-      const typeInfo = r.type.padEnd(cols.type);
-      const projectContext = `${r.collection}/${r.projectName}`.substring(0, cols.project);
+      const typeInfo = r.type;
 
       // Create a nice preview hint
       let preview = "";
@@ -60,11 +60,11 @@ export async function interactiveSearch(query, collection, projectName) {
       return {
         name: String(i),
         message: 
+          chalk.magenta(projectContext) + "  " +
           chalk.green(fileName) + "  " +
           chalk.dim(lineInfo) + "  " +
           chalk.bold(symbolName) + "  " +
-          chalk.blue(typeInfo) + "  " +
-          chalk.magenta(projectContext),
+          chalk.blue(typeInfo),
         hint: `\n      ${preview} ${chalk.dim(`(${r.rerankScore.toFixed(2)})`)}`
       };
     });
