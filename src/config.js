@@ -56,9 +56,6 @@ export async function interactiveConfig() {
     const embeddingModel = await modelPrompt.run();
 
     // 2. Other settings via Form
-    // Display current modelsPath or the default transformers cache
-    const currentPathDisplay = currentConfig.modelsPath || env.cacheDir;
-
     const formPrompt = new Form({
       name: "settings",
       message: "VibeScout Configuration (Use arrows to move, type to edit):",
