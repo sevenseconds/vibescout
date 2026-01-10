@@ -119,16 +119,18 @@ vibescout
 ```
 
 #### SSE (Server-Sent Events)
-Starts an HTTP server with an `/sse` endpoint.
+Starts a standard HTTP server with an `/mcp` endpoint.
 ```bash
 vibescout --mcp sse
 ```
+*MCP Endpoint: `http://localhost:3000/mcp`*
 
 #### HTTP (Streamable)
 Starts a modern streamable HTTP server using the latest MCP spec.
 ```bash
 vibescout --mcp http
 ```
+*MCP Endpoint: `http://localhost:3000/mcp`*
 
 ## Client Integration
 

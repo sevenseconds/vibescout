@@ -18,42 +18,37 @@ import path from "path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function startServer(mode, port, isUI = false) {
-  if (mode === "sse") {
-    logger.info(`Starting MCP SSE Server on port ${port}...`);
-    const httpServer = http.createServer(async (req, res) => {
-      if (req.url === "/sse") {
-        const transport = new SSEServerTransport("/messages", res);
-        await server.connect(transport);
-      } else {
-        res.writeHead(404);
-        res.end("Not Found. Use /sse for connection.");
-      }
-    });
-    httpServer.listen(port);
-    return;
-  }
-
-  if (mode === "http") {
-    logger.info(`Starting MCP HTTP Streamable Server on port ${port}${isUI ? " (with Web UI)" : ""}...`);
-    const transport = new StreamableHTTPServerTransport();
+  if (mode === "sse" || mode === "http") {
+    const isSSE = mode === "sse";
+    logger.info(`Starting MCP ${isSSE ? "SSE" : "HTTP"} Server on port ${port}${isUI ? " (with Web UI)" : ""}...`);
+    
+    // Standardize on /mcp endpoint
+    const transport = new StreamableHTTPServerTransport({ endpoint: "/mcp" });
     await server.connect(transport);
 
     const assets = isUI ? sirv(path.join(__dirname, "../ui/dist"), { dev: false, single: true }) : null;
 
     const httpServer = http.createServer(async (req, res) => {
-      // 1. Handle API requests
-      const isApi = await handleApiRequest(req, res);
-      if (isApi) return;
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const pathName = url.pathname;
 
-      // 2. Handle MCP transport
-      try {
-        const handled = await transport.handleRequest(req, res);
-        if (handled) return;
-      } catch (err) {
-        logger.error("Error handling request:", err);
+      // 1. Handle API requests
+      if (pathName.startsWith("/api/")) {
+        const isApi = await handleApiRequest(req, res);
+        if (isApi) return;
       }
 
-      // 3. Handle UI assets
+      // 2. Handle MCP transport (only on /mcp path)
+      if (pathName === "/mcp") {
+        try {
+          await transport.handleRequest(req, res);
+          return;
+        } catch (err) {
+          logger.error("Error handling MCP request:", err);
+        }
+      }
+
+      // 3. Handle UI assets (fallback)
       if (assets && !res.headersSent) {
         assets(req, res);
       } else if (!res.headersSent) {
@@ -63,8 +58,9 @@ async function startServer(mode, port, isUI = false) {
     });
     
     httpServer.listen(port);
-    if (isUI) {
-      console.log(`\nVibeScout Web UI available at: http://localhost:${port}`);
+    if (isUI || !isSSE) {
+      if (isUI) console.log(`\nVibeScout Web UI available at: http://localhost:${port}`);
+      console.log(`MCP Endpoint available at: http://localhost:${port}/mcp`);
     }
     return;
   }
