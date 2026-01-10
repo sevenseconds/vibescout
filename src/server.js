@@ -23,7 +23,10 @@ import {
   getAllDependencies,
   findSymbolUsages,
   moveProjectToCollection,
-  getWatchList
+  getWatchList,
+  addChatMessage,
+  getChatMessages,
+  clearChatMessages
 } from "./db.js";
 import { watchProject, unwatchProject } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
@@ -253,9 +256,32 @@ export async function handleApiRequest(req, res) {
       let body = "";
       for await (const chunk of req) body += chunk;
       const { query, collection, projectName } = JSON.parse(body);
-      const response = await chatWithCode(query, collection, projectName);
+      
+      // Get history for context
+      const history = await getChatMessages();
+      
+      const response = await chatWithCode(query, collection, projectName, history);
+      
+      // Persist messages
+      await addChatMessage('user', query);
+      await addChatMessage('assistant', response);
+
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ response }));
+      return true;
+    }
+
+    if (pathName === "/api/chat" && req.method === "GET") {
+      const messages = await getChatMessages();
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(messages));
+      return true;
+    }
+
+    if (pathName === "/api/chat" && req.method === "DELETE") {
+      await clearChatMessages();
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ success: true }));
       return true;
     }
 

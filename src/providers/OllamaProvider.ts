@@ -1,4 +1,4 @@
-import { EmbeddingProvider, SummarizerProvider } from "./base.js";
+import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
 
 export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
@@ -56,13 +56,16 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async generateResponse(prompt: string, context: string): Promise<string> {
+  async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
     try {
+      const historyText = history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join("\n");
+      const fullPrompt = `You are a code assistant. Use the following context and history to answer.\n\nContext:\n${context}\n\nHistory:\n${historyText}\n\nQuestion: ${prompt}`;
+
       const response = await fetch(`${this.baseUrl}/api/generate`, {
         method: "POST",
         body: JSON.stringify({
           model: this.modelName,
-          prompt: `You are a code assistant. Use the following code context to answer the user's question.\n\nContext:\n${context}\n\nQuestion: ${prompt}`,
+          prompt: fullPrompt,
           stream: false,
         }),
       });

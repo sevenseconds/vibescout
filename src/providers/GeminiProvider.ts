@@ -1,4 +1,4 @@
-import { EmbeddingProvider, SummarizerProvider } from "./base.js";
+import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
 
 export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
@@ -64,19 +64,26 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async generateResponse(prompt: string, context: string): Promise<string> {
+  async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
     try {
       const model = this.modelName || "gemini-1.5-flash";
+      const contents = history.map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.content }]
+      }));
+
+      // Add current turn
+      contents.push({
+        role: 'user',
+        parts: [{ text: `Use the following code context to answer the question.\n\nContext:\n${context}\n\nQuestion: ${prompt}` }]
+      });
+
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{ text: `You are a code assistant. Use the following code context to answer the user's question.\n\nContext:\n${context}\n\nQuestion: ${prompt}` }]
-            }]
-          }),
+          body: JSON.stringify({ contents }),
         }
       );
 

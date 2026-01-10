@@ -283,6 +283,37 @@ export async function removeFromWatchList(folderPath: string) {
   }
 }
 
+export async function getChatMessages() {
+  const db = await getMetaDb();
+  const tables = await db.tableNames();
+  if (!tables.includes("chat_messages")) return [];
+  const table = await db.openTable("chat_messages");
+  return await table.query().toArray();
+}
+
+export async function addChatMessage(role: 'user' | 'assistant', content: string) {
+  const db = await getMetaDb();
+  const tableName = "chat_messages";
+  const tables = await db.tableNames();
+  const record = { role, content, timestamp: new Date().toISOString() };
+
+  if (tables.includes(tableName)) {
+    const table = await db.openTable(tableName);
+    await table.add([record]);
+  } else {
+    await db.createTable(tableName, [record]);
+  }
+}
+
+export async function clearChatMessages() {
+  const db = await getMetaDb();
+  const tables = await db.tableNames();
+  if (tables.includes("chat_messages")) {
+    const table = await db.openTable("chat_messages");
+    await table.delete("1=1");
+  }
+}
+
 export async function getProjectFiles() {
   const hashes = await loadHashes();
   return Object.keys(hashes);

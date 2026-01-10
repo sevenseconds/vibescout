@@ -1,4 +1,4 @@
-import { EmbeddingProvider, SummarizerProvider } from "./base.js";
+import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
 
 export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
@@ -71,8 +71,14 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async generateResponse(prompt: string, context: string): Promise<string> {
+  async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
     try {
+      const messages = [
+        { role: "system", content: "You are a code assistant. Answer questions based on the provided code context and conversation history." },
+        ...history.map(m => ({ role: m.role, content: m.content })),
+        { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
+      ];
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -81,10 +87,7 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
         },
         body: JSON.stringify({
           model: this.modelName,
-          messages: [
-            { role: "system", content: "You are a code assistant. Answer questions based on the provided code context." },
-            { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
-          ],
+          messages,
           max_tokens: 500,
         }),
       });

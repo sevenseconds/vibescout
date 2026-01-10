@@ -3,10 +3,15 @@ export interface EmbeddingProvider {
   generateEmbedding(text: string): Promise<number[]>;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface SummarizerProvider {
   name: string;
   summarize(text: string): Promise<string>;
-  generateResponse(prompt: string, context: string): Promise<string>;
+  generateResponse(prompt: string, context: string, history?: ChatMessage[]): Promise<string>;
 }
 
 export interface ProviderConfig {

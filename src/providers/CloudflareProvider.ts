@@ -1,4 +1,4 @@
-import { EmbeddingProvider, SummarizerProvider } from "./base.js";
+import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
 
 export class CloudflareProvider implements EmbeddingProvider, SummarizerProvider {
@@ -63,19 +63,20 @@ export class CloudflareProvider implements EmbeddingProvider, SummarizerProvider
     }
   }
 
-  async generateResponse(prompt: string, context: string): Promise<string> {
+  async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
     try {
+      const messages = [
+        { role: "system", content: "You are a code assistant. Answer using the provided context and conversation history." },
+        ...history.map(m => ({ role: m.role, content: m.content })),
+        { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
+      ];
+
       const response = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/ai/run/${this.modelName || "@cf/meta/llama-3-8b-instruct"}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${this.apiToken}` },
-          body: JSON.stringify({
-            messages: [
-              { role: "system", content: "You are a code assistant. Answer using the provided context." },
-              { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
-            ]
-          }),
+          body: JSON.stringify({ messages }),
         }
       );
 

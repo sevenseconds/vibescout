@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -17,24 +17,41 @@ export default function ChatView() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const fetchHistory = async () => {
+    try {
+      const response = await axios.get('/api/chat');
+      setMessages(response.data);
+    } catch (err) {
+      console.error('Failed to fetch chat history:', err);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, loading]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
     const userMessage: Message = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setLoading(true);
 
     try {
-      const response = await axios.post('/api/chat', { query: input });
+      const response = await axios.post('/api/chat', { query: currentInput });
       const assistantMessage: Message = { role: 'assistant', content: response.data.response };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (err) {
@@ -45,6 +62,24 @@ export default function ChatView() {
     }
   };
 
+  const handleClear = async () => {
+    if (!confirm('Are you sure you want to clear the conversation history?')) return;
+    try {
+      await axios.delete('/api/chat');
+      setMessages([]);
+    } catch (err) {
+      console.error('Failed to clear chat:', err);
+    }
+  };
+
+  if (initialLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen max-w-5xl mx-auto w-full p-6 space-y-4">
       <div className="flex items-center justify-between pb-2 border-b border-border/50">
@@ -54,22 +89,30 @@ export default function ChatView() {
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Code Assistant</h2>
-            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-widest">Powered by RAG</p>
+            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-widest">Persistent Conversation</p>
           </div>
         </div>
+        {messages.length > 0 && (
+          <button 
+            onClick={handleClear}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+          >
+            <Trash2 size={14} /> Clear History
+          </button>
+        )}
       </div>
 
       {/* Chat Area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto space-y-6 pr-4 scroll-smooth"
+        className="flex-1 overflow-y-auto space-y-6 pr-4 scroll-smooth pb-4"
       >
-        {messages.length === 0 && (
+        {messages.length === 0 && !loading && (
           <div className="h-full flex flex-col items-center justify-center space-y-6 opacity-40 grayscale pointer-events-none">
             <Bot size={80} strokeWidth={1} />
             <div className="text-center space-y-2">
               <h3 className="text-xl font-bold">Ask about your code</h3>
-              <p className="max-w-xs text-sm font-medium">Example: "How does the indexing flow work?" or "Where is the database path defined?"</p>
+              <p className="max-w-xs text-sm font-medium">I remember our previous turns, so feel free to ask follow-up questions!</p>
             </div>
           </div>
         )}
@@ -88,11 +131,11 @@ export default function ChatView() {
             )}>
               {msg.role === 'assistant' ? <Bot size={20} /> : <User size={20} />}
             </div>
-            <div className="space-y-2 flex-1">
+            <div className="space-y-2 flex-1 overflow-hidden">
               <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">
                 {msg.role === 'assistant' ? 'Assistant' : 'You'}
               </p>
-              <div className="text-base leading-relaxed text-foreground whitespace-pre-wrap font-medium">
+              <div className="text-base leading-relaxed text-foreground whitespace-pre-wrap font-medium break-words">
                 {msg.content}
               </div>
             </div>
@@ -116,14 +159,14 @@ export default function ChatView() {
       </div>
 
       {/* Input Area */}
-      <div className="pt-4">
+      <div className="pt-2">
         <div className="relative group">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask anything about your projects..."
+            placeholder="Ask a follow-up or a new question..."
             className="w-full bg-card border-2 border-border rounded-2xl py-5 pl-6 pr-16 text-lg focus:outline-none focus:border-primary transition-all shadow-xl shadow-black/20 font-medium"
           />
           <button 
@@ -135,7 +178,7 @@ export default function ChatView() {
           </button>
         </div>
         <p className="text-[10px] text-center mt-4 text-muted-foreground font-bold uppercase tracking-[0.2em]">
-          Local Intelligence • No data leaves your machine
+          Persistent Context • Local Q&A
         </p>
       </div>
     </div>

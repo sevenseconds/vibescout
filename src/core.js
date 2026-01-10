@@ -234,10 +234,10 @@ Summary: ${r.summary || "N/A"}
 /**
  * RAG-based Chat Logic
  */
-export async function chatWithCode(query, collection, projectName) {
+export async function chatWithCode(query, collection, projectName, history = []) {
   const results = await searchCode(query, collection, projectName);
   
-  if (results.length === 0) {
+  if (results.length === 0 && history.length === 0) {
     return "I couldn't find any relevant code to answer your question.";
   }
 
@@ -246,7 +246,7 @@ export async function chatWithCode(query, collection, projectName) {
     `File: ${r.filePath}\nProject: ${r.projectName}\nCode:\n${r.content}`
   ).join("\n\n---\n\n");
 
-  return await summarizerManager.generateResponse(query, context);
+  return await summarizerManager.generateResponse(query, context, history);
 }
 
 /**
