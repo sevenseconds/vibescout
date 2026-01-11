@@ -327,7 +327,32 @@ app.get('/api/models/ollama', async (c) => {
 
 app.post('/api/test/embedding', async (c) => {
   try {
-    const vector = await embeddingManager.generateEmbedding("VibeScout test connection");
+    const body = await c.req.json().catch(() => ({}));
+    let manager = embeddingManager;
+
+    // If temporary config provided, create a temporary provider instance
+    if (body.provider && body.embeddingModel) {
+      const { EmbeddingManager } = await import("./embeddings.js");
+      const tempManager = new EmbeddingManager();
+      
+      const providerConfig = {
+        type: (body.provider === "lmstudio" ? "openai" : body.provider) || "local",
+        modelName: body.embeddingModel,
+        baseUrl: body.provider === "ollama" ? body.ollamaUrl :
+          (body.provider === "openai" || body.provider === "lmstudio") ? body.openaiBaseUrl : undefined,
+        apiKey: body.provider === "gemini" ? body.geminiKey :
+          body.provider === "cloudflare" ? body.cloudflareToken :
+            (body.provider === "zai" || body.provider === "zai-coding") ? body.zaiKey :
+              body.openaiKey,
+        accountId: body.cloudflareAccountId,
+        awsRegion: body.awsRegion,
+        awsProfile: body.awsProfile
+      };
+      await tempManager.setProvider(providerConfig, body.throttlingErrors);
+      manager = tempManager;
+    }
+
+    const vector = await manager.generateEmbedding("VibeScout test connection");
     return c.json({ success: true, message: `Successfully generated embedding (size: ${vector.length})` });
   } catch (err) {
     return c.json({ success: false, error: err.message }, 500);
@@ -336,7 +361,32 @@ app.post('/api/test/embedding', async (c) => {
 
 app.post('/api/test/llm', async (c) => {
   try {
-    const response = await summarizerManager.generateResponse("Hi", "You are a connectivity test.");
+    const body = await c.req.json().catch(() => ({}));
+    let manager = summarizerManager;
+
+    if (body.llmProvider && body.llmModel) {
+      const { SummarizerManager } = await import("./embeddings.js");
+      const tempManager = new SummarizerManager();
+      
+      const provider = body.llmProvider || body.provider;
+      const llmConfig = {
+        type: (provider === "lmstudio" ? "openai" : provider) || "local",
+        modelName: body.llmModel,
+        baseUrl: provider === "ollama" ? body.ollamaUrl :
+          (provider === "openai" || provider === "lmstudio") ? body.openaiBaseUrl : undefined,
+        apiKey: provider === "gemini" ? body.geminiKey :
+          provider === "cloudflare" ? body.cloudflareToken :
+            (provider === "zai" || provider === "zai-coding") ? body.zaiKey :
+              body.openaiKey,
+        accountId: body.cloudflareAccountId,
+        awsRegion: body.awsRegion,
+        awsProfile: body.awsProfile
+      };
+      await tempManager.setProvider(llmConfig, body.throttlingErrors);
+      manager = tempManager as any;
+    }
+
+    const response = await (manager as any).generateResponse("Hi", "You are a connectivity test.");
     return c.json({ success: true, message: `Successfully reached LLM: "${response.substring(0, 50)}..."` });
   } catch (err) {
     return c.json({ success: false, error: err.message }, 500);
