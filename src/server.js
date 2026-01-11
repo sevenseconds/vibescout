@@ -507,6 +507,18 @@ app.get('/api/stats', async (c) => {
   });
 });
 
+app.get('/api/files/read', async (c) => {
+  const filePath = c.req.query('path');
+  if (!filePath) return c.json({ error: 'path required' }, 400);
+  
+  try {
+    const content = await fs.readFile(path.resolve(filePath), 'utf-8');
+    return c.json({ content });
+  } catch (err) {
+    return c.json({ error: 'Failed to read file' }, 500);
+  }
+});
+
 app.post('/api/open', async (c) => {
   const { filePath, line } = await c.req.json();
   await openFile(filePath, line);
