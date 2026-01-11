@@ -42,11 +42,15 @@ export default function SearchView({ initialFilters, onFiltersClear }: SearchVie
     if (!query.trim()) return;
     setLoading(true);
     try {
+      const parsedFileTypes = fileType 
+        ? fileType.split(',').map(t => t.trim()).filter(t => t.length > 0)
+        : undefined;
+
       const response = await axios.post('/api/search', { 
         query,
         projectName: projectName || undefined,
         collection: collection || undefined,
-        fileType: fileType || undefined
+        fileTypes: parsedFileTypes
       });
       setResults(response.data); 
     } catch (err) {
@@ -147,7 +151,7 @@ export default function SearchView({ initialFilters, onFiltersClear }: SearchVie
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">File Extension</label>
                 <input 
                   type="text" 
-                  placeholder="e.g. .ts"
+                  placeholder="e.g. .ts, .js"
                   value={fileType}
                   onChange={(e) => setFileType(e.target.value)}
                   className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"

@@ -61,11 +61,15 @@ export default function ChatView() {
     setLoading(true);
 
     try {
+      const parsedFileTypes = fileType 
+        ? fileType.split(',').map(t => t.trim()).filter(t => t.length > 0)
+        : undefined;
+
       const response = await axios.post('/api/chat', { 
         query: currentInput,
         projectName: projectName || undefined,
         collection: collection || undefined,
-        fileType: fileType || undefined
+        fileTypes: parsedFileTypes
       });
       const assistantMessage: Message = { role: 'assistant', content: response.data.response };
       setMessages(prev => [...prev, assistantMessage]);
@@ -237,14 +241,13 @@ export default function ChatView() {
                   onChange={(e) => setCollection(e.target.value)}
                   className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary transition-all"
                 />
-                <input 
-                  type="text" 
-                  placeholder="File Extension (e.g. .ts)"
-                  value={fileType}
-                  onChange={(e) => setFileType(e.target.value)}
-                  className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary font-mono transition-all"
-                />
-              </div>
+                              <input 
+                                type="text" 
+                                placeholder="Extensions (e.g. .ts, .js)"
+                                value={fileType}
+                                onChange={(e) => setFileType(e.target.value)}
+                                className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary font-mono transition-all"
+                              />              </div>
             </div>
           )}
           <div className="relative group">
