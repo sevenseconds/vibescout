@@ -209,7 +209,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                   className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-xl font-bold text-xs hover:bg-secondary/80 transition-all text-muted-foreground disabled:opacity-50"
                 >
                   {summarizing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                  Summarize Findings
+                  Generate Best Question
                 </button>
                 <button 
                   onClick={() => handleAskChat()}
@@ -224,17 +224,17 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
               <div className="bg-primary/5 border-2 border-primary/20 p-6 rounded-3xl space-y-4 animate-in fade-in zoom-in-95 duration-300">
                 <div className="flex items-center gap-2 text-primary">
                   <Sparkles size={18} />
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">AI Draft Prompt</h4>
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">AI Smart Question</h4>
                 </div>
-                <div className="text-sm text-foreground/90 leading-relaxed font-medium bg-black/20 p-4 rounded-2xl border border-primary/10">
-                  {draftSummary}
+                <div className="text-sm text-foreground/90 leading-relaxed font-bold bg-black/20 p-4 rounded-2xl border border-primary/10 italic">
+                  "{draftSummary}"
                 </div>
                 <div className="flex justify-end">
                   <button 
                     onClick={() => handleAskChat(draftSummary)}
                     className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-xl font-black uppercase tracking-widest text-[10px] hover:opacity-90 transition-all shadow-xl shadow-primary/20"
                   >
-                    Continue in Chat <ArrowRight size={14} />
+                    Ask this in Chat <ArrowRight size={14} />
                   </button>
                 </div>
               </div>
