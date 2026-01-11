@@ -201,7 +201,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 /**
  * Shared search logic that returns raw result objects
  */
-export async function searchCode(query, collection, projectName, fileType) {
+export async function searchCode(query, collection, projectName, fileTypes) {
   const currentModel = embeddingManager.getModel();
   const storedModel = await getStoredModel();
   
@@ -211,7 +211,7 @@ export async function searchCode(query, collection, projectName, fileType) {
   }
 
   const queryVector = await embeddingManager.generateEmbedding(query);
-  const rawResults = await hybridSearch(query, queryVector, { collection, projectName, fileType, limit: 15 });
+  const rawResults = await hybridSearch(query, queryVector, { collection, projectName, fileTypes, limit: 15 });
   return await rerankerManager.rerank(query, rawResults, 10);
 }
 
@@ -234,8 +234,8 @@ Summary: ${r.summary || "N/A"}
 /**
  * RAG-based Chat Logic
  */
-export async function chatWithCode(query, collection, projectName, history = [], fileType) {
-  const results = await searchCode(query, collection, projectName, fileType);
+export async function chatWithCode(query, collection, projectName, history = [], fileTypes) {
+  const results = await searchCode(query, collection, projectName, fileTypes);
   
   if (results.length === 0 && history.length === 0) {
     return "I couldn't find any relevant code to answer your question.";

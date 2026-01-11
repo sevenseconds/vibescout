@@ -295,15 +295,15 @@ app.get('/api/deps', async (c) => {
 });
 
 app.post('/api/search', async (c) => {
-  const { query, collection, projectName, fileType } = await c.req.json();
-  const results = await searchCode(query, collection, projectName, fileType);
+  const { query, collection, projectName, fileTypes } = await c.req.json();
+  const results = await searchCode(query, collection, projectName, fileTypes);
   return c.json(results);
 });
 
 app.post('/api/chat', async (c) => {
-  const { query, collection, projectName, fileType } = await c.req.json();
+  const { query, collection, projectName, fileTypes } = await c.req.json();
   const history = await getChatMessages();
-  const response = await chatWithCode(query, collection, projectName, history, fileType);
+  const response = await chatWithCode(query, collection, projectName, history, fileTypes);
   
   await addChatMessage("user", query);
   await addChatMessage("assistant", response);

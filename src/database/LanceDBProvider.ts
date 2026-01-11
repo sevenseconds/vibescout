@@ -42,7 +42,7 @@ export class LanceDBProvider implements VectorDBProvider {
     }
   }
 
-  async search(embedding: number[], options: { collection?: string; projectName?: string; fileType?: string; limit?: number }): Promise<VectorResult[]> {
+  async search(embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; limit?: number }): Promise<VectorResult[]> {
     const table = await this.getTable();
     if (!table) return [];
 
@@ -52,13 +52,18 @@ export class LanceDBProvider implements VectorDBProvider {
     let filtered = results as unknown as VectorResult[];
     if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
     if (options.projectName) filtered = filtered.filter(r => r.projectName === options.projectName);
-    if (options.fileType) filtered = filtered.filter(r => r.filePath.toLowerCase().endsWith(options.fileType!.toLowerCase()));
+    if (options.fileTypes && options.fileTypes.length > 0) {
+      filtered = filtered.filter(r => {
+        const path = r.filePath.toLowerCase();
+        return options.fileTypes!.some(ext => path.endsWith(ext.toLowerCase()));
+      });
+    }
 
     return filtered.slice(0, options.limit || 10);
   }
 
   // FTS Search (Unique to LanceDB)
-  async hybridSearch(queryText: string, embedding: number[], options: { collection?: string; projectName?: string; fileType?: string; limit?: number }): Promise<VectorResult[]> {
+  async hybridSearch(queryText: string, embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; limit?: number }): Promise<VectorResult[]> {
     const table = await this.getTable();
     if (!table) return [];
 
@@ -76,7 +81,12 @@ export class LanceDBProvider implements VectorDBProvider {
     let filtered = combined;
     if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
     if (options.projectName) filtered = filtered.filter(r => r.projectName === options.projectName);
-    if (options.fileType) filtered = filtered.filter(r => r.filePath.toLowerCase().endsWith(options.fileType!.toLowerCase()));
+    if (options.fileTypes && options.fileTypes.length > 0) {
+      filtered = filtered.filter(r => {
+        const path = r.filePath.toLowerCase();
+        return options.fileTypes!.some(ext => path.endsWith(ext.toLowerCase()));
+      });
+    }
 
     return filtered.slice(0, options.limit || 10);
   }
