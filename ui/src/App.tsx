@@ -16,7 +16,8 @@ import {
   Share2,
   Moon,
   Sun,
-  Monitor
+  Monitor,
+  MessageSquare
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -31,6 +32,7 @@ import KBView from './views/KBView';
 import ConfigView from './views/ConfigView';
 import ChatView from './views/ChatView';
 import GraphView from './views/GraphView';
+import PromptsView from './views/PromptsView';
 import LiveLogs from './components/LiveLogs';
 import NotificationTray from './components/NotificationTray';
 
@@ -86,6 +88,7 @@ function AppContent() {
     { path: '/chat', label: 'Chat', icon: Sparkles },
     { path: '/graph', label: 'Graph', icon: Share2 },
     { path: '/kb', label: 'Knowledge Base', icon: Database },
+    { path: '/prompts', label: 'Prompts', icon: MessageSquare },
     { path: '/config', label: 'Settings', icon: Settings },
   ];
 
@@ -178,6 +181,7 @@ function AppContent() {
             } />
             <Route path="/graph" element={<GraphView />} />
             <Route path="/kb" element={<KBView onExplore={handleExploreProject} />} />
+            <Route path="/prompts" element={<PromptsView />} />
             <Route path="/config" element={<ConfigView />} />
           </Routes>
         </div>
