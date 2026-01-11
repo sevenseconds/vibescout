@@ -369,9 +369,8 @@ app.post('/api/config', async (c) => {
     awsProfile: newConfig.awsProfile
   };
 
-  await embeddingManager.setProvider(providerConfig);
-  await summarizerManager.setProvider(llmConfig);
-
+        await embeddingManager.setProvider(providerConfig, newConfig.throttlingErrors);
+        await summarizerManager.setProvider(llmConfig, newConfig.throttlingErrors);
   await initDB({
     type: newConfig.dbProvider || "local",
     accountId: newConfig.cloudflareAccountId,

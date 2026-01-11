@@ -133,8 +133,8 @@ async function main() {
       awsProfile: config.awsProfile
     };
 
-    await embeddingManager.setProvider(providerConfig);
-    await summarizerManager.setProvider(llmConfig);
+    await embeddingManager.setProvider(providerConfig, config.throttlingErrors);
+    await summarizerManager.setProvider(llmConfig, config.throttlingErrors);
 
     await initDB({
       type: config.dbProvider || "local",

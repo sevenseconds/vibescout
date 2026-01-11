@@ -25,14 +25,17 @@ configureEnvironment(process.env.MODELS_PATH || "", process.env.OFFLINE_MODE ===
 export class EmbeddingManager {
   private provider: EmbeddingProvider;
   private currentModel: string;
+  private throttlingErrors: string[] = [];
 
   constructor() {
     this.currentModel = process.env.EMBEDDING_MODEL || "Xenova/bge-small-en-v1.5";
     this.provider = new LocalProvider(this.currentModel);
   }
 
-  async setProvider(config: ProviderConfig) {
+  async setProvider(config: ProviderConfig, throttlingErrors: string[] = []) {
     this.currentModel = config.modelName;
+    this.throttlingErrors = throttlingErrors;
+    
     if (config.type === 'ollama') {
       this.provider = new OllamaProvider(config.modelName, config.baseUrl);
     } else if (config.type === 'openai') {
@@ -67,7 +70,7 @@ export class EmbeddingManager {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    const throttler = getThrottler(this.provider.name);
+    const throttler = getThrottler(this.provider.name, this.throttlingErrors);
     return throttler.run(() => this.provider.generateEmbedding(text));
   }
 }
@@ -104,14 +107,17 @@ class RerankerManager {
 class SummarizerManager {
   private provider: SummarizerProvider;
   public modelName: string;
+  private throttlingErrors: string[] = [];
 
   constructor() {
     this.modelName = "Xenova/distilbart-cnn-6-6";
     this.provider = new LocalProvider(this.modelName);
   }
 
-  async setProvider(config: ProviderConfig) {
+  async setProvider(config: ProviderConfig, throttlingErrors: string[] = []) {
     this.modelName = config.modelName;
+    this.throttlingErrors = throttlingErrors;
+
     if (config.type === 'ollama') {
       this.provider = new OllamaProvider(config.modelName, config.baseUrl);
     } else if (config.type === 'openai') {
@@ -132,12 +138,12 @@ class SummarizerManager {
   }
 
   async summarize(text: string): Promise<string> {
-    const throttler = getThrottler(this.provider.name);
+    const throttler = getThrottler(this.provider.name, this.throttlingErrors);
     return throttler.run(() => this.provider.summarize(text));
   }
 
   async generateResponse(prompt: string, context: string): Promise<string> {
-    const throttler = getThrottler(this.provider.name);
+    const throttler = getThrottler(this.provider.name, this.throttlingErrors);
     return throttler.run(() => this.provider.generateResponse(prompt, context));
   }
 }

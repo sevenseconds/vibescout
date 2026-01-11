@@ -34,7 +34,8 @@ const DEFAULT_CONFIG = {
   awsProfile: "default",
   port: 3000,
   summarize: true,
-  verbose: false
+  verbose: false,
+  throttlingErrors: ["并发数过高", "1214", "1302", "429", "Rate limit", "too many requests"]
 };
 
 export async function loadConfig() {
