@@ -38,7 +38,7 @@ const DEFAULT_CONFIG = {
   throttlingErrors: ["并发数过高", "1214", "1302", "1301", "429", "Rate limit", "too many requests"],
   prompts: {
     summarizeTemplates: [
-      { id: 'default', name: 'Standard Summary', text: "Summarize this code briefly:\n\nFile: {{fileName}}\nProject: {{projectName}}\n\nCode:\n{{code}}" },
+      { id: 'default', name: 'Architect Summary', text: "Act as a Senior Software Architect. Analyze the following code and provide: 1. A high-level overview of the purpose. 2. Key logic flow. 3. Potential edge cases or security risks (especially for Cloudflare Workers environments). \n\nFile: {{fileName}}\nProject: {{projectName}}\n\nHere is the code:\n{{code}}" },
       { id: 'detailed', name: 'Detailed Analysis', text: "Provide a detailed technical analysis of this code, focusing on its role in the system and potential edge cases.\n\nFile: {{fileName}}\nProject: {{projectName}}\n\nCode:\n{{code}}" }
     ],
     activeSummarizeId: 'default',
