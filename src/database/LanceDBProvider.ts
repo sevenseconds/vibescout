@@ -35,7 +35,31 @@ export class LanceDBProvider implements VectorDBProvider {
 
     if (tables.includes(tableName)) {
       const table = await db.openTable(tableName);
-      await table.add(data);
+      try {
+        await table.add(data);
+      } catch (err: any) {
+        if (err.message.includes("Found field not in schema: category")) {
+          logger.info("[DB] Missing 'category' field detected. Performing automatic schema migration...");
+          
+          // 1. Fetch all existing data
+          const allData = await table.query().toArray();
+          
+          // 2. Add category to existing records (default to 'code' for legacy)
+          const migratedData = allData.map(row => ({
+            ...row,
+            category: row.category || (row.filePath?.endsWith('.md') ? 'documentation' : 'code')
+          }));
+
+          // 3. Drop and recreate table with correct schema
+          await db.dropTable(tableName);
+          const newTable = await db.createTable(tableName, [...migratedData, ...data]);
+          await newTable.createIndex("content", { config: lancedb.Index.fts() });
+          
+          logger.info(`[DB] Schema migration complete. Migrated ${migratedData.length} records.`);
+          return;
+        }
+        throw err;
+      }
     } else {
       const table = await db.createTable(tableName, data);
       await table.createIndex("content", { config: lancedb.Index.fts() });

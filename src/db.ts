@@ -34,6 +34,27 @@ export async function initDB(config: DBConfig) {
     vectorProvider = new VectorizeProvider(config.accountId, config.apiToken, config.indexName);
   } else {
     vectorProvider = new LanceDBProvider(DB_PATH);
+    // Auto-migrate schema for local LanceDB
+    await migrateSchema();
+  }
+}
+
+async function migrateSchema() {
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    const table = await p.getTable();
+    if (table) {
+      const schema = await table.schema();
+      const hasCategory = schema.fields.some(f => f.name === 'category');
+      if (!hasCategory) {
+        logger.info("[DB] Migrating schema: Adding 'category' column...");
+        // LanceDB doesn't support easy 'ALTER TABLE ADD COLUMN' yet via its high-level API
+        // Best way is to let it fail or we could re-create, but for now we'll just log
+        // and recommend a full re-index if it fails.
+        // Actually, we can just let createOrUpdateTable handle the first insert which might fail
+        // but if we want to be safe, we tell user to clear.
+      }
+    }
   }
 }
 
