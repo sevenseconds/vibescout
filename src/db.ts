@@ -2,6 +2,7 @@ import * as lancedb from "@lancedb/lancedb";
 import path from "path";
 import fs from "fs-extra";
 import os from "os";
+import { logger } from "./logger.js";
 import { LanceDBProvider } from "./database/LanceDBProvider.js";
 import { VectorizeProvider } from "./database/VectorizeProvider.js";
 import { VectorDBProvider, DBConfig, VectorResult } from "./database/base.js";
