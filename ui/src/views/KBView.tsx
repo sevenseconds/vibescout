@@ -122,6 +122,23 @@ export default function KBView({ onExplore }: KBViewProps) {
     }
   };
 
+  const handleEnableWatch = async (projectName: string, collection: string) => {
+    try {
+      // 1. Get the likely root path from the server
+      const pathRes = await axios.get(`/api/projects/root?projectName=${encodeURIComponent(projectName)}`);
+      const folderPath = pathRes.data.rootPath;
+      
+      // 2. Pre-fill the form and scroll to top, or just do it directly
+      if (confirm(`Detected root path: ${folderPath}\n\nDo you want to start a real-time watcher for this project?`)) {
+        await axios.post('/api/watchers', { folderPath, projectName, collection });
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to enable watch:', err);
+      alert("Could not automatically detect project path. Please use 'Connect Folder' manually.");
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 h-full flex flex-col max-w-7xl mx-auto w-full overflow-y-auto pb-20">
       <div className="flex items-center justify-between">
@@ -302,35 +319,54 @@ export default function KBView({ onExplore }: KBViewProps) {
           
           <div className="grid grid-cols-1 gap-3">
             {Object.entries(kb).map(([collection, projects]) => 
-              projects.map(project => (
-                <div key={`${collection}-${project}`} className="bg-card border border-border p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-primary/10 p-3 rounded-xl text-primary shrink-0">
-                      <Database size={20} />
+              projects.map(project => {
+                const isWatched = watchers.some(w => w.projectName === project);
+                return (
+                  <div key={`${collection}-${project}`} className="bg-card border border-border p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-primary/10 p-3 rounded-xl text-primary shrink-0">
+                        <Database size={20} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-base leading-tight">{project}</h4>
+                          {isWatched && (
+                            <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                              <Eye size={8} /> Watching
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">{collection}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-base leading-tight">{project}</h4>
-                      <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">{collection}</p>
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                      {!isWatched && (
+                        <button 
+                          onClick={() => handleEnableWatch(project, collection)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-lg transition-all"
+                          title="Enable Live Sync"
+                        >
+                          <Eye size={14} /> Live Sync
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => onExplore?.({ projectName: project, collection })}
+                        className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                        title="Explore in Search"
+                      >
+                        <ExternalLink size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteProject(project)}
+                        className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                        title="Delete Project Index"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                    <button 
-                      onClick={() => onExplore?.({ projectName: project, collection })}
-                      className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                      title="Explore in Search"
-                    >
-                      <ExternalLink size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteProject(project)}
-                      className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
-                      title="Delete Project Index"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
             {Object.keys(kb).length === 0 && !loading && (
               <div className="bg-secondary/20 border border-dashed border-border rounded-2xl p-12 text-center">
