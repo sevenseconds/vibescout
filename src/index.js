@@ -243,30 +243,8 @@ async function main() {
       indexName: config.cloudflareVectorizeIndex
     });
 
-    await initWatcher();
+    await initWatcher(!!opts.force);
   });
-
-  program
-    .command("config")
-    .description("Interactive configuration TUI")
-    .action(async () => {
-      await interactiveConfig();
-    });
-
-  program
-    .command("ui")
-    .description("Start the Web UI")
-    .action(async () => {
-      await initDB({
-        type: config.dbProvider || "local",
-        accountId: config.cloudflareAccountId,
-        apiToken: config.cloudflareToken,
-        indexName: config.cloudflareVectorizeIndex
-      });
-      await initWatcher();
-      const port = parseInt(program.opts().port);
-      await startServer("http", port, true);
-    });
 
   program
     .command("compact")
