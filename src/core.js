@@ -169,7 +169,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 while (isPaused && !isShuttingDown) {
                   await new Promise(r => setTimeout(r, 500));
                 }
-                const summary = await summarizerManager.summarize(parent.content);
+                const summary = await summarizerManager.summarize(parent.content, {
+                  fileName: file,
+                  projectName: derivedProjectName
+                });
                 parentSummaries.set(parent.name, summary);
               }
             }
@@ -181,9 +184,13 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               while (isPaused && !isShuttingDown) {
                 await new Promise(r => setTimeout(r, 500));
               }
-              const summary = block.type === "chunk" 
-                ? parentSummaries.get(block.parentName) || "" 
-                : parentSummaries.get(block.name) || "";
+
+              let summary = "";
+              if (summarize) {
+                summary = block.type === "chunk" 
+                  ? await summarizerManager.summarize(block.content, { fileName: file, projectName: derivedProjectName, type: 'chunk', parentName: block.parentName })
+                  : parentSummaries.get(block.name) || "";
+              }
 
               const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
               const textToEmbed = `Collection: ${collection}\nProject: ${derivedProjectName}\nFile: ${file}\nType: ${block.type}\nName: ${block.name}\nComments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
@@ -356,19 +363,26 @@ export async function indexSingleFile(filePath, projectName, collection) {
       const parentSummaries = new Map();
       // Pre-summarize for hierarchical context
       for (const parent of blocks.filter(b => b.type !== "chunk")) {
-        parentSummaries.set(parent.name, await summarizerManager.summarize(parent.content));
+        parentSummaries.set(parent.name, await summarizerManager.summarize(parent.content, {
+          fileName: path.basename(filePath),
+          projectName
+        }));
       }
 
-      const dataToInsert = blocks.map(block => {
-        const summary = block.type === "chunk" ? parentSummaries.get(block.parentName) || "" : parentSummaries.get(block.name) || "";
+      const dataToInsert = [];
+      for (const block of blocks) {
+        const summary = block.type === "chunk" 
+          ? await summarizerManager.summarize(block.content, { fileName: path.basename(filePath), projectName, type: 'chunk', parentName: block.parentName })
+          : parentSummaries.get(block.name) || "";
+          
         const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
         const textToEmbed = `Project: ${projectName}\nFile: ${path.basename(filePath)}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
-        return {
+        dataToInsert.push({
           vector: null, textToEmbed, collection, projectName, name: block.name, type: block.type,
           filePath, startLine: block.startLine, endLine: block.endLine,
           comments: block.comments, content: block.content, summary
-        };
-      });
+        });
+      }
 
       for (const item of dataToInsert) {
         item.vector = await embeddingManager.generateEmbedding(item.textToEmbed);

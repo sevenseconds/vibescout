@@ -1,5 +1,6 @@
 import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
+import { loadConfig } from "../config.js";
 
 export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
   name: string = "ollama";
@@ -9,6 +10,35 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
   constructor(modelName: string, baseUrl: string = "http://localhost:11434") {
     this.modelName = modelName;
     this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  private async fillPrompt(templateName: string, placeholders: Record<string, string>) {
+    const config = await loadConfig();
+    let template = "";
+
+    if (templateName === 'summarize') {
+      const activeId = config.prompts?.activeSummarizeId || 'default';
+      const activeTemplate = config.prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
+      template = activeTemplate?.text || "";
+    } else {
+      template = config.prompts?.[templateName] || "";
+    }
+    
+    if (!template) {
+      if (templateName === 'summarize') template = "Summarize this code:\n\n{{code}}";
+      if (templateName === 'chunkSummarize') template = "Summarize this logic block in context of {{parentName}}:\n\n{{code}}";
+      if (templateName === 'bestQuestion') template = "Generate the best question for this context:\n\n{{context}}";
+    }
+
+    Object.entries(placeholders).forEach(([key, value]) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      template = template.replace(regex, value || '');
+    });
+
+    template = template.replace(/{{date}}/g, new Date().toLocaleDateString());
+    template = template.replace(/{{time}}/g, new Date().toLocaleTimeString());
+
+    return template;
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
@@ -59,14 +89,22 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async summarize(text: string): Promise<string> {
+  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string } = {}): Promise<string> {
     const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
     try {
+      const templateName = options.type === 'chunk' ? 'chunkSummarize' : 'summarize';
+      const prompt = await this.fillPrompt(templateName, {
+        code: text,
+        fileName: options.fileName || 'unknown',
+        projectName: options.projectName || 'unknown',
+        parentName: options.parentName || 'unknown'
+      });
+
       const payload = {
         model: this.modelName,
-        prompt: `Summarize the following code or documentation briefly and concisely:\n\n${text}`,
+        prompt,
         stream: false,
       };
 
@@ -93,7 +131,47 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
     } catch (err: any) {
       if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Ollama Summarization failed: ${err.message}`);
-      return "";
+      throw err;
+    }
+  }
+
+  async generateBestQuestion(query: string, context: string): Promise<string> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
+    try {
+      const prompt = await this.fillPrompt('bestQuestion', { query, context });
+
+      const payload = {
+        model: this.modelName,
+        prompt,
+        stream: false,
+      };
+
+      requestId = debugStore.logRequest(`${this.name}:bestQuestion`, this.modelName, payload);
+
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        debugStore.updateError(requestId, error);
+        if (response.status === 404) {
+          throw new Error(`Ollama model "${this.modelName}" not found. Please run 'ollama pull ${this.modelName}' in your terminal.`);
+        }
+        throw new Error(`Ollama error: ${response.statusText}`);
+      }
+
+      const data = await response.json() as { response: string };
+      const result = data.response.trim();
+      debugStore.updateResponse(requestId, result);
+      return result;
+    } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
+      logger.error(`Ollama Best Question generation failed: ${err.message}`);
+      throw err;
     }
   }
 

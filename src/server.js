@@ -464,15 +464,7 @@ app.post('/api/search/summarize', async (c) => {
     `File: ${r.filePath}\nCode:\n${r.content.substring(0, 1000)}`
   ).join("\n\n---\n\n");
 
-  const prompt = `I have searched my codebase for "${query}". 
-Based on the code snippets found below, what is the most insightful and technically accurate question I should ask a chat assistant to understand how this specific logic is implemented and how it relates to my query?
-
-Provide only the question text, no preamble.
-
-Context:
-${context}`;
-
-  const summary = await summarizerManager.generateResponse(prompt, "You are a code architect helping a developer formulate the best question about their search results.");
+  const summary = await summarizerManager.generateBestQuestion(query, context);
   return c.json({ summary });
 });
 

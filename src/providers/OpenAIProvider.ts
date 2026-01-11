@@ -1,5 +1,6 @@
 import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
+import { loadConfig } from "../config.js";
 
 export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
   name: string = "openai";
@@ -11,6 +12,38 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
     this.modelName = modelName;
     this.apiKey = apiKey;
     this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  private async fillPrompt(templateName: string, placeholders: Record<string, string>) {
+    const config = await loadConfig();
+    let template = "";
+
+    if (templateName === 'summarize') {
+      const activeId = config.prompts?.activeSummarizeId || 'default';
+      const activeTemplate = config.prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
+      template = activeTemplate?.text || "";
+    } else {
+      template = config.prompts?.[templateName] || "";
+    }
+    
+    // Default system fallbacks if template is empty
+    if (!template) {
+      if (templateName === 'summarize') template = "Summarize this code:\n\n{{code}}";
+      if (templateName === 'chunkSummarize') template = "Summarize this logic block in context of {{parentName}}:\n\n{{code}}";
+      if (templateName === 'bestQuestion') template = "Generate the best question for this context:\n\n{{context}}";
+    }
+
+    // Replace placeholders
+    Object.entries(placeholders).forEach(([key, value]) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      template = template.replace(regex, value || '');
+    });
+
+    // Add generic placeholders
+    template = template.replace(/{{date}}/g, new Date().toLocaleDateString());
+    template = template.replace(/{{time}}/g, new Date().toLocaleTimeString());
+
+    return template;
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
@@ -55,7 +88,7 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async summarize(text: string): Promise<string> {
+  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string } = {}): Promise<string> {
     const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
@@ -64,13 +97,21 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
         throw new Error(`API Key is missing for ${this.name} provider.`);
       }
 
+      const templateName = options.type === 'chunk' ? 'chunkSummarize' : 'summarize';
+      const prompt = await this.fillPrompt(templateName, {
+        code: text,
+        fileName: options.fileName || 'unknown',
+        projectName: options.projectName || 'unknown',
+        parentName: options.parentName || 'unknown'
+      });
+
       const payload = {
         model: this.modelName,
         messages: [
           { role: "system", content: "You are a helpful assistant that summarizes code and documentation concisely." },
-          { role: "user", content: `Summarize this briefly:\n\n${text}` }
+          { role: "user", content: prompt }
         ],
-        max_tokens: 150,
+        max_tokens: 250,
       };
 
       requestId = debugStore.logRequest(`${this.name}:summarize`, this.modelName, payload);
@@ -97,7 +138,51 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
     } catch (err: any) {
       if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`${this.name} Summarization failed: ${err.message}`);
-      throw err; // Rethrow so throttler can catch it
+      throw err;
+    }
+  }
+
+  async generateBestQuestion(query: string, context: string): Promise<string> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
+    try {
+      const prompt = await this.fillPrompt('bestQuestion', { query, context });
+
+      const payload = {
+        model: this.modelName,
+        messages: [
+          { role: "system", content: "You are a code architect helping a developer formulate the best question about their search results." },
+          { role: "user", content: prompt }
+        ],
+        max_tokens: 300,
+      };
+
+      requestId = debugStore.logRequest(`${this.name}:bestQuestion`, this.modelName, payload);
+
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        debugStore.updateError(requestId, error);
+        throw new Error(`${this.name} error: ${error}`);
+      }
+
+      const data = await response.json() as { choices: [{ message: { content: string } }] };
+      const result = data.choices[0].message.content.trim();
+      debugStore.updateResponse(requestId, result);
+      return result;
+    } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
+      logger.error(`${this.name} Best question generation failed: ${err.message}`);
+      throw err;
     }
   }
 

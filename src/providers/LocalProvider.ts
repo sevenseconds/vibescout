@@ -1,6 +1,7 @@
 import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { pipeline } from "@huggingface/transformers";
 import { logger } from "../logger.js";
+import { loadConfig } from "../config.js";
 
 export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
   name: string = "local";
@@ -11,6 +12,26 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
 
   constructor(modelName: string) {
     this.modelName = modelName;
+  }
+
+  private async fillPrompt(templateName: string, placeholders: Record<string, string>) {
+    const config = await loadConfig();
+    let template = config.prompts?.[templateName] || "";
+    
+    if (!template) {
+      if (templateName === 'summarize') template = "Summarize this code:\n\n{{code}}";
+      if (templateName === 'bestQuestion') template = "Generate the best question for this context:\n\n{{context}}";
+    }
+
+    Object.entries(placeholders).forEach(([key, value]) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      template = template.replace(regex, value || '');
+    });
+
+    template = template.replace(/{{date}}/g, new Date().toLocaleDateString());
+    template = template.replace(/{{time}}/g, new Date().toLocaleTimeString());
+
+    return template;
   }
 
   async getEmbeddingPipe() {
@@ -47,10 +68,16 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
     return Array.from(output.data);
   }
 
-  async summarize(text: string): Promise<string> {
+  async summarize(text: string, options: { fileName?: string; projectName?: string } = {}): Promise<string> {
     try {
       const pipe = await this.getSummarizerPipe();
-      const input = text.substring(0, 1024);
+      const prompt = await this.fillPrompt('summarize', {
+        code: text,
+        fileName: options.fileName || 'unknown',
+        projectName: options.projectName || 'unknown'
+      });
+
+      const input = prompt.substring(0, 1024);
       const output = await pipe(input, {
         max_new_tokens: 40,
         min_new_tokens: 10,
@@ -59,7 +86,24 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
       return output[0].summary_text;
     } catch (err: any) {
       logger.error(`Local Summarization failed: ${err.message}`);
-      return "";
+      throw err;
+    }
+  }
+
+  async generateBestQuestion(query: string, context: string): Promise<string> {
+    try {
+      const pipe = await this.getSummarizerPipe();
+      const prompt = await this.fillPrompt('bestQuestion', { query, context });
+      const input = prompt.substring(0, 1024);
+      const output = await pipe(input, {
+        max_new_tokens: 150,
+        min_new_tokens: 20,
+        repetition_penalty: 2.0
+      });
+      return output[0].summary_text;
+    } catch (err: any) {
+      logger.error(`Local Best Question failed: ${err.message}`);
+      throw err;
     }
   }
 
@@ -77,7 +121,7 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
       return output[0].summary_text;
     } catch (err: any) {
       logger.error(`Local Response generation failed: ${err.message}`);
-      return "Local model failed to generate response.";
+      throw err;
     }
   }
 }

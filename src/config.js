@@ -35,7 +35,16 @@ const DEFAULT_CONFIG = {
   port: 3000,
   summarize: true,
   verbose: false,
-  throttlingErrors: ["并发数过高", "1214", "1302", "429", "Rate limit", "too many requests"]
+  throttlingErrors: ["并发数过高", "1214", "1302", "1301", "429", "Rate limit", "too many requests"],
+  prompts: {
+    summarizeTemplates: [
+      { id: 'default', name: 'Standard Summary', text: "Summarize this code briefly:\n\nFile: {{fileName}}\nProject: {{projectName}}\n\nCode:\n{{code}}" },
+      { id: 'detailed', name: 'Detailed Analysis', text: "Provide a detailed technical analysis of this code, focusing on its role in the system and potential edge cases.\n\nFile: {{fileName}}\nProject: {{projectName}}\n\nCode:\n{{code}}" }
+    ],
+    activeSummarizeId: 'default',
+    chunkSummarize: "Summarize this specific logic block within a function. Focus on what this part specifically achieves.\n\nFile: {{fileName}}\nContext: {{parentName}}\n\nCode:\n{{code}}",
+    bestQuestion: "I have searched my codebase for \"{{query}}\". \nBased on the code snippets found below, what is the most insightful and technically accurate question I should ask a chat assistant to understand how this specific logic is implemented and how it relates to my query?\n\nProvide only the question text, no preamble.\n\nContext:\n{{context}}"
+  }
 };
 
 export async function loadConfig() {
