@@ -102,7 +102,6 @@ export default function KBView({ onExplore }: KBViewProps) {
   };
 
   const onSelectFolder = (path: string) => {
-    // Auto-fill project name from folder name if empty
     const projectName = newWatcher.projectName || path.split(/[\\/]/).pop() || '';
     setNewWatcher(prev => ({ ...prev, folderPath: path, projectName }));
     setShowFolderPicker(false);
@@ -112,7 +111,6 @@ export default function KBView({ onExplore }: KBViewProps) {
     setRemovingWatcher(path);
     try {
       await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(path)}${projectName ? `&projectName=${encodeURIComponent(projectName)}` : ''}`);
-      // Update local state immediately
       setWatchers(prev => prev.filter(w => w.folderPath !== path));
       await fetchData();
     } catch (err) {
@@ -125,7 +123,6 @@ export default function KBView({ onExplore }: KBViewProps) {
   const handleDeleteProject = async (projectName: string) => {
     if (!confirm(`Are you sure you want to delete "${projectName}" from the index? This cannot be undone.`)) return;
     try {
-      // Optimistic UI update for the index list
       setKb(prev => {
         const next = { ...prev };
         for (const col in next) {
@@ -135,20 +132,17 @@ export default function KBView({ onExplore }: KBViewProps) {
         return next;
       });
 
-      // 1. Find if this project has a watcher and remove it first
       const watcher = watchers.find(w => w.projectName === projectName);
       if (watcher) {
-        // Optimistic UI update for watchers
         setWatchers(prev => prev.filter(w => w.projectName !== projectName));
         await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(watcher.folderPath)}&projectName=${encodeURIComponent(watcher.projectName)}`);
       }
 
-      // 2. Delete the project index
       await axios.delete(`/api/projects?projectName=${encodeURIComponent(projectName)}`);
       await fetchData();
     } catch (err) {
       console.error(err);
-      fetchData(); // Rollback on error
+      fetchData();
     }
   };
 
@@ -163,11 +157,9 @@ export default function KBView({ onExplore }: KBViewProps) {
 
   const handleEnableWatch = async (projectName: string, collection: string) => {
     try {
-      // 1. Get the likely root path from the server
       const pathRes = await axios.get(`/api/projects/root?projectName=${encodeURIComponent(projectName)}`);
       const folderPath = pathRes.data.rootPath;
       
-      // 2. Pre-fill the form and scroll to top, or just do it directly
       if (confirm(`Detected root path: ${folderPath}\n\nDo you want to start a real-time watcher for this project?`)) {
         await axios.post('/api/watchers', { folderPath, projectName, collection });
         fetchData();
@@ -235,7 +227,7 @@ export default function KBView({ onExplore }: KBViewProps) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1 text-center">Absolute Folder Path</label>
+              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Absolute Folder Path</label>
               <div className="flex gap-2">
                 <input 
                   type="text" 
@@ -438,6 +430,8 @@ export default function KBView({ onExplore }: KBViewProps) {
                 <p className="text-sm text-muted-foreground font-medium italic">Database is empty.</p>
               </div>
             )}
+          </div>
+        </div>
       </div>
 
       <FolderPicker 

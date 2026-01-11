@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Folder, ChevronRight, Home, X, ChevronLeft, Search, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 interface FolderPickerProps {
   isOpen: boolean;
