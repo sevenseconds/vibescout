@@ -752,11 +752,38 @@ function resolveRuntimePath(runtimePath, deps) {
 }
 
 app.get('/api/graph', async (c) => {
-  const deps = await getAllDependencies();
+  const rawDeps = await getAllDependencies();
   const nodes = [];
   const links = [];
 
-  if (!deps || deps.length === 0) return c.json({ nodes, links });
+  if (!rawDeps || rawDeps.length === 0) return c.json({ nodes, links });
+
+  // Merge dependencies by filePath - a file may have been indexed multiple times
+  const depsMap = new Map();
+  for (const d of rawDeps) {
+    if (!depsMap.has(d.filePath)) {
+      depsMap.set(d.filePath, { ...d, imports: d.imports });
+    } else {
+      // Merge imports from multiple index runs
+      const existing = depsMap.get(d.filePath);
+      const existingImports = JSON.parse(existing.imports);
+      const newImports = JSON.parse(d.imports);
+
+      // Deduplicate imports by source
+      const importsMap = new Map();
+      for (const imp of [...existingImports, ...newImports]) {
+        const key = imp.source;
+        if (!importsMap.has(key)) {
+          importsMap.set(key, imp);
+        }
+      }
+
+      existing.imports = JSON.stringify(Array.from(importsMap.values()));
+    }
+  }
+
+  // Convert back to array
+  const deps = Array.from(depsMap.values());
 
   const nodeMap = new Map();
   for (const d of deps) {
@@ -766,6 +793,9 @@ app.get('/api/graph', async (c) => {
       nodeMap.set(d.filePath, node);
     }
   }
+
+  // Use a Set to track unique links and prevent duplicates
+  const seenLinks = new Set();
 
   for (const d of deps) {
     const imports = JSON.parse(d.imports);
@@ -786,11 +816,18 @@ app.get('/api/graph', async (c) => {
       }
 
       if (target && target.filePath !== d.filePath) {
-        links.push({
-          source: d.filePath,
-          target: target.filePath,
-          type: imp.runtime ? 'runtime' : 'static'  // Optional: for styling
-        });
+        // Create a unique key for this link (source -> target)
+        const linkKey = `${d.filePath}||${target.filePath}`;
+
+        // Only add if we haven't seen this link before
+        if (!seenLinks.has(linkKey)) {
+          seenLinks.add(linkKey);
+          links.push({
+            source: d.filePath,
+            target: target.filePath,
+            type: imp.runtime ? 'runtime' : 'static'  // Optional: for styling
+          });
+        }
       }
     }
   }
