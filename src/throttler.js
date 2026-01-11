@@ -60,16 +60,21 @@ export class AdaptiveThrottler {
   }
 
   isConcurrencyError(err) {
-    // Stringify the whole error object to catch patterns hidden in JSON payloads
+    // Robustly turn error into a searchable string without crashing on circular refs
     let searchableText = "";
-    try {
-      searchableText = JSON.stringify({
-        message: err.message,
-        stack: err.stack,
-        ...err // Include any extra properties
-      });
-    } catch {
-      searchableText = err.message || String(err);
+    
+    if (typeof err === 'string') {
+      searchableText = err;
+    } else {
+      // Manually pick common error fields (message/stack are non-enumerable in many JS engines)
+      searchableText = `${err.message || ''} ${err.stack || ''} ${err.code || ''}`;
+      
+      // Add any extra enumerable properties (like the raw JSON body we often put in messages)
+      try {
+        for (const key in err) {
+          searchableText += ` ${key}:${err[key]}`;
+        }
+      } catch { /* ignore properties we can't read */ }
     }
 
     // Always include these critical codes even if not in user config
