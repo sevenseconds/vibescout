@@ -324,6 +324,24 @@ app.get('/api/models/ollama', async (c) => {
   }
 });
 
+app.post('/api/test/embedding', async (c) => {
+  try {
+    const vector = await embeddingManager.generateEmbedding("VibeScout test connection");
+    return c.json({ success: true, message: `Successfully generated embedding (size: ${vector.length})` });
+  } catch (err) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+app.post('/api/test/llm', async (c) => {
+  try {
+    const response = await summarizerManager.generateResponse("Hi", "You are a connectivity test.");
+    return c.json({ success: true, message: `Successfully reached LLM: "${response.substring(0, 50)}..."` });
+  } catch (err) {
+    return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
 app.get('/api/debug/requests', async (c) => {
   const { debugStore } = await import("./debug.js");
   return c.json(debugStore.getRequests());
