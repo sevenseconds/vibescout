@@ -24,49 +24,78 @@ interface Config {
   verbose: boolean;
 }
 
-const PROVIDER_MODELS: Record<string, string[]> = {
+const EMBEDDING_MODELS: Record<string, string[]> = {
   local: [
     "Xenova/bge-small-en-v1.5",
     "Xenova/all-MiniLM-L6-v2",
     "Xenova/bge-base-en-v1.5",
-    "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+    "Xenova/paraphrase-multilingual-MiniLM-L12-v2"
+  ],
+  openai: [
+    "text-embedding-3-small",
+    "text-embedding-3-large",
+    "text-embedding-ada-002"
+  ],
+  gemini: [
+    "text-embedding-004"
+  ],
+  ollama: [
+    "nomic-embed-text",
+    "all-minilm",
+    "mxbai-embed-large"
+  ],
+  cloudflare: [
+    "@cf/baai/bge-small-en-v1.5",
+    "@cf/baai/bge-base-en-v1.5",
+    "@cf/baai/bge-large-en-v1.5"
+  ],
+  bedrock: [
+    "amazon.titan-embed-text-v1"
+  ],
+  zai: [
+    "embedding-2",
+    "embedding-3"
+  ],
+  lmstudio: [
+    "local-model"
+  ]
+};
+
+const CHAT_MODELS: Record<string, string[]> = {
+  local: [
     "Xenova/distilbart-cnn-6-6"
   ],
   openai: [
     "gpt-4o",
     "gpt-4o-mini",
     "gpt-4-turbo",
-    "gpt-3.5-turbo",
-    "text-embedding-3-small",
-    "text-embedding-3-large",
-    "text-embedding-ada-002"
+    "gpt-3.5-turbo"
   ],
   gemini: [
     "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "text-embedding-004"
+    "gemini-1.5-flash"
   ],
   ollama: [
     "llama3",
     "mistral",
-    "nomic-embed-text",
     "phi3",
     "gemma2"
   ],
   cloudflare: [
     "@cf/meta/llama-3-8b-instruct",
-    "@cf/baai/bge-small-en-v1.5",
-    "@cf/baai/bge-base-en-v1.5",
-    "@cf/baai/bge-large-en-v1.5"
+    "@cf/qwen/qwen1.5-7b-chat-awq"
   ],
   bedrock: [
     "anthropic.claude-3-sonnet-20240229-v1:0",
-    "anthropic.claude-3-haiku-20240307-v1:0",
-    "amazon.titan-embed-text-v1"
+    "anthropic.claude-3-haiku-20240307-v1:0"
   ],
   zai: [
-    "glm-4",
-    "embedding-2"
+    "glm-4-plus",
+    "glm-4-0520",
+    "glm-4-air",
+    "glm-4-air-x",
+    "glm-4-flash",
+    "codegeex-4"
   ],
   lmstudio: [
     "local-model"
@@ -352,7 +381,7 @@ export default function ConfigView() {
                     list="embedding-model-suggestions"
                   />
                   <datalist id="embedding-model-suggestions">
-                    {config && PROVIDER_MODELS[config.provider]?.map(m => (
+                    {config && EMBEDDING_MODELS[config.provider]?.map(m => (
                       <option key={m} value={m} />
                     ))}
                   </datalist>
@@ -360,9 +389,9 @@ export default function ConfigView() {
                      <Settings size={16} className="text-muted-foreground/50" />
                   </div>
                 </div>
-                {config && PROVIDER_MODELS[config.provider] && (
+                {config && EMBEDDING_MODELS[config.provider] && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {PROVIDER_MODELS[config.provider].map(m => (
+                    {EMBEDDING_MODELS[config.provider].map(m => (
                       <button 
                         key={m}
                         onClick={() => updateConfig('embeddingModel', m)}
@@ -425,7 +454,7 @@ export default function ConfigView() {
                     list="llm-model-suggestions"
                   />
                   <datalist id="llm-model-suggestions">
-                    {config && PROVIDER_MODELS[config.llmProvider || config.provider]?.map(m => (
+                    {config && CHAT_MODELS[config.llmProvider || config.provider]?.map(m => (
                       <option key={m} value={m} />
                     ))}
                   </datalist>
@@ -433,9 +462,9 @@ export default function ConfigView() {
                      <Settings size={16} className="text-muted-foreground/50" />
                   </div>
                 </div>
-                {config && PROVIDER_MODELS[config.llmProvider || config.provider] && (
+                {config && CHAT_MODELS[config.llmProvider || config.provider] && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {PROVIDER_MODELS[config.llmProvider || config.provider].map(m => (
+                    {CHAT_MODELS[config.llmProvider || config.provider].map(m => (
                       <button 
                         key={m}
                         onClick={() => updateConfig('llmModel', m)}
