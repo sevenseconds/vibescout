@@ -99,6 +99,8 @@ export default function KBView({ onExplore }: KBViewProps) {
     setRemovingWatcher(path);
     try {
       await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(path)}`);
+      // Update local state immediately
+      setWatchers(prev => prev.filter(w => w.folderPath !== path));
       await fetchData();
     } catch (err) {
       console.error(err);

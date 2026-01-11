@@ -268,11 +268,12 @@ export async function addToWatchList(folderPath: string, projectName: string, co
   const db = await getMetaDb();
   const tableName = "watch_list";
   const tables = await db.tableNames();
-  const record = { folderPath, projectName, collection };
+  const absolutePath = path.resolve(folderPath);
+  const record = { folderPath: absolutePath, projectName, collection };
 
   if (tables.includes(tableName)) {
     const table = await db.openTable(tableName);
-    await table.delete(`"folderPath" = '${folderPath}'`);
+    await table.delete(`"folderPath" = '${absolutePath}'`);
     await table.add([record]);
   } else {
     await db.createTable(tableName, [record]);
