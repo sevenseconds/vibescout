@@ -10,6 +10,11 @@ import { configureEnvironment, embeddingManager, summarizerManager } from "./emb
 import { closeDb, compactDatabase, initDB } from "./db.js";
 import { handleIndexFolder, stopIndexing } from "./core.js";
 import { server, app } from "./server.js";
+import { initWatcher } from "./watcher.js";
+import { loadConfig, interactiveConfig } from "./config.js";
+import { interactiveSearch } from "./tui.js";
+import { fileURLToPath } from "url";
+import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
