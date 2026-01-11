@@ -195,9 +195,10 @@ async function main() {
     .description("Index a folder")
     .argument("<folderPath>", "Path to the folder to index")
     .argument("[projectName]", "Name of the project (defaults to folder name)")
-    .action(async (folderPath, projectName) => {
+    .option("--force", "Force a full re-index (clears existing data)", false)
+    .action(async (folderPath, projectName, options) => {
       console.log(`Starting indexing for ${folderPath}...`);
-      const result = await handleIndexFolder(folderPath, projectName, "default", config.summarize, false);
+      const result = await handleIndexFolder(folderPath, projectName, "default", config.summarize, false, !!options.force);
       console.log(result.content[0].text);
       await closeDb();
     });
