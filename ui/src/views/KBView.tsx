@@ -277,10 +277,24 @@ export default function KBView({ onExplore }: KBViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Watched Folders Section */}
         <div className="space-y-4">
-          <div className="flex items-center gap-3 px-2">
-            <Eye size={18} className="text-primary" />
-            <h3 className="font-bold text-lg tracking-tight">Active Watchers</h3>
-            <div className="h-px flex-1 bg-border/50 ml-2" />
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+              <Eye size={18} className="text-primary" />
+              <h3 className="font-bold text-lg tracking-tight">Active Watchers</h3>
+            </div>
+            {watchers.length > 0 && (
+              <button 
+                onClick={async () => {
+                  if (confirm("Stop ALL active watchers?")) {
+                    await axios.delete('/api/watchers/all');
+                    fetchData();
+                  }
+                }}
+                className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-red-400 transition-colors"
+              >
+                Stop All
+              </button>
+            )}
           </div>
           
           {watchers.length > 0 ? (
