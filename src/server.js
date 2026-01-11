@@ -295,6 +295,23 @@ app.post('/api/search', async (c) => {
   return c.json(results);
 });
 
+app.post('/api/search/summarize', async (c) => {
+  const { query, results } = await c.req.json();
+  
+  const context = results.slice(0, 5).map(r => 
+    `File: ${r.filePath}\nCode:\n${r.content.substring(0, 1000)}`
+  ).join("\n\n---\n\n");
+
+  const prompt = `I have searched for "${query}" and found the following relevant code sections. 
+Please provide a very brief summary of how these pieces work together and suggest a follow-up question the user might want to ask in a chat.
+
+Context:
+${context}`;
+
+  const summary = await summarizerManager.generateResponse(prompt, "You are a code assistant helping summarize search results.");
+  return c.json({ summary });
+});
+
 app.post('/api/chat', async (c) => {
   const { query, collection, projectName, fileTypes } = await c.req.json();
   const history = await getChatMessages();
