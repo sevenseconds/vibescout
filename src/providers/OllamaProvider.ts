@@ -37,7 +37,14 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
         const error = await response.text();
         debugStore.updateError(requestId, error);
         if (response.status === 404) {
-          throw new Error(`Ollama model "${this.modelName}" not found. Please run 'ollama pull ${this.modelName}' in your terminal.`);
+          // Fetch available models to show in debug
+          const tagsRes = await fetch(`${this.baseUrl}/api/tags`);
+          const tagsData = await tagsRes.json();
+          const available = tagsData.models?.map((m: any) => m.name).join(", ");
+          
+          const helpMsg = `Ollama model "${this.modelName}" not found. Available models: ${available || 'none'}. Please run 'ollama pull ${this.modelName}' or pick from the list.`;
+          debugStore.updateError(requestId, helpMsg);
+          throw new Error(helpMsg);
         }
         throw new Error(`Ollama error: ${response.statusText} - ${error}`);
       }

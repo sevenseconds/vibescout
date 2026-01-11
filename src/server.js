@@ -314,8 +314,9 @@ app.get('/api/logs/stream', async (c) => {
 
 app.get('/api/models/ollama', async (c) => {
   const config = await loadConfig();
+  const url = c.req.query('url') || config.ollamaUrl;
   try {
-    const response = await fetch(`${config.ollamaUrl}/api/tags`);
+    const response = await fetch(`${url}/api/tags`);
     if (!response.ok) throw new Error('Ollama not reachable');
     const data = await response.json();
     return c.json(data.models || []);
