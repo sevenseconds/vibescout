@@ -8,6 +8,7 @@ import { GeminiProvider } from "./providers/GeminiProvider.js";
 import { ZAIProvider, ZAICodingProvider } from "./providers/ZAIProvider.js";
 import { BedrockProvider } from "./providers/BedrockProvider.js";
 import { EmbeddingProvider, SummarizerProvider, ProviderConfig } from "./providers/base.js";
+import { getThrottler } from "./throttler.js";
 
 export function configureEnvironment(modelsPath: string, offlineMode: boolean = false) {
   if (modelsPath) {
@@ -66,7 +67,8 @@ export class EmbeddingManager {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    return this.provider.generateEmbedding(text);
+    const throttler = getThrottler(this.provider.name);
+    return throttler.run(() => this.provider.generateEmbedding(text));
   }
 }
 
@@ -130,11 +132,13 @@ class SummarizerManager {
   }
 
   async summarize(text: string): Promise<string> {
-    return this.provider.summarize(text);
+    const throttler = getThrottler(this.provider.name);
+    return throttler.run(() => this.provider.summarize(text));
   }
 
   async generateResponse(prompt: string, context: string): Promise<string> {
-    return this.provider.generateResponse(prompt, context);
+    const throttler = getThrottler(this.provider.name);
+    return throttler.run(() => this.provider.generateResponse(prompt, context));
   }
 }
 
