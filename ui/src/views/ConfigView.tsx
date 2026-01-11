@@ -56,10 +56,6 @@ const EMBEDDING_MODELS: Record<string, string[]> = {
     "embedding-2",
     "embedding-3"
   ],
-  "zai-coding": [
-    "embedding-2",
-    "embedding-3"
-  ],
   lmstudio: [
     "local-model"
   ]
@@ -375,7 +371,6 @@ export default function ConfigView() {
                   <option value="openai">OpenAI</option>
                   <option value="gemini">Google Gemini</option>
                   <option value="zai">Z.AI (BigModel.cn)</option>
-                  <option value="zai-coding">Z.AI Coding Plan</option>
                   <option value="bedrock">AWS Bedrock</option>
                   <option value="cloudflare">Cloudflare Workers AI</option>
                 </select>
@@ -422,12 +417,12 @@ export default function ConfigView() {
           </div>
         </section>
 
-        {/* Chat LLM Provider Section */}
+        {/* LLM Provider Section */}
         <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
           <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-3">
               <MessagesSquare size={20} className="text-primary" />
-              <h3 className="font-bold tracking-tight text-lg text-foreground">Chat LLM Provider</h3>
+              <h3 className="font-bold tracking-tight text-lg text-foreground">LLM Provider</h3>
             </div>
             <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
               {config?.llmProvider || config?.provider}
