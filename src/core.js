@@ -193,11 +193,12 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               }
 
               const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
-              const textToEmbed = `Collection: ${collection}\nProject: ${derivedProjectName}\nFile: ${file}\nType: ${block.type}\nName: ${block.name}\nComments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
+              const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${derivedProjectName}\nFile: ${file}\nType: ${block.type}\nName: ${block.name}\nComments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
 
               const vector = await embeddingManager.generateEmbedding(textToEmbed);
               dataToInsert.push({
                 vector, collection, projectName: derivedProjectName, name: block.name, type: block.type,
+                category: block.category || (file.endsWith('.md') ? 'documentation' : 'code'),
                 filePath, startLine: block.startLine, endLine: block.endLine,
                 comments: block.comments, content: block.content, summary
               });
@@ -376,9 +377,10 @@ export async function indexSingleFile(filePath, projectName, collection) {
           : parentSummaries.get(block.name) || "";
           
         const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
-        const textToEmbed = `Project: ${projectName}\nFile: ${path.basename(filePath)}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
+        const textToEmbed = `Category: ${block.category}\nProject: ${projectName}\nFile: ${path.basename(filePath)}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
         dataToInsert.push({
           vector: null, textToEmbed, collection, projectName, name: block.name, type: block.type,
+          category: block.category || (filePath.endsWith('.md') ? 'documentation' : 'code'),
           filePath, startLine: block.startLine, endLine: block.endLine,
           comments: block.comments, content: block.content, summary
         });

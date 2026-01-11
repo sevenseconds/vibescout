@@ -32,6 +32,7 @@ export const DartStrategy = {
         blocks.push({
           name,
           type: "class",
+          category: "code",
           startLine: i + 1,
           endLine: i + 1,
           comments: i > 0 && lines[i-1].trim().startsWith("///") ? lines[i-1].trim() : "",
@@ -49,6 +50,7 @@ export const DartStrategy = {
         blocks.push({
           name,
           type: "function",
+          category: "code",
           startLine: i + 1,
           endLine: i + 1,
           comments: i > 0 && lines[i-1].trim().startsWith("///") ? lines[i-1].trim() : "",

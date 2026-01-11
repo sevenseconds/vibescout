@@ -22,7 +22,7 @@ export const JsonStrategy = {
           const endLine = node.endPosition.row + 1;
           const content = node.text;
 
-          blocks.push({ name, type: "key_pair", startLine, endLine, comments: "", content, filePath });
+          blocks.push({ name, type: "key_pair", category: "documentation", startLine, endLine, comments: "", content, filePath });
         }
       }
 
@@ -41,6 +41,7 @@ export const JsonStrategy = {
       blocks.push({
         name: "json_root",
         type: "file",
+        category: "documentation",
         startLine: 1,
         endLine: code.split("\n").length,
         comments: "",

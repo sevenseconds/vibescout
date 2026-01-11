@@ -17,6 +17,7 @@ export const TomlStrategy = {
       blocks.push({
         name: tableName,
         type: "table",
+        category: "documentation",
         startLine,
         endLine: startLine,
         comments: "",
@@ -29,6 +30,7 @@ export const TomlStrategy = {
     blocks.push({
       name: "toml_root",
       type: "file",
+      category: "documentation",
       startLine: 1,
       endLine: lines.length,
       comments: "",

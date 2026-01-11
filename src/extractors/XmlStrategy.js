@@ -27,6 +27,7 @@ export const XmlStrategy = {
         blocks.push({
           name: `<${tagName}>`,
           type: "tag",
+          category: "documentation",
           startLine: line,
           endLine: line,
           comments: "",
@@ -40,6 +41,7 @@ export const XmlStrategy = {
     blocks.push({
       name: "xml_root",
       type: "file",
+      category: "documentation",
       startLine: 1,
       endLine: lines.length,
       comments: "",

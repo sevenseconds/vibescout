@@ -83,7 +83,7 @@ export const KotlinStrategy = {
         const comments = getComments(node);
         const content = node.text;
 
-        blocks.push({ name, type, startLine, endLine, comments, content, filePath });
+        blocks.push({ name, type, category: "code", startLine, endLine, comments, content, filePath });
 
         // Chunking
         if (lineCount > CHUNK_LINE_THRESHOLD) {
@@ -101,7 +101,7 @@ export const KotlinStrategy = {
               if (["if_expression", "for_statement", "when_expression"].includes(child.type) || currentLines >= 20) {
                 blocks.push({
                   name: `${name} (Chunk ${chunkIndex++})`,
-                  type: "chunk", parentName: name, startLine: currentChunkStart, endLine: child.endPosition.row + 1,
+                  type: "chunk", category: "code", parentName: name, startLine: currentChunkStart, endLine: child.endPosition.row + 1,
                   comments, content: currentChunk.join("\n"), filePath
                 });
                 currentChunk = []; currentChunkStart = -1;

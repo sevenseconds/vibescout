@@ -36,6 +36,7 @@ export const MarkdownStrategy = {
           blocks.push({
             name: `Doc: ${name}`,
             type: "documentation",
+            category: "documentation",
             startLine,
             endLine,
             comments: "",
@@ -56,6 +57,7 @@ export const MarkdownStrategy = {
         blocks.push({
           name: `Doc: ${name}`,
           type: "documentation",
+          category: "documentation",
           startLine: 1,
           endLine: section.split("\n").length,
           comments: "",
@@ -69,6 +71,7 @@ export const MarkdownStrategy = {
       blocks.push({
         name: `Doc: ${path.basename(filePath)}`,
         type: "documentation",
+        category: "documentation",
         startLine: 1,
         endLine: code.split("\n").length,
         comments: "",

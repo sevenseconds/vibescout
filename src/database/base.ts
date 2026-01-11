@@ -3,6 +3,7 @@ export interface VectorResult {
   projectName: string;
   name: string;
   type: string;
+  category: 'code' | 'documentation';
   filePath: string;
   startLine: number;
   endLine: number;
