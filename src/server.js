@@ -228,7 +228,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // Hono App Setup
 export const app = new Hono();
 
-app.use('*', honoLogger());
+// Pipe Hono request logs to our custom logger at DEBUG level
+app.use('*', honoLogger((str) => logger.debug(`[API] ${str}`)));
 app.use('*', cors());
 
 // API Routes

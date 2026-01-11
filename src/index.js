@@ -81,11 +81,25 @@ async function main() {
     .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
     .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", "stdio")
     .option("--port <number>", "Port for sse or http mode", config.port || process.env.PORT || 3000)
-    .option("--verbose", "Enable verbose logging", config.verbose || false);
+    .option("--log-level <level>", "Log level (debug, info, warn, error, none)", "info")
+    .option("--verbose", "Enable verbose logging (alias for --log-level debug)", config.verbose || false);
 
   program.hook("preAction", async (thisCommand) => {
     const opts = thisCommand.opts();
-    logger.setLevel(opts.verbose ? LogLevel.DEBUG : LogLevel.INFO);
+    
+    let level = LogLevel.INFO;
+    if (opts.verbose) {
+      level = LogLevel.DEBUG;
+    } else {
+      switch (opts.logLevel?.toLowerCase()) {
+        case 'debug': level = LogLevel.DEBUG; break;
+        case 'info': level = LogLevel.INFO; break;
+        case 'warn': level = LogLevel.WARN; break;
+        case 'error': level = LogLevel.ERROR; break;
+        case 'none': level = LogLevel.NONE; break;
+      }
+    }
+    logger.setLevel(level);
 
     if (opts.modelsPath) {
       configureEnvironment(opts.modelsPath, opts.offline);
