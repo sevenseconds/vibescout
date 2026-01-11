@@ -50,6 +50,8 @@ export let indexingProgress = {
   projectName: "",
   totalFiles: 0,
   processedFiles: 0,
+  failedFiles: 0,
+  lastError: null,
   status: "idle"
 };
 
@@ -107,6 +109,8 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
     projectName: derivedProjectName,
     totalFiles: filesOnDisk.length,
     processedFiles: 0,
+    failedFiles: 0,
+    lastError: null,
     status: "indexing"
   };
 
@@ -130,6 +134,12 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       
       const processFile = async (file) => {
         if (isShuttingDown) return;
+        
+        // Wait if paused
+        while (isPaused && !isShuttingDown) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+
         const filePath = path.join(absolutePath, file);
         try {
           const content = await fs.readFile(filePath, "utf-8");
@@ -153,6 +163,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               const parents = blocks.filter(b => b.type !== "chunk");
               for (const parent of parents) {
                 if (isShuttingDown) break;
+                // Wait if paused during summarization
+                while (isPaused && !isShuttingDown) {
+                  await new Promise(r => setTimeout(r, 500));
+                }
                 const summary = await summarizerManager.summarize(parent.content);
                 parentSummaries.set(parent.name, summary);
               }
@@ -161,6 +175,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
             const dataToInsert = [];
             for (const block of blocks) {
               if (isShuttingDown) break;
+              // Wait if paused during embedding
+              while (isPaused && !isShuttingDown) {
+                await new Promise(r => setTimeout(r, 500));
+              }
               const summary = block.type === "chunk" 
                 ? parentSummaries.get(block.parentName) || "" 
                 : parentSummaries.get(block.name) || "";
@@ -183,8 +201,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           hashUpdates.push({ filePath, hash });
           indexingProgress.processedFiles++;
         } catch (err) {
-          console.error(`Error processing ${file}: ${err.message}`);
+          logger.error(`Error processing ${file}: ${err.message}`);
+          indexingProgress.failedFiles++;
           indexingProgress.processedFiles++;
+          indexingProgress.lastError = err.message;
         }
       };
 
@@ -203,14 +223,20 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
         indexingProgress.status = "stopped";
         logger.info(`[Shutdown] Indexing for "${derivedProjectName}" stopped gracefully.`);
       } else {
-        indexingProgress.status = "completed";
-        logger.info(`[Success] Indexing complete for "${derivedProjectName}". Indexed: ${totalIndexed} blocks, Skipped: ${skipped}, Pruned: ${pruned}.`);
+        if (indexingProgress.failedFiles > 0) {
+          indexingProgress.status = "completed_with_errors";
+          logger.warn(`[Success] Indexing complete for "${derivedProjectName}" with ${indexingProgress.failedFiles} errors.`);
+        } else {
+          indexingProgress.status = "completed";
+          logger.info(`[Success] Indexing complete for "${derivedProjectName}". Indexed: ${totalIndexed} blocks, Skipped: ${skipped}, Pruned: ${pruned}.`);
+        }
       }
       
       return { totalIndexed, skipped, pruned };
     } catch (err) {
       indexingProgress.active = false;
       indexingProgress.status = `error: ${err.message}`;
+      indexingProgress.lastError = err.message;
       throw err;
     }
   };
@@ -257,7 +283,8 @@ export async function handleSearchCode(query, collection, projectName) {
     `[Score: ${r.rerankScore.toFixed(4)}] [Project: ${r.projectName}]
 File: ${r.filePath} (${r.startLine}-${r.endLine})
 Summary: ${r.summary || "N/A"}
----`
+---
+`
   ).join("\n\n");
 
   return { content: [{ type: "text", text: formattedResults || "No matches found." }] };
