@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
-import { 
-  BrowserRouter as Router, 
-  Routes, 
-  Route, 
-  NavLink, 
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  NavLink,
   useNavigate,
   Navigate
 } from 'react-router-dom';
-import { 
-  Search, 
-  Database, 
-  Settings, 
+import {
+  Search,
+  Database,
+  Settings,
   Activity,
   Sparkles,
   Share2,
@@ -46,10 +46,10 @@ function AppContent() {
 
   useEffect(() => {
     const root = window.document.documentElement;
-    
+
     const applyTheme = (t: Theme) => {
       root.classList.remove('light', 'dark');
-      
+
       if (t === 'system') {
         const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         root.classList.add(systemTheme);
@@ -113,8 +113,8 @@ function AppContent() {
               to={item.path}
               className={({ isActive }) => cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 group text-sm font-bold",
-                isActive 
-                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
             >
@@ -130,21 +130,21 @@ function AppContent() {
 
         <div className="p-4 mt-auto space-y-4 border-t border-border bg-secondary/30">
           <div className="flex items-center justify-between px-2 bg-secondary/50 p-1.5 rounded-xl border border-border/50">
-            <button 
+            <button
               onClick={() => setTheme('light')}
               className={cn("p-2 rounded-lg transition-all", theme === 'light' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
               title="Light Mode"
             >
               <Sun size={16} />
             </button>
-            <button 
+            <button
               onClick={() => setTheme('dark')}
               className={cn("p-2 rounded-lg transition-all", theme === 'dark' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
               title="Dark Mode"
             >
               <Moon size={16} />
             </button>
-            <button 
+            <button
               onClick={() => setTheme('system')}
               className={cn("p-2 rounded-lg transition-all", theme === 'system' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
               title="System Mode"
@@ -162,21 +162,21 @@ function AppContent() {
       <NotificationTray />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-0 relative">
-        <div className="flex-1 overflow-auto w-full">
+      <main className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0">
           <Routes>
             <Route path="/" element={<Navigate to="/search" replace />} />
             <Route path="/search" element={
-              <SearchView 
-                initialFilters={searchFilters} 
-                onFiltersClear={() => setSearchFilters({})} 
+              <SearchView
+                initialFilters={searchFilters}
+                onFiltersClear={() => setSearchFilters({})}
                 onAskChat={handleAskChat}
               />
             } />
             <Route path="/chat" element={
-              <ChatView 
-                preFill={chatPreFill} 
-                onPreFillClear={() => setChatPreFill({})} 
+              <ChatView
+                preFill={chatPreFill}
+                onPreFillClear={() => setChatPreFill({})}
               />
             } />
             <Route path="/graph" element={<GraphView />} />

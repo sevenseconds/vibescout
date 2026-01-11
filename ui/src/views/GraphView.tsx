@@ -28,7 +28,7 @@ interface GraphData {
 }
 
 const COLORS = [
-  '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', 
+  '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444',
   '#ec4899', '#06b6d4', '#84cc16', '#6366f1', '#f97316'
 ];
 
@@ -41,6 +41,19 @@ export default function GraphView() {
   const [fetchingIntelligence, setFetchingIntelligence] = useState(false);
   const [cycles, setCycles] = useState<string[][]>([]);
   const [isScanning, setIsScanning] = useState(false);
+
+#### Visual Comparison(Theme Support)
+
+    ````carousel
+  ![Light Theme Graph](/Users/sevenseconds /.gemini / antigravity / brain / 1d392cf9 - 5787 - 45fc - a6f9 - 4a9989fff212 / graph_light_theme_1768129979761.png)
+  Nodes in light mode with slate background.
+< !--slide -->
+    ![Dark Theme Graph](/Users/sevenseconds /.gemini / antigravity / brain / 1d392cf9 - 5787 - 45fc - a6f9 - 4a9989fff212 / graph_dark_theme_1768129996803.png)
+  Nodes in dark mode with deep black background and glow effects.
+< !--slide -->
+    ![Side Panel in Dark Mode](/Users/sevenseconds /.gemini / antigravity / brain / 1d392cf9 - 5787 - 45fc - a6f9 - 4a9989fff212 / graph_side_panel_dark_theme_1768130049554.png)
+Selected node and functional side panel in dark mode.
+````
 
   const fgRef = useRef<any>(null);
 
@@ -138,6 +151,20 @@ export default function GraphView() {
     fetchGraph();
   }, []);
 
+  // Theme detection
+  const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          setIsDark(document.documentElement.classList.contains('dark'));
+        }
+      });
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
+
   const groupColors = useRef<Record<string, string>>({});
   const getGroupColor = (group: string) => {
     if (!groupColors.current[group]) {
@@ -150,7 +177,7 @@ export default function GraphView() {
   const handleNodeClick = (node: any) => {
     setSelectedNode(node);
     fetchSymbolIntelligence(node.id);
-    
+
     const neighbors = new Set();
     data.links.forEach(link => {
       const sourceId = typeof link.source === 'string' ? link.source : (link.source as any).id;
@@ -200,9 +227,12 @@ export default function GraphView() {
   }
 
   return (
-    <div className="h-full w-full flex relative bg-[#0a0a0a] overflow-hidden">
+    <div className={cn(
+      "h-full w-full flex relative overflow-hidden transition-colors duration-300",
+      isDark ? "bg-[#0a0a0a]" : "bg-slate-50"
+    )}>
       {/* Main Content */}
-      <div className="flex-1 relative flex flex-col min-w-0">
+      <div className="flex-1 relative flex flex-col min-w-0 overflow-hidden">
         <div className="absolute top-6 left-6 z-10 bg-card/80 backdrop-blur-md border border-border p-4 rounded-2xl shadow-2xl max-w-sm pointer-events-none">
           <div className="flex items-center gap-3 mb-2">
             <div className="bg-primary/20 p-2 rounded-lg text-primary">
@@ -216,7 +246,7 @@ export default function GraphView() {
         </div>
 
         <div className="absolute top-6 right-6 z-10 flex gap-2">
-          <button 
+          <button
             onClick={handleScanCycles}
             disabled={isScanning || data.nodes.length === 0}
             className={cn(
@@ -227,7 +257,7 @@ export default function GraphView() {
             {isScanning ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
             {cycles.length > 0 ? `${cycles.length} Cycles` : 'Scan Cycles'}
           </button>
-          <button 
+          <button
             onClick={() => fgRef.current?.zoomToFit(400)}
             className="bg-card/80 backdrop-blur-md border border-border p-3 rounded-xl text-muted-foreground hover:text-foreground transition-all shadow-xl"
           >
@@ -244,39 +274,50 @@ export default function GraphView() {
               nodeColor={(node: any) => {
                 const isCycleNode = cycles.some(c => c.includes(node.id));
                 if (isCycleNode) return '#ef4444';
-                if (highlightNodes.size > 0 && !highlightNodes.has(node.id)) return '#ffffff10';
+                if (highlightNodes.size > 0 && !highlightNodes.has(node.id)) return isDark ? '#ffffff10' : '#00000005';
                 return getGroupColor(node.group);
               }}
               nodeRelSize={6}
-              linkColor={() => '#ffffff20'}
+              linkColor={() => isDark ? '#ffffff20' : '#00000015'}
               linkDirectionalArrowLength={3.5}
               linkDirectionalArrowRelPos={1}
               onNodeClick={handleNodeClick}
               onBackgroundClick={clearHighlight}
               nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
                 const isSelected = selectedNode?.id === node.id;
+                const isHighlighted = highlightNodes.size === 0 || highlightNodes.has(node.id);
+                const isCycleNode = cycles.some(c => c.includes(node.id));
+                const color = isCycleNode ? '#ef4444' : getGroupColor(node.group);
                 const label = node.label;
                 const fontSize = (isSelected ? 14 : 12) / globalScale;
+                const radius = (isSelected ? 10 : 7) / globalScale;
+
+                // Hit area / background glow
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius * 1.5, 0, 2 * Math.PI, false);
+                ctx.fillStyle = isHighlighted ? `${color}${isSelected ? '40' : '20'}` : 'transparent';
+                ctx.fill();
+
+                // Node circle
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
+                ctx.fillStyle = color;
+                if (!isHighlighted) ctx.globalAlpha = 0.2;
+                ctx.fill();
+
+                // Stroke
+                ctx.strokeStyle = isSelected ? (isDark ? '#fff' : '#000') : (isDark ? '#fff4' : '#0002');
+                ctx.lineWidth = 1.5 / globalScale;
+                ctx.stroke();
+
+                // Text
                 ctx.font = `${isSelected ? 'bold ' : ''}${fontSize}px Inter, sans-serif`;
-                const textWidth = ctx.measureText(label).width;
-                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
-
-                if (highlightNodes.size > 0 && !highlightNodes.has(node.id)) ctx.globalAlpha = 0.1;
-
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
-
                 ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                const isCycleNode = cycles.some(c => c.includes(node.id));
-                ctx.fillStyle = isSelected ? '#ffffff' : (isCycleNode ? '#ef4444' : getGroupColor(node.group));
-                ctx.fillText(label, node.x, node.y);
+                ctx.textBaseline = 'top';
+                ctx.fillStyle = isSelected ? (isDark ? '#fff' : '#000') : (isDark ? '#ccc' : '#444');
+                if (!isHighlighted) ctx.globalAlpha = 0.2;
+                ctx.fillText(label, node.x, node.y + radius + 2 / globalScale);
 
-                if (isSelected) {
-                  ctx.strokeStyle = '#ffffff';
-                  ctx.lineWidth = 2 / globalScale;
-                  ctx.strokeRect(node.x - bckgDimensions[0] / 2 - 2, node.y - bckgDimensions[1] / 2 - 2, bckgDimensions[0] + 4, bckgDimensions[1] + 4);
-                }
                 ctx.globalAlpha = 1.0;
               }}
             />
@@ -314,7 +355,7 @@ export default function GraphView() {
                   </div>
                 ))}
               </div>
-              <button 
+              <button
                 onClick={() => { setCycles([]); setHighlightNodes(new Set()); }}
                 className="w-full py-2.5 bg-secondary border border-border rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-secondary/80 transition-all"
               >
@@ -346,7 +387,7 @@ export default function GraphView() {
                 <p className="text-xs font-mono bg-secondary/50 p-3 rounded-xl border border-border/50 text-muted-foreground break-all">
                   {selectedNode.id}
                 </p>
-                <button 
+                <button
                   onClick={() => handleOpenFile(selectedNode.id)}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-xl font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/20"
                 >
