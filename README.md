@@ -5,15 +5,12 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 ## 🚀 Features
 
 - **Web Dashboard**: A modern React-based UI for visual searching, chatting with your code, and managing your knowledge base.
-- **Adaptive Concurrency**: Automatically detects provider rate limits (like Z.AI's concurrency errors) and dynamically scales request rates for optimal performance.
-- **Resilient AI Tasks**: Built-in automatic retries with exponential backoff for failed API calls due to network or rate-limiting issues.
-- **Live System Activity**: A terminal-style activity drawer in the UI showing real-time watcher events, indexing progress, and API logs.
-- **AI Inspector (Debug)**: A deep-dive panel to inspect exact prompts, payloads, and raw API responses in real-time.
-- **"Ask AI" Integration**: Jump directly from a search result to a chat session with all relevant code context automatically pre-filled.
-- **Advanced Search Filtering**: Precision search and chat. Filter results by **Project**, **Collection**, or multiple **File Extensions** (e.g., `.ts, .js`).
-- **Proactive Indexing**: Connect folders directly from the browser with real-time indexing progress bars.
-- **Separate LLM & Embedding Config**: Independently configure your embedding models (e.g., local BGE) and your chat LLMs (e.g., Claude 3.5 or GPT-4o).
-- **Deep Code Intelligence**: Full **Markdown support** and **Syntax Highlighting**. Visual dependency graph with a **Symbol Intelligence** panel showing exports/imports.
+- **Visual Dependency Graph**: Explore architecture visually. Features a **Symbol Intelligence** panel and **Circular Dependency Detection** to spot import loops.
+- **AI Smart Questions**: Search results feature a "Generate Best Question" button that analyzes code to suggest the most insightful starting point for chat.
+- **Adaptive Concurrency**: Automatically detects provider rate limits (like Z.AI's concurrency errors) and dynamically scales request rates.
+- **Real-time Activity (SSE)**: Instant system event streaming (watchers, indexing, API logs) using Server-Sent Events.
+- **AI Inspector (Debug)**: Chrome DevTools-style panel to inspect exact prompts, payloads, and raw responses with pretty-formatting.
+- **Hono-Powered Backend**: Built on the high-performance Hono framework for ultra-low latency and standard Web Fetch API support.
 - **IDE Integration**: "Open in Editor" support with precise **line-level navigation** for VS Code and Cursor.
 - **Multi-Language Support**: TypeScript/JS, Python, Go, Java, Kotlin, Dart, Markdown, JSON, TOML, and XML.
 - **Hybrid Storage**: Use local **LanceDB** for speed or **Cloudflare Vectorize** for cloud-synchronized embeddings.
