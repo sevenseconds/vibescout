@@ -15,7 +15,12 @@ interface Message {
   content: string;
 }
 
-export default function ChatView() {
+interface ChatViewProps {
+  preFill?: { query?: string; projectName?: string; collection?: string; fileTypes?: string[] };
+  onPreFillClear?: () => void;
+}
+
+export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,6 +34,21 @@ export default function ChatView() {
   const [fileType, setFileType] = useState('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (preFill?.query || preFill?.projectName || preFill?.collection || preFill?.fileTypes) {
+      if (preFill.query) setInput(preFill.query);
+      if (preFill.projectName) setProjectName(preFill.projectName);
+      if (preFill.collection) setCollection(preFill.collection);
+      if (preFill.fileTypes) setFileType(preFill.fileTypes.join(', '));
+      
+      if (preFill.projectName || preFill.collection || preFill.fileTypes) {
+        setShowFilters(true);
+      }
+      
+      onPreFillClear?.();
+    }
+  }, [preFill]);
 
   const fetchHistory = async () => {
     try {
@@ -95,6 +115,7 @@ export default function ChatView() {
     setProjectName('');
     setCollection('');
     setFileType('');
+    onPreFillClear?.();
   };
 
   if (initialLoading) {

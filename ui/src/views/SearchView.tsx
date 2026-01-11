@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, ArrowRight, FileCode2, Loader2, Filter, X } from 'lucide-react';
+import { Search, ArrowRight, FileCode2, Loader2, Filter, X, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import CodeBlock from '../components/CodeBlock';
 import { clsx, type ClassValue } from 'clsx';
@@ -25,9 +25,10 @@ interface SearchResult {
 interface SearchViewProps {
   initialFilters?: { projectName?: string; collection?: string };
   onFiltersClear?: () => void;
+  onAskChat?: (data: { query?: string; projectName?: string; collection?: string; fileTypes?: string[] }) => void;
 }
 
-export default function SearchView({ initialFilters, onFiltersClear }: SearchViewProps) {
+export default function SearchView({ initialFilters, onFiltersClear, onAskChat }: SearchViewProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,6 +59,19 @@ export default function SearchView({ initialFilters, onFiltersClear }: SearchVie
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAskChat = () => {
+    const parsedFileTypes = fileType 
+      ? fileType.split(',').map(t => t.trim()).filter(t => t.length > 0)
+      : undefined;
+
+    onAskChat?.({
+      query,
+      projectName: projectName || undefined,
+      collection: collection || undefined,
+      fileTypes: parsedFileTypes
+    });
   };
 
   const clearFilters = () => {
@@ -164,50 +178,63 @@ export default function SearchView({ initialFilters, onFiltersClear }: SearchVie
 
       <div className="space-y-6 pb-12">
         {results.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4">
-            {results.map((result, i) => (
-              <div key={i} className="bg-card border border-border p-6 rounded-3xl space-y-4 shadow-sm hover:border-primary/50 transition-all group relative overflow-hidden">
-                <div className="flex items-center justify-between relative z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-primary/10 p-2.5 rounded-xl text-primary shadow-inner">
-                      <FileCode2 size={22} />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                Found {results.length} matches
+              </h3>
+              <button 
+                onClick={handleAskChat}
+                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-xs hover:bg-primary/20 transition-all shadow-lg shadow-primary/5"
+              >
+                <Sparkles size={14} /> Ask AI about these results
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {results.map((result, i) => (
+                <div key={i} className="bg-card border border-border p-6 rounded-3xl space-y-4 shadow-sm hover:border-primary/50 transition-all group relative overflow-hidden">
+                  <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 p-2.5 rounded-xl text-primary shadow-inner">
+                        <FileCode2 size={22} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{result.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">
+                            {result.type}
+                          </span>
+                          <span className="w-1 h-1 rounded-full bg-border" />
+                          <span className="text-[10px] text-primary/70 font-black uppercase tracking-widest">
+                            {result.collection}/{result.projectName}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{result.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">
-                          {result.type}
-                        </span>
-                        <span className="w-1 h-1 rounded-full bg-border" />
-                        <span className="text-[10px] text-primary/70 font-black uppercase tracking-widest">
-                          {result.collection}/{result.projectName}
-                        </span>
+                    <div className="text-right">
+                      <p className="text-[10px] font-mono text-muted-foreground break-all max-w-[200px]">{result.filePath}:{result.startLine}</p>
+                      <div className="mt-1.5 inline-flex items-center rounded-full bg-secondary border border-border/50 px-2.5 py-0.5 text-[10px] font-black text-secondary-foreground uppercase tracking-widest">
+                        Rerank: {result.rerankScore?.toFixed(4)}
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-mono text-muted-foreground break-all max-w-[200px]">{result.filePath}:{result.startLine}</p>
-                    <div className="mt-1.5 inline-flex items-center rounded-full bg-secondary border border-border/50 px-2.5 py-0.5 text-[10px] font-black text-secondary-foreground uppercase tracking-widest">
-                      Rerank: {result.rerankScore?.toFixed(4)}
-                    </div>
+                  {result.summary && (
+                    <p className="text-sm text-muted-foreground leading-relaxed italic bg-secondary/30 p-4 rounded-2xl border border-border/50 relative z-10">
+                      {result.summary}
+                    </p>
+                  )}
+                  
+                  <div className="relative z-10">
+                    <CodeBlock 
+                      code={result.content} 
+                      filePath={result.filePath} 
+                      line={result.startLine}
+                      showOpenInEditor 
+                    />
                   </div>
                 </div>
-                {result.summary && (
-                  <p className="text-sm text-muted-foreground leading-relaxed italic bg-secondary/30 p-4 rounded-2xl border border-border/50 relative z-10">
-                    {result.summary}
-                  </p>
-                )}
-                
-                <div className="relative z-10">
-                  <CodeBlock 
-                    code={result.content} 
-                    filePath={result.filePath} 
-                    line={result.startLine}
-                    showOpenInEditor 
-                  />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : !loading && query && (
           <div className="text-center py-20 bg-secondary/10 border border-dashed border-border rounded-3xl">

@@ -25,10 +25,16 @@ import LiveLogs from './components/LiveLogs';
 export default function App() {
   const [activeTab, setActiveTab] = useState<'search' | 'kb' | 'config' | 'chat' | 'graph'>('search');
   const [searchFilters, setSearchFilters] = useState<{ projectName?: string; collection?: string }>({});
+  const [chatPreFill, setChatPreFill] = useState<{ query?: string; projectName?: string; collection?: string; fileTypes?: string[] }>({});
 
   const navigateToSearch = (filters: { projectName?: string; collection?: string }) => {
     setSearchFilters(filters);
     setActiveTab('search');
+  };
+
+  const navigateToChat = (data: { query?: string; projectName?: string; collection?: string; fileTypes?: string[] }) => {
+    setChatPreFill(data);
+    setActiveTab('chat');
   };
 
   const navItems = [
@@ -86,9 +92,15 @@ export default function App() {
             <SearchView 
               initialFilters={searchFilters} 
               onFiltersClear={() => setSearchFilters({})} 
+              onAskChat={navigateToChat}
             />
           )}
-          {activeTab === 'chat' && <ChatView />}
+          {activeTab === 'chat' && (
+            <ChatView 
+              preFill={chatPreFill} 
+              onPreFillClear={() => setChatPreFill({})} 
+            />
+          )}
           {activeTab === 'graph' && <GraphView />}
           {activeTab === 'kb' && <KBView onExplore={navigateToSearch} />}
           {activeTab === 'config' && <ConfigView />}
