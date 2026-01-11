@@ -194,7 +194,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
         logger.info(`[Shutdown] Indexing for "${derivedProjectName}" stopped gracefully.`);
       } else {
         indexingProgress.status = "completed";
-        console.error(`[VibeScout] Indexing complete for ${derivedProjectName}`);
+        logger.info(`[Success] Indexing complete for "${derivedProjectName}". Indexed: ${totalIndexed} blocks, Skipped: ${skipped}, Pruned: ${pruned}.`);
       }
       
       return { totalIndexed, skipped, pruned };
