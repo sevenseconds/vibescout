@@ -1,7 +1,7 @@
 import { logger } from "./logger.js";
 
 export class AdaptiveThrottler {
-  constructor(name, initialConcurrency = 4, maxConcurrency = 16) {
+  constructor(name, initialConcurrency = 2, maxConcurrency = 8) {
     this.name = name;
     this.concurrency = initialConcurrency;
     this.maxConcurrency = maxConcurrency;
@@ -11,7 +11,7 @@ export class AdaptiveThrottler {
     this.minConcurrency = 1;
     
     // How many successes before we try to increase concurrency
-    this.increaseThreshold = 10; 
+    this.increaseThreshold = 20; 
   }
 
   async run(task, retries = 3) {
@@ -31,9 +31,9 @@ export class AdaptiveThrottler {
         lastError = err;
         if (this.isConcurrencyError(err)) {
           this.handleFailure(err);
-          // Backoff before retry
-          const delay = Math.pow(2, i) * 1000;
-          logger.debug(`[Throttler:${this.name}] Retrying in ${delay}ms...`);
+          // Exponential backoff before retry: 2s, 4s, 8s...
+          const delay = Math.pow(2, i + 1) * 1000;
+          logger.debug(`[Throttler:${this.name}] Concurrency error. Retrying in ${delay}ms...`);
           await new Promise(r => setTimeout(r, delay));
         } else {
           // Non-concurrency error, don't retry here
@@ -60,6 +60,7 @@ export class AdaptiveThrottler {
     return (
       msg.includes("并发数过高") || 
       msg.includes("1214") || 
+      msg.includes("1302") || 
       msg.includes("429") || 
       msg.includes("Rate limit") ||
       msg.includes("too many requests")
@@ -72,7 +73,7 @@ export class AdaptiveThrottler {
       if (this.concurrency < this.maxConcurrency) {
         this.concurrency++;
         this.successCount = 0;
-        logger.debug(`[Throttler:${this.name}] Increasing concurrency to ${this.concurrency}`);
+        logger.debug(`[Throttler:${this.name}] Stabilized. Increasing concurrency to ${this.concurrency}`);
       }
     }
   }
@@ -80,11 +81,15 @@ export class AdaptiveThrottler {
   handleFailure(err) {
     this.successCount = 0;
     const oldLimit = this.concurrency;
-    // Multiplicative Decrease (cut in half)
-    this.concurrency = Math.max(this.minConcurrency, Math.floor(this.concurrency / 2));
+    // Multiplicative Decrease: cut in half, or drop to 1 immediately if already low
+    if (this.concurrency <= 2) {
+      this.concurrency = 1;
+    } else {
+      this.concurrency = Math.max(this.minConcurrency, Math.floor(this.concurrency / 2));
+    }
     
     if (oldLimit !== this.concurrency) {
-      logger.warn(`[Throttler:${this.name}] Rate limit hit. Reducing concurrency: ${oldLimit} -> ${this.concurrency}`);
+      logger.warn(`[Throttler:${this.name}] Rate limit hit (Error ${err.message?.includes('1302') ? '1302' : 'Code'}). Reducing concurrency: ${oldLimit} -> ${this.concurrency}`);
     }
   }
 

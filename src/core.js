@@ -21,7 +21,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
 
-const CONCURRENCY_LIMIT = 4;
+const CONCURRENCY_LIMIT = 2;
 
 /**
  * Helper to load ignore patterns from .vibeignore and .gitignore
