@@ -44,7 +44,7 @@ export default function ConfigView() {
   const fetchOllamaModels = async () => {
     if (!config?.ollamaUrl) return;
     try {
-      const res = await axios.get('/api/models/ollama');
+      const res = await axios.get(`/api/models/ollama?url=${encodeURIComponent(config.ollamaUrl)}`);
       setOllamaModels(res.data.map((m: any) => m.name));
     } catch (err) {
       console.error('Ollama models fetch failed:', err);
@@ -113,9 +113,10 @@ export default function ConfigView() {
   };
 
   const handleOllamaSync = async () => {
+    if (!config?.ollamaUrl) return;
     setOllamaSyncing(true);
     try {
-      const res = await axios.get('/api/models/ollama');
+      const res = await axios.get(`/api/models/ollama?url=${encodeURIComponent(config.ollamaUrl)}`);
       const models = res.data;
       const modelNames = models.map((m: any) => m.name);
       setOllamaModels(modelNames);
