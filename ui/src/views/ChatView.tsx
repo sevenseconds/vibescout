@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, Trash2, Filter, X } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -19,6 +19,13 @@ export default function ChatView() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Filters
+  const [projectName, setProjectName] = useState('');
+  const [collection, setCollection] = useState('');
+  const [fileType, setFileType] = useState('');
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const fetchHistory = async () => {
@@ -52,7 +59,12 @@ export default function ChatView() {
     setLoading(true);
 
     try {
-      const response = await axios.post('/api/chat', { query: currentInput });
+      const response = await axios.post('/api/chat', { 
+        query: currentInput,
+        projectName: projectName || undefined,
+        collection: collection || undefined,
+        fileType: fileType || undefined
+      });
       const assistantMessage: Message = { role: 'assistant', content: response.data.response };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (err) {
@@ -71,6 +83,12 @@ export default function ChatView() {
     } catch (err) {
       console.error('Failed to clear chat:', err);
     }
+  };
+
+  const clearFilters = () => {
+    setProjectName('');
+    setCollection('');
+    setFileType('');
   };
 
   if (initialLoading) {
@@ -93,14 +111,29 @@ export default function ChatView() {
             <p className="text-xs text-muted-foreground font-semibold uppercase tracking-widest">Persistent Conversation</p>
           </div>
         </div>
-        {messages.length > 0 && (
-          <button 
-            onClick={handleClear}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
-          >
-            <Trash2 size={14} /> Clear History
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg transition-all border",
+                showFilters || projectName || collection || fileType 
+                  ? "bg-primary/10 border-primary/30 text-primary" 
+                  : "text-muted-foreground hover:text-foreground border-transparent"
+              )}
+            >
+              <Filter size={14} /> Filters
+            </button>
+          )}
+          {messages.length > 0 && (
+            <button 
+              onClick={handleClear}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+            >
+              <Trash2 size={14} /> Clear History
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Chat Area */}
@@ -160,7 +193,45 @@ export default function ChatView() {
       </div>
 
       {/* Input Area */}
-      <div className="pt-2">
+      <div className="pt-2 space-y-4">
+        {showFilters && (
+          <div className="bg-card border border-border p-4 rounded-2xl shadow-lg animate-in slide-in-from-bottom-2 duration-200">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Scope Filters</h3>
+              {(projectName || collection || fileType) && (
+                <button 
+                  onClick={clearFilters}
+                  className="text-[10px] font-bold uppercase tracking-wider text-primary hover:underline flex items-center gap-1"
+                >
+                  <X size={10} /> Clear All
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input 
+                type="text" 
+                placeholder="Project Name"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary transition-all"
+              />
+              <input 
+                type="text" 
+                placeholder="Collection"
+                value={collection}
+                onChange={(e) => setCollection(e.target.value)}
+                className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary transition-all"
+              />
+              <input 
+                type="text" 
+                placeholder="File Extension (e.g. .ts)"
+                value={fileType}
+                onChange={(e) => setFileType(e.target.value)}
+                className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary font-mono transition-all"
+              />
+            </div>
+          </div>
+        )}
         <div className="relative group">
           <input
             type="text"

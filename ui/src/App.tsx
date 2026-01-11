@@ -20,6 +20,7 @@ import KBView from './views/KBView';
 import ConfigView from './views/ConfigView';
 import ChatView from './views/ChatView';
 import GraphView from './views/GraphView';
+import LiveLogs from './components/LiveLogs';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'search' | 'kb' | 'config' | 'chat' | 'graph'>('search');
@@ -81,6 +82,7 @@ export default function App() {
           {activeTab === 'kb' && <KBView />}
           {activeTab === 'config' && <ConfigView />}
         </div>
+        <LiveLogs />
       </main>
     </div>
   );

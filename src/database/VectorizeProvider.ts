@@ -68,7 +68,7 @@ export class VectorizeProvider implements VectorDBProvider {
     }
   }
 
-  async search(embedding: number[], options: { collection?: string; projectName?: string; limit?: number }): Promise<VectorResult[]> {
+  async search(embedding: number[], options: { collection?: string; projectName?: string; fileType?: string; limit?: number }): Promise<VectorResult[]> {
     try {
       const response = await fetch(`${this.getBaseUrl()}/query`, {
         method: "POST",
@@ -97,9 +97,10 @@ export class VectorizeProvider implements VectorDBProvider {
         score: m.score
       } as VectorResult));
 
-      // Post-filtering for collection/project
+      // Post-filtering for collection/project/fileType
       if (options.collection) results = results.filter(r => r.collection === options.collection);
       if (options.projectName) results = results.filter(r => r.projectName === options.projectName);
+      if (options.fileType) results = results.filter(r => r.filePath.toLowerCase().endsWith(options.fileType!.toLowerCase()));
 
       return results;
     } catch (err: any) {

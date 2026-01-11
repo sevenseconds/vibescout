@@ -42,9 +42,9 @@ export default function GraphView() {
 
   const fgRef = useRef<any>(null);
 
-  const handleOpenFile = async (filePath: string) => {
+  const handleOpenFile = async (filePath: string, line = 1) => {
     try {
-      await axios.post('/api/open', { filePath });
+      await axios.post('/api/open', { filePath, line });
     } catch (err) {
       console.error('Failed to open file:', err);
     }

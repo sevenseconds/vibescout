@@ -18,10 +18,11 @@ interface CodeBlockProps {
   code: string;
   language?: string;
   filePath?: string;
+  line?: number;
   showOpenInEditor?: boolean;
 }
 
-export default function CodeBlock({ code, language, filePath, showOpenInEditor }: CodeBlockProps) {
+export default function CodeBlock({ code, language, filePath, line, showOpenInEditor }: CodeBlockProps) {
   const codeRef = useRef<HTMLElement>(null);
   const [copied, setCopying] = useState(false);
 
@@ -40,7 +41,7 @@ export default function CodeBlock({ code, language, filePath, showOpenInEditor }
   const handleOpenInEditor = async () => {
     if (!filePath) return;
     try {
-      await axios.post('/api/open', { filePath });
+      await axios.post('/api/open', { filePath, line });
     } catch (err) {
       console.error('Failed to open file:', err);
     }

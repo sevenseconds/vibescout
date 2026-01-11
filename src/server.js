@@ -254,6 +254,8 @@ app.post('/api/index', async (c) => {
 
 app.get('/api/index/status', (c) => c.json(indexingProgress));
 
+app.get('/api/logs', (c) => c.json(logger.getRecentLogs()));
+
 app.get('/api/deps', async (c) => {
   const filePath = c.req.query('filePath');
   if (!filePath) return c.json({ error: 'filePath required' }, 400);
@@ -262,15 +264,15 @@ app.get('/api/deps', async (c) => {
 });
 
 app.post('/api/search', async (c) => {
-  const { query, collection, projectName } = await c.req.json();
-  const results = await searchCode(query, collection, projectName);
+  const { query, collection, projectName, fileType } = await c.req.json();
+  const results = await searchCode(query, collection, projectName, fileType);
   return c.json(results);
 });
 
 app.post('/api/chat', async (c) => {
-  const { query, collection, projectName } = await c.req.json();
+  const { query, collection, projectName, fileType } = await c.req.json();
   const history = await getChatMessages();
-  const response = await chatWithCode(query, collection, projectName, history);
+  const response = await chatWithCode(query, collection, projectName, history, fileType);
   
   await addChatMessage("user", query);
   await addChatMessage("assistant", response);
@@ -299,8 +301,8 @@ app.get('/api/stats', async (c) => {
 });
 
 app.post('/api/open', async (c) => {
-  const { filePath } = await c.req.json();
-  await openFile(filePath);
+  const { filePath, line } = await c.req.json();
+  await openFile(filePath, line);
   return c.json({ success: true });
 });
 

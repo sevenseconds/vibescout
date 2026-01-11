@@ -201,7 +201,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 /**
  * Shared search logic that returns raw result objects
  */
-export async function searchCode(query, collection, projectName) {
+export async function searchCode(query, collection, projectName, fileType) {
   const currentModel = embeddingManager.getModel();
   const storedModel = await getStoredModel();
   
@@ -211,7 +211,7 @@ export async function searchCode(query, collection, projectName) {
   }
 
   const queryVector = await embeddingManager.generateEmbedding(query);
-  const rawResults = await hybridSearch(query, queryVector, { collection, projectName, limit: 15 });
+  const rawResults = await hybridSearch(query, queryVector, { collection, projectName, fileType, limit: 15 });
   return await rerankerManager.rerank(query, rawResults, 10);
 }
 
@@ -234,8 +234,8 @@ Summary: ${r.summary || "N/A"}
 /**
  * RAG-based Chat Logic
  */
-export async function chatWithCode(query, collection, projectName, history = []) {
-  const results = await searchCode(query, collection, projectName);
+export async function chatWithCode(query, collection, projectName, history = [], fileType) {
+  const results = await searchCode(query, collection, projectName, fileType);
   
   if (results.length === 0 && history.length === 0) {
     return "I couldn't find any relevant code to answer your question.";
@@ -251,14 +251,26 @@ export async function chatWithCode(query, collection, projectName, history = [])
 
 /**
  * Helper to open file in default editor/browser
+ * Supports line numbers if provided (e.g. for VS Code/Cursor)
  */
-export async function openFile(filePath) {
+export async function openFile(filePath, line = 1) {
   const platform = process.platform;
   try {
     if (platform === "darwin") {
-      await execAsync(`open "${filePath}"`);
+      // Try to use 'code' command if available for better experience
+      try {
+        await execAsync(`code --goto "${filePath}:${line}"`);
+        return;
+      } catch {
+        await execAsync(`open "${filePath}"`);
+      }
     } else if (platform === "win32") {
-      await execAsync(`start "" "${filePath}"`);
+      try {
+        await execAsync(`code --goto "${filePath}:${line}"`);
+        return;
+      } catch {
+        await execAsync(`start "" "${filePath}"`);
+      }
     } else {
       await execAsync(`xdg-open "${filePath}"`);
     }
