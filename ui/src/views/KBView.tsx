@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Folder } from 'lucide-react';
+import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import FolderPicker from '../components/FolderPicker';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,7 +38,6 @@ export default function KBView({ onExplore }: KBViewProps) {
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingWatcher, setRemovingWatcher] = useState<string | null>(null);
-  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newWatcher, setNewWatcher] = useState<Watcher>({ folderPath: '', projectName: '', collection: 'default' });
   
@@ -97,20 +95,11 @@ export default function KBView({ onExplore }: KBViewProps) {
     }
   };
 
-  const handleBrowseFolder = () => {
-    setShowFolderPicker(true);
-  };
-
-  const onSelectFolder = (path: string) => {
-    const projectName = newWatcher.projectName || path.split(/[\\/]/).pop() || '';
-    setNewWatcher(prev => ({ ...prev, folderPath: path, projectName }));
-    setShowFolderPicker(false);
-  };
-
   const handleRemoveWatcher = async (path: string, projectName?: string) => {
     setRemovingWatcher(path);
     try {
       await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(path)}${projectName ? `&projectName=${encodeURIComponent(projectName)}` : ''}`);
+      // Update local state immediately
       setWatchers(prev => prev.filter(w => w.folderPath !== path));
       await fetchData();
     } catch (err) {
@@ -123,6 +112,7 @@ export default function KBView({ onExplore }: KBViewProps) {
   const handleDeleteProject = async (projectName: string) => {
     if (!confirm(`Are you sure you want to delete "${projectName}" from the index? This cannot be undone.`)) return;
     try {
+      // Optimistic UI update for the index list
       setKb(prev => {
         const next = { ...prev };
         for (const col in next) {
@@ -132,17 +122,20 @@ export default function KBView({ onExplore }: KBViewProps) {
         return next;
       });
 
+      // 1. Find if this project has a watcher and remove it first
       const watcher = watchers.find(w => w.projectName === projectName);
       if (watcher) {
+        // Optimistic UI update for watchers
         setWatchers(prev => prev.filter(w => w.projectName !== projectName));
         await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(watcher.folderPath)}&projectName=${encodeURIComponent(watcher.projectName)}`);
       }
 
+      // 2. Delete the project index
       await axios.delete(`/api/projects?projectName=${encodeURIComponent(projectName)}`);
       await fetchData();
     } catch (err) {
       console.error(err);
-      fetchData();
+      fetchData(); // Rollback on error
     }
   };
 
@@ -157,9 +150,11 @@ export default function KBView({ onExplore }: KBViewProps) {
 
   const handleEnableWatch = async (projectName: string, collection: string) => {
     try {
+      // 1. Get the likely root path from the server
       const pathRes = await axios.get(`/api/projects/root?projectName=${encodeURIComponent(projectName)}`);
       const folderPath = pathRes.data.rootPath;
       
+      // 2. Pre-fill the form and scroll to top, or just do it directly
       if (confirm(`Detected root path: ${folderPath}\n\nDo you want to start a real-time watcher for this project?`)) {
         await axios.post('/api/watchers', { folderPath, projectName, collection });
         fetchData();
@@ -228,22 +223,13 @@ export default function KBView({ onExplore }: KBViewProps) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Absolute Folder Path</label>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="/Users/name/workspaces/my-app"
-                  value={newWatcher.folderPath}
-                  onChange={(e) => setNewWatcher({...newWatcher, folderPath: e.target.value})}
-                  className="flex-1 bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
-                />
-                <button 
-                  onClick={handleBrowseFolder}
-                  className="px-4 bg-secondary border border-border rounded-xl hover:border-primary/50 transition-all text-muted-foreground hover:text-primary"
-                  title="Browse Folders"
-                >
-                  <Folder size={20} />
-                </button>
-              </div>
+              <input 
+                type="text" 
+                placeholder="/Users/name/workspaces/my-app"
+                value={newWatcher.folderPath}
+                onChange={(e) => setNewWatcher({...newWatcher, folderPath: e.target.value})}
+                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
+              />
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Project Name (Identifier)</label>
@@ -433,12 +419,6 @@ export default function KBView({ onExplore }: KBViewProps) {
           </div>
         </div>
       </div>
-
-      <FolderPicker 
-        isOpen={showFolderPicker} 
-        onClose={() => setShowFolderPicker(false)} 
-        onSelect={onSelectFolder} 
-      />
     </div>
   );
 }
