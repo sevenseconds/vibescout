@@ -101,7 +101,7 @@ async function main() {
         (config.provider === "openai" || config.provider === "lmstudio") ? config.openaiBaseUrl : undefined,
       apiKey: config.provider === "gemini" ? config.geminiKey :
         config.provider === "cloudflare" ? config.cloudflareToken :
-          config.provider === "zai" ? config.zaiKey :
+          (config.provider === "zai" || config.provider === "zai-coding") ? config.zaiKey :
             config.openaiKey,
       accountId: config.cloudflareAccountId,
       awsRegion: config.awsRegion,
@@ -115,7 +115,7 @@ async function main() {
         ((config.llmProvider || config.provider) === "openai" || (config.llmProvider || config.provider) === "lmstudio") ? config.openaiBaseUrl : undefined,
       apiKey: (config.llmProvider || config.provider) === "gemini" ? config.geminiKey :
         (config.llmProvider || config.provider) === "cloudflare" ? config.cloudflareToken :
-          (config.llmProvider || config.provider) === "zai" ? config.zaiKey :
+          ((config.llmProvider || config.provider) === "zai" || (config.llmProvider || config.provider) === "zai-coding") ? config.zaiKey :
             config.openaiKey,
       accountId: config.cloudflareAccountId,
       awsRegion: config.awsRegion,

@@ -314,7 +314,7 @@ export async function handleApiRequest(req, res) {
           (newConfig.provider === "openai" || newConfig.provider === "lmstudio") ? newConfig.openaiBaseUrl : undefined,
         apiKey: newConfig.provider === "gemini" ? newConfig.geminiKey :
           newConfig.provider === "cloudflare" ? newConfig.cloudflareToken :
-            newConfig.provider === "zai" ? newConfig.zaiKey :
+            (newConfig.provider === "zai" || newConfig.provider === "zai-coding") ? newConfig.zaiKey :
               newConfig.openaiKey,
         accountId: newConfig.cloudflareAccountId,
         awsRegion: newConfig.awsRegion,
@@ -328,7 +328,7 @@ export async function handleApiRequest(req, res) {
           ((newConfig.llmProvider || newConfig.provider) === "openai" || (newConfig.llmProvider || newConfig.provider) === "lmstudio") ? newConfig.openaiBaseUrl : undefined,
         apiKey: (newConfig.llmProvider || newConfig.provider) === "gemini" ? newConfig.geminiKey :
           (newConfig.llmProvider || newConfig.provider) === "cloudflare" ? newConfig.cloudflareToken :
-            (newConfig.llmProvider || newConfig.provider) === "zai" ? newConfig.zaiKey :
+            ((newConfig.llmProvider || newConfig.provider) === "zai" || (newConfig.llmProvider || newConfig.provider) === "zai-coding") ? newConfig.zaiKey :
               newConfig.openaiKey,
         accountId: newConfig.cloudflareAccountId,
         awsRegion: newConfig.awsRegion,

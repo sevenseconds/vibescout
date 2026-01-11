@@ -11,3 +11,14 @@ export class ZAIProvider extends OpenAIProvider {
     this.name = "zai";
   }
 }
+
+/**
+ * Z.AI (BigModel.cn) Coding Plan Provider
+ */
+export class ZAICodingProvider extends OpenAIProvider {
+  constructor(modelName: string, apiKey: string) {
+    // Z.AI Coding Plan base URL
+    super(modelName, apiKey, "https://open.bigmodel.cn/api/coding/paas/v4");
+    this.name = "zai-coding";
+  }
+}

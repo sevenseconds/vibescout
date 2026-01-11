@@ -5,7 +5,7 @@ import { OllamaProvider } from "./providers/OllamaProvider.js";
 import { OpenAIProvider } from "./providers/OpenAIProvider.js";
 import { CloudflareProvider } from "./providers/CloudflareProvider.js";
 import { GeminiProvider } from "./providers/GeminiProvider.js";
-import { ZAIProvider } from "./providers/ZAIProvider.js";
+import { ZAIProvider, ZAICodingProvider } from "./providers/ZAIProvider.js";
 import { BedrockProvider } from "./providers/BedrockProvider.js";
 import { EmbeddingProvider, SummarizerProvider, ProviderConfig } from "./providers/base.js";
 
@@ -42,6 +42,8 @@ export class EmbeddingManager {
       this.provider = new GeminiProvider(config.modelName, config.apiKey || "");
     } else if (config.type === 'zai') {
       this.provider = new ZAIProvider(config.modelName, config.apiKey || "");
+    } else if (config.type === 'zai-coding' as any) {
+      this.provider = new ZAICodingProvider(config.modelName, config.apiKey || "");
     } else if (config.type === 'bedrock') {
       this.provider = new BedrockProvider(config.modelName, config.awsRegion || "us-east-1", config.awsProfile);
     } else {
@@ -118,6 +120,8 @@ class SummarizerManager {
       this.provider = new GeminiProvider(config.modelName, config.apiKey || "");
     } else if (config.type === 'zai') {
       this.provider = new ZAIProvider(config.modelName, config.apiKey || "");
+    } else if (config.type === 'zai-coding' as any) {
+      this.provider = new ZAICodingProvider(config.modelName, config.apiKey || "");
     } else if (config.type === 'bedrock') {
       this.provider = new BedrockProvider(config.modelName, config.awsRegion || "us-east-1", config.awsProfile);
     } else {
