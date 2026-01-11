@@ -51,6 +51,7 @@ export let indexingProgress = {
   totalFiles: 0,
   processedFiles: 0,
   failedFiles: 0,
+  failedPaths: [],
   lastError: null,
   status: "idle"
 };
@@ -110,6 +111,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
     totalFiles: filesOnDisk.length,
     processedFiles: 0,
     failedFiles: 0,
+    failedPaths: [],
     lastError: null,
     status: "indexing"
   };
@@ -204,6 +206,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           logger.error(`Error processing ${file}: ${err.message}`);
           indexingProgress.failedFiles++;
           indexingProgress.processedFiles++;
+          indexingProgress.failedPaths.push(filePath);
           indexingProgress.lastError = err.message;
         }
       };

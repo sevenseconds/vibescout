@@ -281,6 +281,46 @@ app.post('/api/index/resume', (c) => {
   return c.json({ success: true });
 });
 
+app.post('/api/index/retry', async (c) => {
+  const { failedPaths, projectName, collection, summarize } = indexingProgress;
+  if (!failedPaths || failedPaths.length === 0) return c.json({ error: 'No failed files to retry' }, 400);
+
+  // Clear current failed list before retrying
+  const pathsToRetry = [...failedPaths];
+  indexingProgress.failedFiles = 0;
+  indexingProgress.failedPaths = [];
+  indexingProgress.active = true;
+  indexingProgress.status = "indexing";
+  indexingProgress.totalFiles = pathsToRetry.length;
+  indexingProgress.processedFiles = 0;
+
+  // We need to re-trigger for these specific files
+  // Since handleIndexFolder takes a folder, we can update it or add a list handler
+  // For now, let's keep it simple and just log we are retrying
+  logger.info(`[Retry] Retrying ${pathsToRetry.length} failed files for ${projectName}`);
+  
+  const { indexSingleFile } = await import("./core.js");
+  
+  // Fire and forget background retry
+  (async () => {
+    for (const filePath of pathsToRetry) {
+      try {
+        await indexSingleFile(filePath, projectName, collection || "default");
+        indexingProgress.processedFiles++;
+      } catch (err) {
+        indexingProgress.failedFiles++;
+        indexingProgress.processedFiles++;
+        indexingProgress.failedPaths.push(filePath);
+        indexingProgress.lastError = err.message;
+      }
+    }
+    indexingProgress.active = false;
+    indexingProgress.status = indexingProgress.failedFiles > 0 ? "completed_with_errors" : "completed";
+  })();
+
+  return c.json({ success: true, message: "Retry started in background" });
+});
+
 app.get('/api/logs', (c) => c.json(logger.getRecentLogs()));
 
 app.get('/api/logs/stream', async (c) => {
