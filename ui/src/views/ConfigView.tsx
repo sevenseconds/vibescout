@@ -38,6 +38,8 @@ export default function ConfigView() {
   const [newErrorPattern, setNewErrorPattern] = useState('');
   const [ollamaSyncing, setOllamaSyncing] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [testingEmbedding, setTestingEmbedding] = useState(false);
+  const [testingLLM, setTestingLLM] = useState(false);
 
   const fetchOllamaModels = async () => {
     if (!config?.ollamaUrl) return;
@@ -134,6 +136,30 @@ export default function ConfigView() {
       alert('Failed to connect to Ollama. Make sure it is running and the URL is correct.');
     } finally {
       setOllamaSyncing(false);
+    }
+  };
+
+  const handleTestEmbedding = async () => {
+    setTestingEmbedding(true);
+    try {
+      const res = await axios.post('/api/test/embedding');
+      alert(`Embedding Test: ${res.data.message}`);
+    } catch (err: any) {
+      alert(`Embedding Test Failed: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setTestingEmbedding(false);
+    }
+  };
+
+  const handleTestLLM = async () => {
+    setTestingLLM(true);
+    try {
+      const res = await axios.post('/api/test/llm');
+      alert(`LLM Test: ${res.data.message}`);
+    } catch (err: any) {
+      alert(`LLM Test Failed: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setTestingLLM(false);
     }
   };
 
@@ -343,8 +369,18 @@ export default function ConfigView() {
               <Bot size={20} className="text-primary" />
               <h3 className="font-bold tracking-tight text-lg text-foreground">Embedding Provider</h3>
             </div>
-            <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
-              {config?.provider}
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleTestEmbedding}
+                disabled={testingEmbedding}
+                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all disabled:opacity-50"
+              >
+                {testingEmbedding ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                Test
+              </button>
+              <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
+                {config?.provider}
+              </div>
             </div>
           </div>
           
@@ -416,8 +452,18 @@ export default function ConfigView() {
               <MessagesSquare size={20} className="text-primary" />
               <h3 className="font-bold tracking-tight text-lg text-foreground">LLM Provider</h3>
             </div>
-            <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
-              {config?.llmProvider || config?.provider}
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleTestLLM}
+                disabled={testingLLM}
+                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all disabled:opacity-50"
+              >
+                {testingLLM ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                Test
+              </button>
+              <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
+                {config?.llmProvider || config?.provider}
+              </div>
             </div>
           </div>
           
