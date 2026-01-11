@@ -12,22 +12,38 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
     try {
+      if (!this.baseUrl) {
+        throw new Error("Ollama URL is not configured. Please check your settings.");
+      }
+
+      const payload = {
+        model: this.modelName,
+        prompt: text,
+      };
+
+      requestId = debugStore.logRequest(`${this.name}:embed`, this.modelName, payload);
+
       const response = await fetch(`${this.baseUrl}/api/embeddings`, {
         method: "POST",
-        body: JSON.stringify({
-          model: this.modelName,
-          prompt: text,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        throw new Error(`Ollama error: ${response.statusText}`);
+        const error = await response.text();
+        debugStore.updateError(requestId, error);
+        throw new Error(`Ollama error: ${response.statusText} - ${error}`);
       }
 
       const data = await response.json() as { embedding: number[] };
+      debugStore.updateResponse(requestId, `[Embedding Vector: size ${data.embedding?.length || 0}]`);
       return data.embedding;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Ollama Embedding failed: ${err.message}`);
       throw err;
     }
