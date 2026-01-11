@@ -15,6 +15,10 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
 
   async generateEmbedding(text: string): Promise<number[]> {
     try {
+      if (!this.apiKey || this.apiKey === "not-needed") {
+        throw new Error(`API Key is missing for ${this.name} provider.`);
+      }
+
       const response = await fetch(`${this.baseUrl}/embeddings`, {
         method: "POST",
         headers: {
@@ -29,19 +33,23 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
 
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`OpenAI error: ${error}`);
+        throw new Error(`${this.name} error: ${error}`);
       }
 
       const data = await response.json() as { data: [{ embedding: number[] }] };
       return data.data[0].embedding;
     } catch (err: any) {
-      logger.error(`OpenAI Embedding failed: ${err.message}`);
+      logger.error(`${this.name} Embedding failed: ${err.message}`);
       throw err;
     }
   }
 
   async summarize(text: string): Promise<string> {
     try {
+      if (!this.apiKey || this.apiKey === "not-needed") {
+        throw new Error(`API Key is missing for ${this.name} provider.`);
+      }
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -60,26 +68,33 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
 
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`OpenAI error: ${error}`);
+        throw new Error(`${this.name} error: ${error}`);
       }
 
       const data = await response.json() as { choices: [{ message: { content: string } }] };
       return data.choices[0].message.content.trim();
     } catch (err: any) {
-      logger.error(`OpenAI Summarization failed: ${err.message}`);
+      logger.error(`${this.name} Summarization failed: ${err.message}`);
       return "";
     }
   }
 
   async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
     try {
+      if (!this.apiKey || this.apiKey === "not-needed") {
+        throw new Error(`API Key is missing for ${this.name} provider.`);
+      }
+
       const messages = [
         { role: "system", content: "You are a code assistant. Answer questions based on the provided code context and conversation history." },
         ...history.map(m => ({ role: m.role, content: m.content })),
         { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
       ];
 
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      const url = `${this.baseUrl}/chat/completions`;
+      logger.debug(`${this.name} requesting: ${url}`);
+
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -92,13 +107,16 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
         }),
       });
 
-      if (!response.ok) throw new Error(`OpenAI error: ${response.statusText}`);
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`${this.name} error: ${error}`);
+      }
 
       const data = await response.json() as { choices: [{ message: { content: string } }] };
       return data.choices[0].message.content.trim();
     } catch (err: any) {
-      logger.error(`OpenAI Response generation failed: ${err.message}`);
-      return "OpenAI failed to generate response.";
+      logger.error(`${this.name} Response generation failed: ${err.message}`);
+      return `${this.name} failed to generate response.`;
     }
   }
 }
