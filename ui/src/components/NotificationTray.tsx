@@ -1,0 +1,83 @@
+import { useState, useEffect } from 'react';
+import { CheckCircle2, AlertCircle, X } from 'lucide-react';
+import axios from 'axios';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+interface IndexProgress {
+  active: boolean;
+  projectName: string;
+  totalFiles: number;
+  processedFiles: number;
+  status: string;
+}
+
+export default function NotificationTray() {
+  const [lastStatus, setLastStatus] = useState<string>('idle');
+  const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await axios.get('/api/index/status');
+        const progress: IndexProgress = res.data;
+
+        // Detect transition from active -> completed
+        if (lastStatus === 'indexing' && !progress.active && progress.status === 'completed') {
+          setNotification({
+            type: 'success',
+            message: `Indexing complete: ${progress.projectName}`
+          });
+          // Auto-hide after 5 seconds
+          setTimeout(() => setNotification(null), 5000);
+        }
+
+        // Detect errors
+        if (progress.status.startsWith('error')) {
+          setNotification({
+            type: 'error',
+            message: `Indexing failed: ${progress.projectName}`
+          });
+        }
+
+        setLastStatus(progress.active ? 'indexing' : progress.status);
+      } catch (err) {
+        console.error('Failed to poll status for notifications:', err);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [lastStatus]);
+
+  if (!notification) return null;
+
+  return (
+    <div className="fixed top-6 right-6 z-[100] animate-in slide-in-from-right-8 duration-300">
+      <div className={cn(
+        "flex items-center gap-4 p-4 rounded-2xl shadow-2xl border min-w-[320px]",
+        notification.type === 'success' ? "bg-card border-emerald-500/20" : "bg-card border-red-500/20"
+      )}>
+        <div className={cn(
+          "p-2 rounded-xl shrink-0",
+          notification.type === 'success' ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+        )}>
+          {notification.type === 'success' ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
+        </div>
+        <div className="flex-1">
+          <h4 className="font-bold text-sm">System Update</h4>
+          <p className="text-xs text-muted-foreground font-medium">{notification.message}</p>
+        </div>
+        <button 
+          onClick={() => setNotification(null)}
+          className="p-1 hover:bg-secondary rounded-lg text-muted-foreground transition-colors"
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}

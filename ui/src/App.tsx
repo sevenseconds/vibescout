@@ -21,6 +21,7 @@ import ConfigView from './views/ConfigView';
 import ChatView from './views/ChatView';
 import GraphView from './views/GraphView';
 import LiveLogs from './components/LiveLogs';
+import NotificationTray from './components/NotificationTray';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'search' | 'kb' | 'config' | 'chat' | 'graph'>('search');
@@ -84,6 +85,8 @@ export default function App() {
           </div>
         </div>
       </aside>
+
+      <NotificationTray />
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-h-0 relative">
