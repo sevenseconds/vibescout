@@ -303,17 +303,19 @@ export async function removeFromWatchList(folderPath: string, projectName?: stri
     const absolutePath = path.resolve(folderPath);
     
     const all = await table.query().toArray();
-    // Try matching by path first, then by project name as a fallback
-    const target = all.find(r => 
+    // Find all matching targets (handles potential duplicates or path variations)
+    const targets = all.filter(r => 
       path.resolve(r.folderPath) === absolutePath || 
       (projectName && r.projectName === projectName)
     );
 
-    if (target) {
-      await table.delete(`"folderPath" = '${target.folderPath}'`);
-      logger.info(`[DB] Successfully removed ${target.projectName} from watch_list.`);
+    if (targets.length > 0) {
+      for (const target of targets) {
+        await table.delete(`"folderPath" = '${target.folderPath}'`);
+        logger.info(`[DB] Successfully removed watcher record for: ${target.folderPath}`);
+      }
     } else {
-      logger.warn(`[DB] Could not find watcher record to delete.`);
+      logger.warn(`[DB] No matching watcher found for ${folderPath} (${projectName || ''})`);
     }
   }
 }

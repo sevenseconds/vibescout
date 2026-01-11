@@ -412,6 +412,14 @@ app.post('/api/watchers', async (c) => {
   return c.json({ success: true });
 });
 
+app.delete('/api/watchers/all', async (c) => {
+  const watchersList = await getWatchList();
+  for (const w of watchersList) {
+    await unwatchProject(w.folderPath, w.projectName);
+  }
+  return c.json({ success: true });
+});
+
 app.delete('/api/watchers', async (c) => {
   const folderPath = c.req.query('folderPath');
   const projectName = c.req.query('projectName');

@@ -52,11 +52,13 @@ export async function watchProject(folderPath: string, projectName: string, coll
 
 export async function unwatchProject(folderPath: string, projectName?: string) {
   const absolutePath = path.resolve(folderPath);
-  logger.info(`[Watcher] Attempting to stop watcher for: ${folderPath}`);
+  logger.info(`[Watcher] Stopping watcher for: ${folderPath}`);
   
   const watcher = watchers.get(absolutePath);
   if (watcher) {
-    await watcher.close();
+    // Don't await close() to avoid blocking the API response
+    // Chokidar can be slow on some systems
+    watcher.close().catch(err => logger.error(`[Watcher] Error closing instance: ${err.message}`));
     watchers.delete(absolutePath);
   }
   
