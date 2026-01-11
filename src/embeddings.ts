@@ -104,7 +104,7 @@ class RerankerManager {
   }
 }
 
-class SummarizerManager {
+export class SummarizerManager {
   private provider: SummarizerProvider;
   public modelName: string;
   private throttlingErrors: string[] = [];
