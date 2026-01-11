@@ -53,6 +53,16 @@ export let indexingProgress = {
   status: "idle"
 };
 
+let isShuttingDown = false;
+
+export function stopIndexing() {
+  if (indexingProgress.active) {
+    isShuttingDown = true;
+    indexingProgress.status = "stopping";
+    logger.info(`[Shutdown] Stopping indexing for "${indexingProgress.projectName}" gracefully...`);
+  }
+}
+
 /**
  * Tool: index_folder
  * @param {boolean} summarize - Default is now TRUE for high accuracy
@@ -78,6 +88,8 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   if (indexingProgress.active) {
     return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
   }
+
+  isShuttingDown = false;
 
   // Update progress state
   indexingProgress = {
@@ -107,6 +119,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       const hashUpdates = [];
       
       const processFile = async (file) => {
+        if (isShuttingDown) return;
         const filePath = path.join(absolutePath, file);
         try {
           const content = await fs.readFile(filePath, "utf-8");
@@ -129,6 +142,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
             if (summarize) {
               const parents = blocks.filter(b => b.type !== "chunk");
               for (const parent of parents) {
+                if (isShuttingDown) break;
                 const summary = await summarizerManager.summarize(parent.content);
                 parentSummaries.set(parent.name, summary);
               }
@@ -136,6 +150,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
             const dataToInsert = [];
             for (const block of blocks) {
+              if (isShuttingDown) break;
               const summary = block.type === "chunk" 
                 ? parentSummaries.get(block.parentName) || "" 
                 : parentSummaries.get(block.name) || "";
@@ -150,8 +165,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 comments: block.comments, content: block.content, summary
               });
             }
-            await createOrUpdateTable(dataToInsert, embeddingManager.getModel());
-            totalIndexed += blocks.length;
+            if (!isShuttingDown) {
+              await createOrUpdateTable(dataToInsert, embeddingManager.getModel());
+              totalIndexed += blocks.length;
+            }
           }
           hashUpdates.push({ filePath, hash });
           indexingProgress.processedFiles++;
@@ -162,7 +179,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       };
 
       const workers = new Array(CONCURRENCY_LIMIT).fill(null).map(async () => {
-        while (queue.length > 0) {
+        while (queue.length > 0 && !isShuttingDown) {
           const file = queue.shift();
           if (file) await processFile(file);
         }
@@ -172,8 +189,13 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       if (hashUpdates.length > 0) await bulkUpdateFileHashes(hashUpdates);
       
       indexingProgress.active = false;
-      indexingProgress.status = "completed";
-      console.error(`[VibeScout] Indexing complete for ${derivedProjectName}`);
+      if (isShuttingDown) {
+        indexingProgress.status = "stopped";
+        logger.info(`[Shutdown] Indexing for "${derivedProjectName}" stopped gracefully.`);
+      } else {
+        indexingProgress.status = "completed";
+        console.error(`[VibeScout] Indexing complete for ${derivedProjectName}`);
+      }
       
       return { totalIndexed, skipped, pruned };
     } catch (err) {

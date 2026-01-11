@@ -8,15 +8,21 @@ import fs from "fs-extra";
 import { logger, LogLevel } from "./logger.js";
 import { configureEnvironment, embeddingManager, summarizerManager } from "./embeddings.js";
 import { closeDb, compactDatabase, initDB } from "./db.js";
-import { handleIndexFolder } from "./core.js";
+import { handleIndexFolder, stopIndexing } from "./core.js";
 import { server, app } from "./server.js";
-import { initWatcher } from "./watcher.js";
-import { loadConfig, interactiveConfig } from "./config.js";
-import { interactiveSearch } from "./tui.js";
-import { fileURLToPath } from "url";
-import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+async function handleShutdown() {
+  logger.info("\n[Shutdown] Signal received. Cleaning up...");
+  stopIndexing();
+  await closeDb();
+  logger.info("[Shutdown] Cleanup complete. Goodbye!");
+  process.exit(0);
+}
+
+process.on("SIGINT", handleShutdown);
+process.on("SIGTERM", handleShutdown);
 
 async function startServer(mode, port, isUI = false) {
   if (mode === "sse" || mode === "http") {
