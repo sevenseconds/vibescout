@@ -5,6 +5,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import path from "path";
 import fs from "fs-extra";
+import os from "os";
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
@@ -408,6 +409,26 @@ app.get('/api/dialog/directory', async (c) => {
     }
     logger.error(`Dialog error: ${err.message}`);
     return c.json({ error: 'Failed to open dialog or cancelled' }, 500);
+  }
+});
+
+app.get('/api/fs/home', (c) => {
+  return c.json({ path: os.homedir() });
+});
+
+app.get('/api/fs/ls', async (c) => {
+  const root = c.req.query('path');
+  if (!root) return c.json({ error: 'path required' }, 400);
+
+  try {
+    const entries = await fs.readdir(root, { withFileTypes: true });
+    const dirs = entries
+      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .map(e => e.name)
+      .sort();
+    return c.json(dirs);
+  } catch (err) {
+    return c.json({ error: 'Failed to read directory' }, 500);
   }
 });
 

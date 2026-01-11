@@ -3,6 +3,7 @@ import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, 
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import FolderPicker from '../components/FolderPicker';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -38,7 +39,7 @@ export default function KBView({ onExplore }: KBViewProps) {
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingWatcher, setRemovingWatcher] = useState<string | null>(null);
-  const [selectingPath, setSelectingPath] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newWatcher, setNewWatcher] = useState<Watcher>({ folderPath: '', projectName: '', collection: 'default' });
   
@@ -96,21 +97,15 @@ export default function KBView({ onExplore }: KBViewProps) {
     }
   };
 
-  const handleBrowseFolder = async () => {
-    setSelectingPath(true);
-    try {
-      const response = await axios.get('/api/dialog/directory');
-      if (response.data.path) {
-        const path = response.data.path;
-        // Auto-fill project name from folder name if empty
-        const projectName = newWatcher.projectName || path.split(/[\\/]/).pop() || '';
-        setNewWatcher(prev => ({ ...prev, folderPath: path, projectName }));
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSelectingPath(false);
-    }
+  const handleBrowseFolder = () => {
+    setShowFolderPicker(true);
+  };
+
+  const onSelectFolder = (path: string) => {
+    // Auto-fill project name from folder name if empty
+    const projectName = newWatcher.projectName || path.split(/[\\/]/).pop() || '';
+    setNewWatcher(prev => ({ ...prev, folderPath: path, projectName }));
+    setShowFolderPicker(false);
   };
 
   const handleRemoveWatcher = async (path: string, projectName?: string) => {
@@ -251,11 +246,10 @@ export default function KBView({ onExplore }: KBViewProps) {
                 />
                 <button 
                   onClick={handleBrowseFolder}
-                  disabled={selectingPath}
-                  className="px-4 bg-secondary border border-border rounded-xl hover:border-primary/50 transition-all text-muted-foreground hover:text-primary disabled:opacity-50"
+                  className="px-4 bg-secondary border border-border rounded-xl hover:border-primary/50 transition-all text-muted-foreground hover:text-primary"
                   title="Browse Folders"
                 >
-                  {selectingPath ? <Loader2 size={20} className="animate-spin" /> : <Folder size={20} />}
+                  <Folder size={20} />
                 </button>
               </div>
             </div>
@@ -444,9 +438,13 @@ export default function KBView({ onExplore }: KBViewProps) {
                 <p className="text-sm text-muted-foreground font-medium italic">Database is empty.</p>
               </div>
             )}
-          </div>
-        </div>
       </div>
+
+      <FolderPicker 
+        isOpen={showFolderPicker} 
+        onClose={() => setShowFolderPicker(false)} 
+        onSelect={onSelectFolder} 
+      />
     </div>
   );
 }
