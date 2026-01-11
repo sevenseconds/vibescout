@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, ArrowRight, FileCode2, Loader2, Filter, X, Sparkles } from 'lucide-react';
+import { Search, ArrowRight, FileCode2, Loader2, Filter, X, Sparkles, Maximize2 } from 'lucide-react';
 import axios from 'axios';
 import CodeBlock from '../components/CodeBlock';
 import { clsx, type ClassValue } from 'clsx';
@@ -36,6 +36,10 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
   const [summarizing, setSummarizing] = useState(false);
   const [draftSummary, setDraftSummary] = useState('');
   
+  const [previewFile, setPreviewFile] = useState<string | null>(null);
+  const [previewContent, setPreviewContent] = useState('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
   // Filters
   const [projectName, setProjectName] = useState(initialFilters?.projectName || '');
   const [collection, setCollection] = useState(initialFilters?.collection || '');
@@ -77,6 +81,20 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
       console.error(err);
     } finally {
       setSummarizing(false);
+    }
+  };
+
+  const handlePreview = async (filePath: string) => {
+    setLoadingPreview(true);
+    setPreviewFile(filePath);
+    try {
+      const res = await axios.get(`/api/files/read?path=${encodeURIComponent(filePath)}`);
+      setPreviewContent(res.data.content);
+    } catch (err) {
+      console.error('Failed to read file:', err);
+      setPreviewFile(null);
+    } finally {
+      setLoadingPreview(false);
     }
   };
 
@@ -261,15 +279,24 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-mono text-muted-foreground break-all max-w-[200px]">{result.filePath}:{result.startLine}</p>
-                      <div className="mt-1.5 inline-flex items-center rounded-full bg-secondary border border-border/50 px-2.5 py-0.5 text-[10px] font-black text-secondary-foreground uppercase tracking-widest">
-                        Rerank: {result.rerankScore?.toFixed(4)}
-                      </div>
-                    </div>
-                  </div>
-                  {result.summary && (
-                    <p className="text-sm text-muted-foreground leading-relaxed italic bg-secondary/30 p-4 rounded-2xl border border-border/50 relative z-10">
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <button 
+                                          onClick={() => handlePreview(result.filePath)}
+                                          className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
+                                          title="View Full File"
+                                        >
+                                          <Maximize2 size={18} />
+                                        </button>
+                                        <button 
+                                          onClick={() => onAskChat?.({ query: `Tell me about ${result.name} in ${result.filePath}`, projectName: result.projectName })}
+                                          className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
+                                          title="Ask about this specifically"
+                                        >
+                                          <Sparkles size={18} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    {result.summary && (                    <p className="text-sm text-muted-foreground leading-relaxed italic bg-secondary/30 p-4 rounded-2xl border border-border/50 relative z-10">
                       {result.summary}
                     </p>
                   )}
@@ -292,6 +319,56 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
           </div>
         )}
       </div>
+
+      {/* Full File Preview Modal */}
+      {previewFile && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-card border border-border w-full max-w-6xl h-full flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="p-6 border-b border-border flex items-center justify-between bg-secondary/30">
+              <div className="flex items-center gap-4">
+                <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
+                  <FileCode2 size={24} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg truncate max-w-md">{previewFile.split('/').pop()}</h3>
+                  <p className="text-[10px] font-mono text-muted-foreground truncate max-w-xl">{previewFile}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPreviewFile(null)}
+                className="p-3 hover:bg-secondary rounded-2xl transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-hidden relative">
+              {loadingPreview ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-card/50 z-10">
+                  <Loader2 className="animate-spin text-primary" size={48} />
+                </div>
+              ) : (
+                <div className="h-full overflow-auto p-6 scrollbar-thin">
+                  <CodeBlock 
+                    code={previewContent} 
+                    filePath={previewFile} 
+                    showOpenInEditor 
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-border bg-secondary/30 flex justify-end">
+              <button 
+                onClick={() => setPreviewFile(null)}
+                className="px-8 py-3 bg-primary text-primary-foreground rounded-2xl font-bold hover:opacity-90 transition-all shadow-xl shadow-primary/20"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
