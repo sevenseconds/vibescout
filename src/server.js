@@ -382,16 +382,32 @@ app.post('/api/open', async (c) => {
 });
 
 app.get('/api/dialog/directory', async (c) => {
-  const dialog = (await import('node-file-dialog')).default;
+  const platform = process.platform;
+  const { exec } = await import('child_process');
+  const { promisify } = await import('util');
+  const execAsync = promisify(exec);
+
   try {
-    const dir = await dialog({ type: 'directory' });
-    if (dir && dir.length > 0) {
-      return c.json({ path: dir[0] });
+    if (platform === 'darwin') {
+      // macOS AppleScript - returns POSIX path
+      const script = 'osascript -e "POSIX path of (choose folder with prompt \\"Select Project Folder\\")"';
+      const { stdout } = await execAsync(script);
+      return c.json({ path: stdout.trim() });
+    } else if (platform === 'win32') {
+      // Windows PowerShell
+      const script = 'powershell -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; if($f.ShowDialog() -eq \\"OK\\"){ $f.SelectedPath }"';
+      const { stdout } = await execAsync(script);
+      return c.json({ path: stdout.trim() });
     }
-    return c.json({ path: null });
+    
+    return c.json({ error: 'Unsupported platform for native dialog' }, 400);
   } catch (err) {
+    // Check if user cancelled (usually non-zero exit code)
+    if (err.message?.includes('User canceled')) {
+      return c.json({ path: null });
+    }
     logger.error(`Dialog error: ${err.message}`);
-    return c.json({ error: 'Failed to open dialog' }, 500);
+    return c.json({ error: 'Failed to open dialog or cancelled' }, 500);
   }
 });
 
