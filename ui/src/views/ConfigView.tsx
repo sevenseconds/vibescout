@@ -98,9 +98,13 @@ const CHAT_MODELS: Record<string, string[]> = {
     "codegeex-4"
   ],
   "zai-coding": [
-    "codegeex-4",
-    "glm-4-air",
-    "glm-4-flash"
+    "glm-4.5",
+    "glm-4.5-air",
+    "glm-4.5-flash",
+    "glm-4.5v",
+    "glm-4.6",
+    "glm-4.6v",
+    "glm-4.7"
   ],
   lmstudio: [
     "local-model"
