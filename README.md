@@ -5,16 +5,15 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 ## 🚀 Features
 
 - **Web Dashboard**: A modern React-based UI for visual searching, chatting with your code, and managing your knowledge base.
+- **Hono-Powered API**: Ultra-fast, lightweight backend for seamless UI interactions and client integration.
+- **Advanced Search Filtering**: Precision search and chat. Filter results by **Project**, **Collection**, or **File Extension** (e.g., `.ts`, `.py`).
+- **Live System Activity**: A terminal-style activity drawer in the UI showing real-time watcher events, indexing progress, and API logs.
 - **Proactive Indexing**: Connect folders directly from the browser with real-time indexing progress bars.
 - **Separate LLM & Embedding Config**: Independently configure your embedding models (e.g., local BGE) and your chat LLMs (e.g., Claude 3.5 or GPT-4o).
-- **Chat with Code (RAG)**: Ask natural language questions about your codebase. Features full **Markdown support** and **Syntax Highlighting** for code snippets.
-- **Visual Dependency Graph**: Explore your codebase architecture visually. Includes a **Symbol Intelligence** panel showing exact exports and imports for every file.
-- **IDE Integration**: "Open in Editor" buttons throughout the UI to jump directly from search results or the graph into your local IDE.
-- **Multi-Language Support**: Robust semantic extraction for **TypeScript/JS**, **Python**, **Go**, **Java**, **Kotlin**, **Dart**, **Markdown**, **JSON**, **TOML**, and **XML**.
-- **Multi-Provider AI**: Support for **Ollama**, **LM Studio**, **OpenAI**, **Google Gemini**, **AWS Bedrock**, **Z.AI (incl. Coding Plan)**, **Cloudflare Workers AI**, or built-in **Transformers.js**.
+- **Deep Code Intelligence**: Full **Markdown support** and **Syntax Highlighting**. Visual dependency graph with a **Symbol Intelligence** panel showing exports/imports.
+- **IDE Integration**: "Open in Editor" support with precise **line-level navigation** for VS Code and Cursor.
+- **Multi-Language Support**: TypeScript/JS, Python, Go, Java, Kotlin, Dart, Markdown, JSON, TOML, and XML.
 - **Hybrid Storage**: Use local **LanceDB** for speed or **Cloudflare Vectorize** for cloud-synchronized embeddings.
-- **Persistent Watchers**: Automated background indexing dashboard. Manage active watchers and force syncs directly from the UI.
-- **Project-level Exclusions**: Support for `.vibeignore` and `.gitignore` to control exactly what gets indexed.
 
 ## 🤖 Supported Providers
 
@@ -38,39 +37,35 @@ npm install -g @sevenseconds/vibescout
 
 ## 💻 CLI Usage
 
-VibeScout provides a powerful CLI for indexing, searching, and system maintenance.
-
 ### Web UI
-Launch the interactive dashboard in your browser:
+Launch the interactive dashboard:
 ```bash
 vibescout ui
 ```
 
-### Interactive Search
-Search your code with a beautiful terminal table:
+### Advanced Logging
+Control terminal output verbosity:
 ```bash
-vibescout search "how does the auth flow work?"
+# Default is INFO (concise)
+vibescout ui --log-level warn
+
+# Full debug output (alias for --log-level debug)
+vibescout ui --verbose
 ```
 
-### Interactive Configuration
-Visually manage providers, models, and paths via CLI:
-```bash
-vibescout config
-```
-
-### Indexing & Maintenance
+### Indexing & Search
 ```bash
 # Index a project manually
 vibescout index ./my-app "My Project"
 
-# Cleanup stale files and optimize DB
-vibescout compact
+# Semantic search via terminal
+vibescout search "how does the auth flow work?"
 ```
 
 ## 🔌 Client Integration
 
 ### Claude Desktop / Gemini CLI
-Add VibeScout to your configuration to give AI agents access to your code:
+Add VibeScout to your configuration:
 
 ```json
 {
@@ -81,11 +76,6 @@ Add VibeScout to your configuration to give AI agents access to your code:
     }
   }
 }
-```
-
-### Claude Code (CLI)
-```bash
-claude mcp add vibescout -- vibescout
 ```
 
 ## 📄 License
