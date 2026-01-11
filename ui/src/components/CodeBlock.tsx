@@ -73,8 +73,8 @@ export default function CodeBlock({ code, language, filePath, line, showOpenInEd
   const lang = getLanguage();
 
   return (
-    <div className="relative group rounded-xl overflow-hidden border border-border/50 bg-[#282c34]">
-      <div className="flex items-center justify-between px-4 py-2 bg-black/20 border-b border-border/30">
+    <div className="relative group rounded-xl overflow-hidden border border-border/50 bg-secondary/20">
+      <div className="flex items-center justify-between px-4 py-2 bg-secondary/40 border-b border-border/30">
         <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
           {lang} {filePath && `• ${filePath.split('/').pop()}`}
         </span>

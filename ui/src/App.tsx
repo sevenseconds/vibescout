@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   BrowserRouter as Router, 
   Routes, 
@@ -13,7 +13,10 @@ import {
   Settings, 
   Activity,
   Sparkles,
-  Share2
+  Share2,
+  Moon,
+  Sun,
+  Monitor
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -31,8 +34,40 @@ import GraphView from './views/GraphView';
 import LiveLogs from './components/LiveLogs';
 import NotificationTray from './components/NotificationTray';
 
+type Theme = 'light' | 'dark' | 'system';
+
 function AppContent() {
   const navigate = useNavigate();
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem('vibescout-theme') as Theme) || 'system';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    
+    const applyTheme = (t: Theme) => {
+      root.classList.remove('light', 'dark');
+      
+      if (t === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        root.classList.add(systemTheme);
+      } else {
+        root.classList.add(t);
+      }
+    };
+
+    applyTheme(theme);
+    localStorage.setItem('vibescout-theme', theme);
+
+    // Listen for system changes if set to system
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyTheme('system');
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [theme]);
+
   const [searchFilters, setSearchFilters] = useState<{ projectName?: string; collection?: string }>({});
   const [chatPreFill, setChatPreFill] = useState<{ query?: string; projectName?: string; collection?: string; fileTypes?: string[] }>({});
 
@@ -90,7 +125,30 @@ function AppContent() {
           ))}
         </nav>
 
-        <div className="p-4 mt-auto border-t border-border bg-secondary/30">
+        <div className="p-4 mt-auto space-y-4 border-t border-border bg-secondary/30">
+          <div className="flex items-center justify-between px-2 bg-secondary/50 p-1.5 rounded-xl border border-border/50">
+            <button 
+              onClick={() => setTheme('light')}
+              className={cn("p-2 rounded-lg transition-all", theme === 'light' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              title="Light Mode"
+            >
+              <Sun size={16} />
+            </button>
+            <button 
+              onClick={() => setTheme('dark')}
+              className={cn("p-2 rounded-lg transition-all", theme === 'dark' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              title="Dark Mode"
+            >
+              <Moon size={16} />
+            </button>
+            <button 
+              onClick={() => setTheme('system')}
+              className={cn("p-2 rounded-lg transition-all", theme === 'system' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              title="System Mode"
+            >
+              <Monitor size={16} />
+            </button>
+          </div>
           <div className="flex items-center gap-3 px-2">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Local Server Active</p>
