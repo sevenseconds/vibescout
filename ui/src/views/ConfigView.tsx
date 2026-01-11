@@ -56,6 +56,10 @@ const EMBEDDING_MODELS: Record<string, string[]> = {
     "embedding-2",
     "embedding-3"
   ],
+  "zai-coding": [
+    "embedding-2",
+    "embedding-3"
+  ],
   lmstudio: [
     "local-model"
   ]
@@ -96,6 +100,11 @@ const CHAT_MODELS: Record<string, string[]> = {
     "glm-4-air-x",
     "glm-4-flash",
     "codegeex-4"
+  ],
+  "zai-coding": [
+    "codegeex-4",
+    "glm-4-air",
+    "glm-4-flash"
   ],
   lmstudio: [
     "local-model"
@@ -233,6 +242,7 @@ export default function ConfigView() {
           </div>
         );
       case 'zai':
+      case 'zai-coding':
         return (
           <div className="space-y-2">
             <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1 flex justify-between">
@@ -365,6 +375,7 @@ export default function ConfigView() {
                   <option value="openai">OpenAI</option>
                   <option value="gemini">Google Gemini</option>
                   <option value="zai">Z.AI (BigModel.cn)</option>
+                  <option value="zai-coding">Z.AI Coding Plan</option>
                   <option value="bedrock">AWS Bedrock</option>
                   <option value="cloudflare">Cloudflare Workers AI</option>
                 </select>
@@ -438,6 +449,7 @@ export default function ConfigView() {
                   <option value="openai">OpenAI</option>
                   <option value="gemini">Google Gemini</option>
                   <option value="zai">Z.AI (BigModel.cn)</option>
+                  <option value="zai-coding">Z.AI Coding Plan</option>
                   <option value="bedrock">AWS Bedrock</option>
                   <option value="cloudflare">Cloudflare Workers AI</option>
                 </select>
