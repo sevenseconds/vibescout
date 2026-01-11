@@ -15,11 +15,11 @@ import {
   handleIndexFolder,
   handleSearchCode,
   searchCode,
-  chatWithCode,
-  openFile,
-  indexingProgress
-} from "./core.js";
-import {
+    chatWithCode,
+    openFile,
+    indexingProgress,
+    pauseIndexing 
+  } from "./core.js";import {
   listKnowledgeBase,
   clearDatabase,
   getFileDependencies,
@@ -270,6 +270,16 @@ app.post('/api/index', async (c) => {
 });
 
 app.get('/api/index/status', (c) => c.json(indexingProgress));
+
+app.post('/api/index/pause', (c) => {
+  pauseIndexing(true);
+  return c.json({ success: true });
+});
+
+app.post('/api/index/resume', (c) => {
+  pauseIndexing(false);
+  return c.json({ success: true });
+});
 
 app.get('/api/logs', (c) => c.json(logger.getRecentLogs()));
 

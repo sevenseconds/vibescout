@@ -54,12 +54,21 @@ export let indexingProgress = {
 };
 
 let isShuttingDown = false;
+let isPaused = false;
 
 export function stopIndexing() {
   if (indexingProgress.active) {
     isShuttingDown = true;
     indexingProgress.status = "stopping";
     logger.info(`[Shutdown] Stopping indexing for "${indexingProgress.projectName}" gracefully...`);
+  }
+}
+
+export function pauseIndexing(paused) {
+  isPaused = paused;
+  if (indexingProgress.active) {
+    indexingProgress.status = paused ? "paused" : "indexing";
+    logger.info(`[Indexing] ${paused ? "Paused" : "Resumed"} indexing for "${indexingProgress.projectName}".`);
   }
 }
 
@@ -90,6 +99,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   }
 
   isShuttingDown = false;
+  isPaused = false;
 
   // Update progress state
   indexingProgress = {
