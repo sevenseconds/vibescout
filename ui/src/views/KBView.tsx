@@ -95,10 +95,10 @@ export default function KBView({ onExplore }: KBViewProps) {
     }
   };
 
-  const handleRemoveWatcher = async (path: string) => {
+  const handleRemoveWatcher = async (path: string, projectName?: string) => {
     setRemovingWatcher(path);
     try {
-      await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(path)}`);
+      await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(path)}${projectName ? `&projectName=${encodeURIComponent(projectName)}` : ''}`);
       // Update local state immediately
       setWatchers(prev => prev.filter(w => w.folderPath !== path));
       await fetchData();
@@ -308,7 +308,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                       <RefreshCw size={16} />
                     </button>
                     <button 
-                      onClick={() => handleRemoveWatcher(w.folderPath)}
+                      onClick={() => handleRemoveWatcher(w.folderPath, w.projectName)}
                       className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all hover:scale-110 active:scale-90"
                       title="Stop Watching"
                     >
