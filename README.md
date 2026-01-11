@@ -5,9 +5,12 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 ## 🚀 Features
 
 - **Web Dashboard**: A modern React-based UI for visual searching, chatting with your code, and managing your knowledge base.
-- **Hono-Powered API**: Ultra-fast, lightweight backend for seamless UI interactions and client integration.
-- **Advanced Search Filtering**: Precision search and chat. Filter results by **Project**, **Collection**, or **File Extension** (e.g., `.ts`, `.py`).
+- **Adaptive Concurrency**: Automatically detects provider rate limits (like Z.AI's concurrency errors) and dynamically scales request rates for optimal performance.
+- **Resilient AI Tasks**: Built-in automatic retries with exponential backoff for failed API calls due to network or rate-limiting issues.
 - **Live System Activity**: A terminal-style activity drawer in the UI showing real-time watcher events, indexing progress, and API logs.
+- **AI Inspector (Debug)**: A deep-dive panel to inspect exact prompts, payloads, and raw API responses in real-time.
+- **"Ask AI" Integration**: Jump directly from a search result to a chat session with all relevant code context automatically pre-filled.
+- **Advanced Search Filtering**: Precision search and chat. Filter results by **Project**, **Collection**, or multiple **File Extensions** (e.g., `.ts, .js`).
 - **Proactive Indexing**: Connect folders directly from the browser with real-time indexing progress bars.
 - **Separate LLM & Embedding Config**: Independently configure your embedding models (e.g., local BGE) and your chat LLMs (e.g., Claude 3.5 or GPT-4o).
 - **Deep Code Intelligence**: Full **Markdown support** and **Syntax Highlighting**. Visual dependency graph with a **Symbol Intelligence** panel showing exports/imports.
