@@ -201,12 +201,100 @@ export default function GraphView() {
 
   return (
     <div className="h-full w-full flex relative bg-[#0a0a0a] overflow-hidden">
+      {/* Main Content */}
+      <div className="flex-1 relative flex flex-col min-w-0">
+        <div className="absolute top-6 left-6 z-10 bg-card/80 backdrop-blur-md border border-border p-4 rounded-2xl shadow-2xl max-w-sm pointer-events-none">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-primary/20 p-2 rounded-lg text-primary">
+              <Share2 size={20} />
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">Dependency Graph</h2>
+          </div>
+          <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+            Nodes are files, arrows are imports. Click to explore symbols.
+          </p>
+        </div>
+
+        <div className="absolute top-6 right-6 z-10 flex gap-2">
+          <button 
+            onClick={handleScanCycles}
+            disabled={isScanning || data.nodes.length === 0}
+            className={cn(
+              "bg-card/80 backdrop-blur-md border border-border p-3 rounded-xl transition-all shadow-xl flex items-center gap-2 font-bold text-xs uppercase tracking-widest",
+              cycles.length > 0 ? "text-red-400 border-red-500/30" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {isScanning ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+            {cycles.length > 0 ? `${cycles.length} Cycles` : 'Scan Cycles'}
+          </button>
+          <button 
+            onClick={() => fgRef.current?.zoomToFit(400)}
+            className="bg-card/80 backdrop-blur-md border border-border p-3 rounded-xl text-muted-foreground hover:text-foreground transition-all shadow-xl"
+          >
+            <Maximize2 size={20} />
+          </button>
+        </div>
+
+        <div className="h-full w-full">
+          {data?.nodes?.length > 0 ? (
+            <ForceGraph2D
+              ref={fgRef}
+              graphData={data}
+              nodeLabel="id"
+              nodeColor={(node: any) => {
+                const isCycleNode = cycles.some(c => c.includes(node.id));
+                if (isCycleNode) return '#ef4444';
+                if (highlightNodes.size > 0 && !highlightNodes.has(node.id)) return '#ffffff10';
+                return getGroupColor(node.group);
+              }}
+              nodeRelSize={6}
+              linkColor={() => '#ffffff20'}
+              linkDirectionalArrowLength={3.5}
+              linkDirectionalArrowRelPos={1}
+              onNodeClick={handleNodeClick}
+              onBackgroundClick={clearHighlight}
+              nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+                const isSelected = selectedNode?.id === node.id;
+                const label = node.label;
+                const fontSize = (isSelected ? 14 : 12) / globalScale;
+                ctx.font = `${isSelected ? 'bold ' : ''}${fontSize}px Inter, sans-serif`;
+                const textWidth = ctx.measureText(label).width;
+                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
+
+                if (highlightNodes.size > 0 && !highlightNodes.has(node.id)) ctx.globalAlpha = 0.1;
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
+
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const isCycleNode = cycles.some(c => c.includes(node.id));
+                ctx.fillStyle = isSelected ? '#ffffff' : (isCycleNode ? '#ef4444' : getGroupColor(node.group));
+                ctx.fillText(label, node.x, node.y);
+
+                if (isSelected) {
+                  ctx.strokeStyle = '#ffffff';
+                  ctx.lineWidth = 2 / globalScale;
+                  ctx.strokeRect(node.x - bckgDimensions[0] / 2 - 2, node.y - bckgDimensions[1] / 2 - 2, bckgDimensions[0] + 4, bckgDimensions[1] + 4);
+                }
+                ctx.globalAlpha = 1.0;
+              }}
+            />
+          ) : (
+            <div className="h-full w-full flex flex-col items-center justify-center opacity-30">
+              <Share2 size={64} strokeWidth={1} />
+              <p className="mt-4 font-bold">No dependencies indexed yet.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Side Panel */}
       <div className={cn(
-        "absolute top-0 right-0 h-full w-96 bg-card/95 backdrop-blur-md border-l border-border z-[100] transition-transform duration-300 transform shadow-2xl overflow-y-auto",
-        (selectedNode || cycles.length > 0) ? "translate-x-0" : "translate-x-full"
+        "h-full bg-card border-l border-border z-20 transition-all duration-300 shadow-2xl overflow-y-auto shrink-0",
+        (selectedNode || cycles.length > 0) ? "w-[400px]" : "w-0 border-none"
       )}>
-        <div className="p-6 space-y-8 pb-20">
+        <div className="p-6 space-y-8 pb-20 min-w-[400px]">
           {cycles.length > 0 && !selectedNode && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-red-400">
@@ -220,7 +308,7 @@ export default function GraphView() {
                 {cycles.map((cycle, i) => (
                   <div key={i} className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl space-y-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-red-400/70">Loop #{i + 1}</p>
-                    <p className="text-[10px] font-mono text-muted-foreground break-all">
+                    <p className="text-[10px] font-mono text-muted-foreground leading-relaxed break-all">
                       {cycle.map(id => id.split('/').pop()).join(' → ')}
                     </p>
                   </div>
@@ -333,94 +421,6 @@ export default function GraphView() {
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 relative">
-        <div className="absolute top-6 left-6 z-10 bg-card/80 backdrop-blur-md border border-border p-4 rounded-2xl shadow-2xl max-w-sm pointer-events-none">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="bg-primary/20 p-2 rounded-lg text-primary">
-              <Share2 size={20} />
-            </div>
-            <h2 className="text-xl font-bold tracking-tight text-foreground">Dependency Graph</h2>
-          </div>
-          <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-            Nodes are files, arrows are imports. Click to explore symbols.
-          </p>
-        </div>
-
-        <div className="absolute top-6 right-6 z-10 flex gap-2">
-          <button 
-            onClick={handleScanCycles}
-            disabled={isScanning || data.nodes.length === 0}
-            className={cn(
-              "bg-card/80 backdrop-blur-md border border-border p-3 rounded-xl transition-all shadow-xl flex items-center gap-2 font-bold text-xs uppercase tracking-widest",
-              cycles.length > 0 ? "text-red-400 border-red-500/30" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {isScanning ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
-            {cycles.length > 0 ? `${cycles.length} Cycles` : 'Scan Cycles'}
-          </button>
-          <button 
-            onClick={() => fgRef.current?.zoomToFit(400)}
-            className="bg-card/80 backdrop-blur-md border border-border p-3 rounded-xl text-muted-foreground hover:text-foreground transition-all shadow-xl"
-          >
-            <Maximize2 size={20} />
-          </button>
-        </div>
-
-        <div className="h-full w-full">
-          {data?.nodes?.length > 0 ? (
-            <ForceGraph2D
-              ref={fgRef}
-              graphData={data}
-              nodeLabel="id"
-              nodeColor={(node: any) => {
-                const isCycleNode = cycles.some(c => c.includes(node.id));
-                if (isCycleNode) return '#ef4444';
-                if (highlightNodes.size > 0 && !highlightNodes.has(node.id)) return '#ffffff10';
-                return getGroupColor(node.group);
-              }}
-              nodeRelSize={6}
-              linkColor={() => '#ffffff20'}
-              linkDirectionalArrowLength={3.5}
-              linkDirectionalArrowRelPos={1}
-              onNodeClick={handleNodeClick}
-              onBackgroundClick={clearHighlight}
-              nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-                const isSelected = selectedNode?.id === node.id;
-                const label = node.label;
-                const fontSize = (isSelected ? 14 : 12) / globalScale;
-                ctx.font = `${isSelected ? 'bold ' : ''}${fontSize}px Inter, sans-serif`;
-                const textWidth = ctx.measureText(label).width;
-                const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
-
-                if (highlightNodes.size > 0 && !highlightNodes.has(node.id)) ctx.globalAlpha = 0.1;
-
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.fillRect(node.x - bckgDimensions[0] / 2, node.y - bckgDimensions[1] / 2, bckgDimensions[0], bckgDimensions[1]);
-
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                const isCycleNode = cycles.some(c => c.includes(node.id));
-                ctx.fillStyle = isSelected ? '#ffffff' : (isCycleNode ? '#ef4444' : getGroupColor(node.group));
-                ctx.fillText(label, node.x, node.y);
-
-                if (isSelected) {
-                  ctx.strokeStyle = '#ffffff';
-                  ctx.lineWidth = 2 / globalScale;
-                  ctx.strokeRect(node.x - bckgDimensions[0] / 2 - 2, node.y - bckgDimensions[1] / 2 - 2, bckgDimensions[0] + 4, bckgDimensions[1] + 4);
-                }
-                ctx.globalAlpha = 1.0;
-              }}
-            />
-          ) : (
-            <div className="h-full w-full flex flex-col items-center justify-center opacity-30">
-              <Share2 size={64} strokeWidth={1} />
-              <p className="mt-4 font-bold">No dependencies indexed yet.</p>
             </div>
           )}
         </div>
