@@ -17,9 +17,11 @@ const RECOMMENDED_MODELS = [
 
 const DEFAULT_CONFIG = {
   provider: "local",
+  llmProvider: "local",
   dbProvider: "local",
   modelsPath: "",
   embeddingModel: "Xenova/bge-small-en-v1.5",
+  llmModel: "Xenova/distilbart-cnn-6-6",
   ollamaUrl: "http://localhost:11434",
   openaiKey: "",
   openaiBaseUrl: "https://api.openai.com/v1",

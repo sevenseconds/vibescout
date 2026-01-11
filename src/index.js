@@ -108,8 +108,22 @@ async function main() {
       awsProfile: config.awsProfile
     };
 
+    const llmConfig = {
+      type: (config.llmProvider === "lmstudio" ? "openai" : config.llmProvider || config.provider) || "local",
+      modelName: config.llmModel || config.embeddingModel || "Xenova/distilbart-cnn-6-6",
+      baseUrl: (config.llmProvider || config.provider) === "ollama" ? config.ollamaUrl :
+        ((config.llmProvider || config.provider) === "openai" || (config.llmProvider || config.provider) === "lmstudio") ? config.openaiBaseUrl : undefined,
+      apiKey: (config.llmProvider || config.provider) === "gemini" ? config.geminiKey :
+        (config.llmProvider || config.provider) === "cloudflare" ? config.cloudflareToken :
+          (config.llmProvider || config.provider) === "zai" ? config.zaiKey :
+            config.openaiKey,
+      accountId: config.cloudflareAccountId,
+      awsRegion: config.awsRegion,
+      awsProfile: config.awsProfile
+    };
+
     await embeddingManager.setProvider(providerConfig);
-    await summarizerManager.setProvider(providerConfig);
+    await summarizerManager.setProvider(llmConfig);
 
     await initDB({
       type: config.dbProvider || "local",

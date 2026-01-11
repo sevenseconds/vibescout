@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, AlertCircle, Eye, EyeOff, Settings } from 'lucide-react';
+import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, AlertCircle, Eye, EyeOff, Settings, MessagesSquare } from 'lucide-react';
 import axios from 'axios';
 
 interface Config {
   provider: string;
+  llmProvider: string;
   dbProvider: string;
   embeddingModel: string;
+  llmModel: string;
   modelsPath: string;
   ollamaUrl: string;
   openaiKey: string;
@@ -27,7 +29,8 @@ const PROVIDER_MODELS: Record<string, string[]> = {
     "Xenova/bge-small-en-v1.5",
     "Xenova/all-MiniLM-L6-v2",
     "Xenova/bge-base-en-v1.5",
-    "Xenova/paraphrase-multilingual-MiniLM-L12-v2"
+    "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+    "Xenova/distilbart-cnn-6-6"
   ],
   openai: [
     "gpt-4o",
@@ -119,10 +122,10 @@ export default function ConfigView() {
     setConfig(prev => prev ? { ...prev, [key]: value } : null);
   };
 
-  const renderProviderFields = () => {
+  const renderProviderFields = (providerType: string) => {
     if (!config) return null;
 
-    switch (config.provider) {
+    switch (providerType) {
       case 'openai':
       case 'lmstudio':
         return (
@@ -140,14 +143,15 @@ export default function ConfigView() {
                 />
               </div>
             </div>
-            {config.provider === 'openai' && (
+            {providerType === 'openai' && (
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1 flex justify-between">
                   API Key
                   <button onClick={() => setShowKeys(!showKeys)} className="text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
-                                      {showKeys ? <EyeOff size={12} /> : <Eye size={12} />}
-                                      <span className="lowercase font-bold">{showKeys ? 'hide' : 'show'}</span>
-                                    </button>                </label>
+                    {showKeys ? <EyeOff size={12} /> : <Eye size={12} />}
+                    <span className="lowercase font-bold">{showKeys ? 'hide' : 'show'}</span>
+                  </button>
+                </label>
                 <div className="relative">
                   <Key className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
                   <input 
@@ -184,9 +188,10 @@ export default function ConfigView() {
             <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1 flex justify-between">
               Gemini API Key
               <button onClick={() => setShowKeys(!showKeys)} className="text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
-                                  {showKeys ? <EyeOff size={12} /> : <Eye size={12} />}
-                                  <span className="lowercase font-bold">{showKeys ? 'hide' : 'show'}</span>
-                                </button>            </label>
+                {showKeys ? <EyeOff size={12} /> : <Eye size={12} />}
+                <span className="lowercase font-bold">{showKeys ? 'hide' : 'show'}</span>
+              </button>
+            </label>
             <div className="relative">
               <Key className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
               <input 
@@ -204,9 +209,10 @@ export default function ConfigView() {
             <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1 flex justify-between">
               Z.AI API Key
               <button onClick={() => setShowKeys(!showKeys)} className="text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
-                                  {showKeys ? <EyeOff size={12} /> : <Eye size={12} />}
-                                  <span className="lowercase font-bold">{showKeys ? 'hide' : 'show'}</span>
-                                </button>            </label>
+                {showKeys ? <EyeOff size={12} /> : <Eye size={12} />}
+                <span className="lowercase font-bold">{showKeys ? 'hide' : 'show'}</span>
+              </button>
+            </label>
             <div className="relative">
               <Key className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
               <input 
@@ -234,9 +240,10 @@ export default function ConfigView() {
               <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1 flex justify-between">
                 API Token
                 <button onClick={() => setShowKeys(!showKeys)} className="text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
-                                    {showKeys ? <EyeOff size={12} /> : <Eye size={12} />}
-                                    <span className="lowercase font-bold">{showKeys ? 'hide' : 'show'}</span>
-                                  </button>              </label>
+                  {showKeys ? <EyeOff size={12} /> : <Eye size={12} />}
+                  <span className="lowercase font-bold">{showKeys ? 'hide' : 'show'}</span>
+                </button>
+              </label>
               <div className="relative">
                 <Key className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
                 <input 
@@ -302,12 +309,12 @@ export default function ConfigView() {
       </div>
 
       <div className="space-y-6">
-        {/* AI Provider Section */}
+        {/* Embedding Provider Section */}
         <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
           <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Bot size={20} className="text-primary" />
-              <h3 className="font-bold tracking-tight text-lg text-foreground">AI Provider</h3>
+              <h3 className="font-bold tracking-tight text-lg text-foreground">Embedding Provider</h3>
             </div>
             <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
               {config?.provider}
@@ -342,9 +349,9 @@ export default function ConfigView() {
                     value={config?.embeddingModel}
                     onChange={(e) => updateConfig('embeddingModel', e.target.value)}
                     className="w-full bg-secondary border border-border rounded-xl pl-12 pr-10 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground"
-                    list="model-suggestions"
+                    list="embedding-model-suggestions"
                   />
-                  <datalist id="model-suggestions">
+                  <datalist id="embedding-model-suggestions">
                     {config && PROVIDER_MODELS[config.provider]?.map(m => (
                       <option key={m} value={m} />
                     ))}
@@ -370,7 +377,80 @@ export default function ConfigView() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-border/50">
-              {renderProviderFields()}
+              {config && renderProviderFields(config.provider)}
+            </div>
+          </div>
+        </section>
+
+        {/* Chat LLM Provider Section */}
+        <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+          <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MessagesSquare size={20} className="text-primary" />
+              <h3 className="font-bold tracking-tight text-lg text-foreground">Chat LLM Provider</h3>
+            </div>
+            <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
+              {config?.llmProvider || config?.provider}
+            </div>
+          </div>
+          
+          <div className="p-8 space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Selected Provider</label>
+                <select 
+                  value={config?.llmProvider || config?.provider} 
+                  onChange={(e) => updateConfig('llmProvider', e.target.value)}
+                  className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-bold transition-all appearance-none"
+                >
+                  <option value="local">Local (Transformers.js)</option>
+                  <option value="ollama">Ollama</option>
+                  <option value="lmstudio">LM Studio</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="zai">Z.AI (BigModel.cn)</option>
+                  <option value="bedrock">AWS Bedrock</option>
+                  <option value="cloudflare">Cloudflare Workers AI</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Active LLM Model</label>
+                <div className="relative group">
+                  <Cpu className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
+                  <input 
+                    type="text" 
+                    value={config?.llmModel || config?.embeddingModel}
+                    onChange={(e) => updateConfig('llmModel', e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-xl pl-12 pr-10 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground"
+                    list="llm-model-suggestions"
+                  />
+                  <datalist id="llm-model-suggestions">
+                    {config && PROVIDER_MODELS[config.llmProvider || config.provider]?.map(m => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
+                  <div className="absolute right-4 top-3.5">
+                     <Settings size={16} className="text-muted-foreground/50" />
+                  </div>
+                </div>
+                {config && PROVIDER_MODELS[config.llmProvider || config.provider] && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {PROVIDER_MODELS[config.llmProvider || config.provider].map(m => (
+                      <button 
+                        key={m}
+                        onClick={() => updateConfig('llmModel', m)}
+                        className={`text-[10px] px-2 py-1 rounded-md border transition-all ${(config.llmModel || config.embeddingModel) === m ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary border-border text-muted-foreground hover:border-muted-foreground'}`}
+                      >
+                        {m.split('/').pop()}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-border/50">
+              {config && renderProviderFields(config.llmProvider || config.provider)}
             </div>
           </div>
         </section>

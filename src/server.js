@@ -321,8 +321,22 @@ export async function handleApiRequest(req, res) {
         awsProfile: newConfig.awsProfile
       };
 
+      const llmConfig = {
+        type: (newConfig.llmProvider === "lmstudio" ? "openai" : newConfig.llmProvider || newConfig.provider) || "local",
+        modelName: newConfig.llmModel || newConfig.embeddingModel || "Xenova/distilbart-cnn-6-6",
+        baseUrl: (newConfig.llmProvider || newConfig.provider) === "ollama" ? newConfig.ollamaUrl :
+          ((newConfig.llmProvider || newConfig.provider) === "openai" || (newConfig.llmProvider || newConfig.provider) === "lmstudio") ? newConfig.openaiBaseUrl : undefined,
+        apiKey: (newConfig.llmProvider || newConfig.provider) === "gemini" ? newConfig.geminiKey :
+          (newConfig.llmProvider || newConfig.provider) === "cloudflare" ? newConfig.cloudflareToken :
+            (newConfig.llmProvider || newConfig.provider) === "zai" ? newConfig.zaiKey :
+              newConfig.openaiKey,
+        accountId: newConfig.cloudflareAccountId,
+        awsRegion: newConfig.awsRegion,
+        awsProfile: newConfig.awsProfile
+      };
+
       await embeddingManager.setProvider(providerConfig);
-      await summarizerManager.setProvider(providerConfig);
+      await summarizerManager.setProvider(llmConfig);
 
       await initDB({
         type: newConfig.dbProvider || "local",
