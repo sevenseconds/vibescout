@@ -264,7 +264,10 @@ app.get('/api/projects/root', async (c) => {
 
 app.post('/api/index', async (c) => {
   const { folderPath, projectName, collection, summarize, force } = await c.req.json();
-  handleIndexFolder(folderPath, projectName, collection || "default", summarize !== false, true, !!force)
+  // Read from config if summarize not explicitly provided in request
+  const config = await loadConfig();
+  const shouldSummarize = summarize !== undefined ? summarize : (config.summarize ?? true);
+  handleIndexFolder(folderPath, projectName, collection || "default", shouldSummarize, true, !!force)
     .catch(err => logger.error(`Background indexing error: ${err.message}`));
   return c.json({ success: true, message: "Indexing started in background" });
 });
@@ -282,8 +285,12 @@ app.post('/api/index/resume', (c) => {
 });
 
 app.post('/api/index/retry', async (c) => {
-  const { failedPaths, projectName, collection, summarize } = indexingProgress;
+  const { failedPaths, projectName, collection } = indexingProgress;
   if (!failedPaths || failedPaths.length === 0) return c.json({ error: 'No failed files to retry' }, 400);
+
+  // Read summarize setting from config if not stored in progress
+  const config = await loadConfig();
+  const shouldSummarize = config.summarize ?? true;
 
   // Clear current failed list before retrying
   const pathsToRetry = [...failedPaths];
@@ -297,15 +304,15 @@ app.post('/api/index/retry', async (c) => {
   // We need to re-trigger for these specific files
   // Since handleIndexFolder takes a folder, we can update it or add a list handler
   // For now, let's keep it simple and just log we are retrying
-  logger.info(`[Retry] Retrying ${pathsToRetry.length} failed files for ${projectName}`);
-  
+  logger.info(`[Retry] Retrying ${pathsToRetry.length} failed files for ${projectName} (summarize: ${shouldSummarize})`);
+
   const { indexSingleFile } = await import("./core.js");
-  
+
   // Fire and forget background retry
   (async () => {
     for (const filePath of pathsToRetry) {
       try {
-        await indexSingleFile(filePath, projectName, collection || "default");
+        await indexSingleFile(filePath, projectName, collection || "default", shouldSummarize);
         indexingProgress.processedFiles++;
       } catch (err) {
         indexingProgress.failedFiles++;

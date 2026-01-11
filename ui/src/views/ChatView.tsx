@@ -141,35 +141,36 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => setShowDebug(!showDebug)}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg transition-all border",
-                  showDebug 
-                    ? "bg-primary/10 border-primary/30 text-primary" 
-                    : "text-muted-foreground hover:text-foreground border-transparent"
+                  "p-2.5 rounded-2xl border transition-all",
+                  showDebug
+                    ? "bg-primary/10 border-primary/30 text-primary"
+                    : "bg-secondary border-border text-muted-foreground hover:text-foreground"
                 )}
                 title="Inspect AI Requests"
               >
-                <Bug size={14} />
+                <Bug size={18} />
               </button>
               {messages.length > 0 && (
-                <button 
+                <button
                   onClick={() => setShowFilters(!showFilters)}
                   className={cn(
-                    "p-2.5 rounded-2xl border transition-all",
-                    showFilters || projectName || collection || fileType 
-                      ? "bg-primary/10 border-primary/30 text-primary" 
+                    "p-2.5 rounded-2xl border transition-all flex items-center gap-2 px-4",
+                    showFilters || projectName || collection || fileType
+                      ? "bg-primary/10 border-primary/30 text-primary"
                       : "bg-secondary border-border text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <Filter size={14} /> Filters
+                  <Filter size={16} />
+                  <span className="text-xs font-bold">Filters</span>
                 </button>
               )}
               {messages.length > 0 && (
-                <button 
+                <button
                   onClick={handleClear}
-                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                  className="flex items-center gap-2 px-3 py-2.5 text-xs font-bold text-muted-foreground hover:text-red-400 bg-secondary border border-border hover:bg-red-400/10 rounded-2xl transition-all"
                 >
                   <Trash2 size={14} /> Clear History
                 </button>

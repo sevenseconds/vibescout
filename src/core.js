@@ -401,7 +401,7 @@ export async function openFile(filePath, line = 1) {
   }
 }
 
-export async function indexSingleFile(filePath, projectName, collection) {
+export async function indexSingleFile(filePath, projectName, collection, summarize = true) {
   try {
     const content = await fs.readFile(filePath, "utf-8");
     const hash = crypto.createHash("md5").update(content).digest("hex");
@@ -413,21 +413,26 @@ export async function indexSingleFile(filePath, projectName, collection) {
     await updateDependencies(filePath, projectName, collection, metadata);
 
     if (blocks.length > 0) {
-      const parentSummaries = new Map();
-      // Pre-summarize for hierarchical context
-      for (const parent of blocks.filter(b => b.type !== "chunk")) {
-        parentSummaries.set(parent.name, await summarizerManager.summarize(parent.content, {
-          fileName: path.basename(filePath),
-          projectName
-        }));
+      let parentSummaries = new Map();
+
+      // Pre-summarize for hierarchical context (only if summarize is enabled)
+      if (summarize) {
+        for (const parent of blocks.filter(b => b.type !== "chunk")) {
+          parentSummaries.set(parent.name, await summarizerManager.summarize(parent.content, {
+            fileName: path.basename(filePath),
+            projectName
+          }));
+        }
       }
 
       const dataToInsert = [];
       for (const block of blocks) {
-        const summary = block.type === "chunk" 
-          ? await summarizerManager.summarize(block.content, { fileName: path.basename(filePath), projectName, type: 'chunk', parentName: block.parentName })
-          : parentSummaries.get(block.name) || "";
-          
+        const summary = summarize
+          ? (block.type === "chunk"
+            ? await summarizerManager.summarize(block.content, { fileName: path.basename(filePath), projectName, type: 'chunk', parentName: block.parentName })
+            : parentSummaries.get(block.name) || "")
+          : "";
+
         const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
         const textToEmbed = `Category: ${block.category}\nProject: ${projectName}\nFile: ${path.basename(filePath)}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
         dataToInsert.push({

@@ -21,6 +21,10 @@ interface Watcher {
   collection: string;
 }
 
+interface Config {
+  summarize?: boolean;
+}
+
 interface IndexProgress {
   active: boolean;
   projectName: string;
@@ -46,7 +50,8 @@ export default function KBView({ onExplore }: KBViewProps) {
   const [removingWatcher, setRemovingWatcher] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newWatcher, setNewWatcher] = useState<Watcher>({ folderPath: '', projectName: '', collection: 'default' });
-  
+  const [config, setConfig] = useState<Config>({ summarize: true });
+
   const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(null);
   const [summarize, setSummarize] = useState(true);
   const [showIndexDetails, setShowIndexDetails] = useState(false);
@@ -54,16 +59,21 @@ export default function KBView({ onExplore }: KBViewProps) {
 
   const fetchData = async () => {
     try {
-      const [statsRes, kbRes, watchersRes, progressRes] = await Promise.all([
+      const [statsRes, kbRes, watchersRes, progressRes, configRes] = await Promise.all([
         axios.get('/api/stats'),
         axios.get('/api/kb'),
         axios.get('/api/watchers'),
-        axios.get('/api/index/status')
+        axios.get('/api/index/status'),
+        axios.get('/api/config')
       ]);
       setStats(statsRes.data);
       setKb(kbRes.data);
       setWatchers(watchersRes.data);
       setIndexProgress(progressRes.data);
+      // Sync summarize state with global config
+      const loadedConfig = configRes.data;
+      setConfig(loadedConfig);
+      setSummarize(loadedConfig.summarize ?? true);
     } catch (err) {
       console.error(err);
     } finally {
@@ -447,8 +457,18 @@ export default function KBView({ onExplore }: KBViewProps) {
                 </div>
               </div>
               <div className="flex items-center gap-4 px-1">
-                <button 
-                  onClick={() => setSummarize(!summarize)}
+                <button
+                  onClick={async () => {
+                    const newValue = !summarize;
+                    setSummarize(newValue);
+                    // Also update global config
+                    try {
+                      await axios.post('/api/config', { ...config, summarize: newValue });
+                      setConfig(prev => ({ ...prev, summarize: newValue }));
+                    } catch (err) {
+                      console.error('Failed to update config:', err);
+                    }
+                  }}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-xl border font-bold text-xs transition-all",
                     summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
