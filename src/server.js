@@ -312,6 +312,18 @@ app.get('/api/logs/stream', async (c) => {
   });
 });
 
+app.get('/api/models/ollama', async (c) => {
+  const config = await loadConfig();
+  try {
+    const response = await fetch(`${config.ollamaUrl}/api/tags`);
+    if (!response.ok) throw new Error('Ollama not reachable');
+    const data = await response.json();
+    return c.json(data.models || []);
+  } catch (err) {
+    return c.json({ error: 'Ollama not running or unreachable' }, 500);
+  }
+});
+
 app.get('/api/debug/requests', async (c) => {
   const { debugStore } = await import("./debug.js");
   return c.json(debugStore.getRequests());
