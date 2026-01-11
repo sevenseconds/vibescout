@@ -85,7 +85,7 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
     } catch (err: any) {
       if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Gemini Summarization failed: ${err.message}`);
-      return "";
+      throw err;
     }
   }
 
@@ -131,7 +131,7 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
     } catch (err: any) {
       if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Gemini Response generation failed: ${err.message}`);
-      return "Gemini failed to generate response.";
+      throw err;
     }
   }
 }

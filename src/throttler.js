@@ -60,16 +60,27 @@ export class AdaptiveThrottler {
   }
 
   isConcurrencyError(err) {
-    const msg = err.message || "";
+    // Stringify the whole error object to catch patterns hidden in JSON payloads
+    let searchableText = "";
+    try {
+      searchableText = JSON.stringify({
+        message: err.message,
+        stack: err.stack,
+        ...err // Include any extra properties
+      });
+    } catch {
+      searchableText = err.message || String(err);
+    }
+
     // Always include these critical codes even if not in user config
     const builtinPatterns = ["429", "1214", "1301", "1302", "并发数过高"];
     const userPatterns = this.errorPatterns || [];
     
     const allPatterns = [...new Set([...builtinPatterns, ...userPatterns])];
-    const matched = allPatterns.find(p => msg.includes(p));
+    const matched = allPatterns.find(p => searchableText.includes(p));
     
     if (matched) {
-      logger.debug(`[Throttler:${this.name}] Match found for pattern: "${matched}"`);
+      logger.debug(`[Throttler:${this.name}] Match found for pattern: "${matched}" in error payload.`);
       return true;
     }
     return false;

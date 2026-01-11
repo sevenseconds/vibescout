@@ -134,7 +134,7 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
     } catch (err: any) {
       if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Ollama Response generation failed: ${err.message}`);
-      return "Ollama failed to generate response.";
+      throw err;
     }
   }
 }
