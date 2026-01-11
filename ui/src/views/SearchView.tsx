@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, ArrowRight, FileCode2, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import CodeBlock from '../components/CodeBlock';
 
 interface SearchResult {
   projectName: string;
@@ -25,11 +26,6 @@ export default function SearchView() {
     setLoading(true);
     try {
       const response = await axios.post('/api/search', { query });
-      // The API returns { content: [{ type: 'text', text: formattedText }] } for MCP
-      // But we need raw results for UI. 
-      // Wait, I updated handleSearchCode in core.js to return raw results but handleApiRequest 
-      // calls handleSearchCode which returns MCP response.
-      // I should update handleApiRequest to call searchCode directly for raw data.
       setResults(response.data); 
     } catch (err) {
       console.error(err);
@@ -88,7 +84,7 @@ export default function SearchView() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-mono text-muted-foreground">{result.filePath}:{result.startLine}</p>
+                    <p className="text-xs font-mono text-muted-foreground break-all">{result.filePath}:{result.startLine}</p>
                     <div className="mt-1 inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[10px] font-bold text-secondary-foreground">
                       Score: {result.rerankScore?.toFixed(4)}
                     </div>
@@ -99,9 +95,12 @@ export default function SearchView() {
                     {result.summary}
                   </p>
                 )}
-                <pre className="text-xs font-mono bg-black/20 p-4 rounded-xl overflow-x-auto border border-border/30 text-muted-foreground">
-                  <code>{result.content.substring(0, 300)}...</code>
-                </pre>
+                
+                <CodeBlock 
+                  code={result.content} 
+                  filePath={result.filePath} 
+                  showOpenInEditor 
+                />
               </div>
             ))}
           </div>

@@ -37,8 +37,32 @@ export default function GraphView() {
   const [loading, setLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [highlightNodes, setHighlightNodes] = useState(new Set());
+  const [fileDeps, setFileDeps] = useState<any>(null);
+  const [fetchingIntelligence, setFetchingIntelligence] = useState(false);
 
   const fgRef = useRef<any>(null);
+
+  const handleOpenFile = async (filePath: string) => {
+    try {
+      await axios.post('/api/open', { filePath });
+    } catch (err) {
+      console.error('Failed to open file:', err);
+    }
+  };
+
+  const fetchSymbolIntelligence = async (filePath: string) => {
+    setFetchingIntelligence(true);
+    setFileDeps(null);
+    try {
+      // Use existing endpoint that returns { imports, exports }
+      const response = await axios.get(`/api/deps?filePath=${encodeURIComponent(filePath)}`);
+      setFileDeps(response.data);
+    } catch (err) {
+      console.error('Failed to fetch symbol intelligence:', err);
+    } finally {
+      setFetchingIntelligence(false);
+    }
+  };
 
   useEffect(() => {
     const fetchGraph = async () => {
@@ -70,6 +94,7 @@ export default function GraphView() {
 
   const handleNodeClick = (node: any) => {
     setSelectedNode(node);
+    fetchSymbolIntelligence(node.id);
     
     // Highlight logic
     const neighbors = new Set();
@@ -96,6 +121,7 @@ export default function GraphView() {
   const clearHighlight = () => {
     setSelectedNode(null);
     setHighlightNodes(new Set());
+    setFileDeps(null);
   };
 
   const dependents = useMemo(() => {
@@ -150,14 +176,62 @@ export default function GraphView() {
               <p className="text-xs font-mono bg-secondary/50 p-3 rounded-xl border border-border/50 text-muted-foreground break-all">
                 {selectedNode.id}
               </p>
-              <button className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-xl font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/20">
+              <button 
+                onClick={() => handleOpenFile(selectedNode.id)}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-xl font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+              >
                 <ExternalLink size={16} /> Open in Editor
               </button>
             </div>
 
             <div className="space-y-6">
+              {/* Symbol Intelligence */}
+              <div className="space-y-4 pt-4 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-[0.2em] text-primary">Symbol Intelligence</h4>
+                  {fetchingIntelligence && <Loader2 size={14} className="animate-spin text-primary" />}
+                </div>
+
+                {fileDeps && (
+                  <div className="space-y-6">
+                    {/* Exports */}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Exports ({fileDeps.exports?.length || 0})</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {fileDeps.exports?.map((s: string) => (
+                          <span key={s} className="px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded text-[10px] font-mono border border-emerald-500/20">
+                            {s}
+                          </span>
+                        ))}
+                        {(!fileDeps.exports || fileDeps.exports.length === 0) && <p className="text-[10px] text-muted-foreground italic">No public symbols exported.</p>}
+                      </div>
+                    </div>
+
+                    {/* Detailed Imports */}
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Imported Symbols</p>
+                      <div className="space-y-3">
+                        {fileDeps.imports?.map((imp: any, i: number) => (
+                          <div key={i} className="space-y-1.5 p-2 rounded-lg bg-secondary/20 border border-border/30">
+                            <p className="text-[10px] font-mono text-blue-400 truncate" title={imp.source}>{imp.source}</p>
+                            <div className="flex flex-wrap gap-1">
+                              {imp.symbols?.map((s: string) => (
+                                <span key={s} className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[9px] font-mono border border-blue-500/10">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        {(!fileDeps.imports || fileDeps.imports.length === 0) && <p className="text-[10px] text-muted-foreground italic px-2">No symbols imported.</p>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Dependents */}
-              <div className="space-y-3">
+              <div className="space-y-3 pt-4 border-t border-border/50">
                 <div className="flex items-center gap-2 text-green-400">
                   <ArrowUpRight size={18} />
                   <h4 className="font-bold text-sm uppercase tracking-wider">Imported By ({dependents.length})</h4>

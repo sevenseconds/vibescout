@@ -11,6 +11,7 @@ import {
   handleSearchCode, 
   searchCode,
   chatWithCode,
+  openFile,
   indexingProgress 
 } from "./core.js";
 import { 
@@ -237,6 +238,19 @@ export async function handleApiRequest(req, res) {
       return true;
     }
 
+    if (pathName === "/api/deps" && req.method === "GET") {
+      const filePath = url.searchParams.get("filePath");
+      if (filePath) {
+        const deps = await getFileDependencies(path.resolve(filePath));
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(deps));
+      } else {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "filePath required" }));
+      }
+      return true;
+    }
+
     if (pathName === "/api/search" && req.method === "POST") {
       let body = "";
       for await (const chunk of req) body += chunk;
@@ -289,6 +303,16 @@ export async function handleApiRequest(req, res) {
         projects: projectCount,
         status: "active"
       }));
+      return true;
+    }
+
+    if (pathName === "/api/open" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { filePath } = JSON.parse(body);
+      await openFile(filePath);
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ success: true }));
       return true;
     }
 

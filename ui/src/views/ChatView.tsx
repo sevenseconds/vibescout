@@ -3,6 +3,7 @@ import { Send, Bot, User, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import MarkdownRenderer from '../components/MarkdownRenderer';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -135,8 +136,8 @@ export default function ChatView() {
               <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">
                 {msg.role === 'assistant' ? 'Assistant' : 'You'}
               </p>
-              <div className="text-base leading-relaxed text-foreground whitespace-pre-wrap font-medium break-words">
-                {msg.content}
+              <div className="text-base leading-relaxed text-foreground font-medium break-words">
+                <MarkdownRenderer content={msg.content} />
               </div>
             </div>
           </div>
