@@ -141,10 +141,13 @@ export default function ConfigView() {
   };
 
   const handleTestEmbedding = async () => {
+    if (!config) return;
     setTestingEmbedding(true);
     try {
-      const res = await axios.post('/api/test/embedding');
-      alert(`Embedding Test: ${res.data.message}`);
+      const res = await axios.post('/api/test/embedding', config);
+      alert(`Embedding Test: ${res.data.message}\n\nConfiguration is valid and has been auto-saved.`);
+      // Auto-save on success
+      await handleSave();
     } catch (err: any) {
       alert(`Embedding Test Failed: ${err.response?.data?.error || err.message}`);
     } finally {
@@ -153,10 +156,13 @@ export default function ConfigView() {
   };
 
   const handleTestLLM = async () => {
+    if (!config) return;
     setTestingLLM(true);
     try {
-      const res = await axios.post('/api/test/llm');
-      alert(`LLM Test: ${res.data.message}`);
+      const res = await axios.post('/api/test/llm', config);
+      alert(`LLM Test: ${res.data.message}\n\nConfiguration is valid and has been auto-saved.`);
+      // Auto-save on success
+      await handleSave();
     } catch (err: any) {
       alert(`LLM Test Failed: ${err.response?.data?.error || err.message}`);
     } finally {
