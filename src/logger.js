@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events';
+
 export const LogLevel = {
   DEBUG: 0,
   INFO: 1,
@@ -6,8 +8,9 @@ export const LogLevel = {
   NONE: 4
 };
 
-class Logger {
+class Logger extends EventEmitter {
   constructor() {
+    super();
     this.level = LogLevel.INFO;
     this.buffer = [];
     this.maxBufferSize = 100;
@@ -19,16 +22,20 @@ class Logger {
 
   _log(levelName, message, ...args) {
     const timestamp = new Date().toISOString();
+    const formattedMessage = message + (args.length ? ' ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') : '');
+    
     const logEntry = {
       timestamp,
       level: levelName,
-      message: message + (args.length ? ' ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') : '')
+      message: formattedMessage
     };
     
     this.buffer.push(logEntry);
     if (this.buffer.length > this.maxBufferSize) {
       this.buffer.shift();
     }
+
+    this.emit('log', logEntry);
 
     console.error(`[${levelName}] ${message}`, ...args);
   }

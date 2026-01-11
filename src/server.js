@@ -8,6 +8,7 @@ import fs from "fs-extra";
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
+import { streamSSE } from 'hono/streaming';
 import { logger } from "./logger.js";
 import {
   handleIndexFolder,
@@ -270,6 +271,35 @@ app.post('/api/index', async (c) => {
 app.get('/api/index/status', (c) => c.json(indexingProgress));
 
 app.get('/api/logs', (c) => c.json(logger.getRecentLogs()));
+
+app.get('/api/logs/stream', async (c) => {
+  return streamSSE(c, async (stream) => {
+    const onLog = async (log) => {
+      await stream.writeSSE({
+        data: JSON.stringify(log),
+        event: 'log',
+      });
+    };
+
+    logger.on('log', onLog);
+
+    // Keep-alive heartbeat
+    const heartbeat = setInterval(async () => {
+      await stream.writeSSE({ data: 'ping', event: 'ping' });
+    }, 30000);
+
+    c.req.raw.signal.addEventListener('abort', () => {
+      logger.off('log', onLog);
+      clearInterval(heartbeat);
+    });
+
+    // Initial sync of existing buffer
+    const recent = logger.getRecentLogs();
+    for (const log of recent) {
+      await stream.writeSSE({ data: JSON.stringify(log), event: 'log' });
+    }
+  });
+});
 
 app.get('/api/debug/requests', async (c) => {
   const { debugStore } = await import("./debug.js");
