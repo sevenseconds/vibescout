@@ -263,8 +263,8 @@ app.get('/api/projects/root', async (c) => {
 });
 
 app.post('/api/index', async (c) => {
-  const { folderPath, projectName, collection, summarize } = await c.req.json();
-  handleIndexFolder(folderPath, projectName, collection || "default", summarize !== false, true)
+  const { folderPath, projectName, collection, summarize, force } = await c.req.json();
+  handleIndexFolder(folderPath, projectName, collection || "default", summarize !== false, true, !!force)
     .catch(err => logger.error(`Background indexing error: ${err.message}`));
   return c.json({ success: true, message: "Indexing started in background" });
 });

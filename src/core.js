@@ -79,11 +79,22 @@ export function pauseIndexing(paused) {
  * Tool: index_folder
  * @param {boolean} summarize - Default is now TRUE for high accuracy
  * @param {boolean} background - If true, return immediately and index in background
+ * @param {boolean} force - If true, clear existing index and re-scan everything
  */
-export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false) {
+export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false, force = false) {
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
   
+  if (indexingProgress.active) {
+    return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
+  }
+
+  // 1. If force, clear the existing data for this project first
+  if (force) {
+    logger.info(`[Force Re-index] Clearing existing data for ${derivedProjectName}...`);
+    await deleteProject(derivedProjectName);
+  }
+
   const ig = await getIgnoreFilter(absolutePath);
   
   // Get all potential files
