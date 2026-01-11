@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, AlertCircle, Eye, EyeOff, Settings, MessagesSquare, Zap, Plus, X } from 'lucide-react';
+import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, AlertCircle, Eye, EyeOff, Settings, MessagesSquare, Zap, Plus, X, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import modelsData from '../models.json';
 
@@ -36,6 +36,7 @@ export default function ConfigView() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [showKeys, setShowKeys] = useState(false);
   const [newErrorPattern, setNewErrorPattern] = useState('');
+  const [ollamaSyncing, setOllamaSyncing] = useState(false);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -92,6 +93,32 @@ export default function ConfigView() {
     updateConfig('throttlingErrors', config.throttlingErrors.filter(p => p !== pattern));
   };
 
+  const handleOllamaSync = async () => {
+    setOllamaSyncing(true);
+    try {
+      const res = await axios.get('/api/models/ollama');
+      const models = res.data;
+      const modelNames = models.map((m: any) => m.name);
+      
+      alert(`Ollama Sync Success!\n\nAvailable models: ${modelNames.join(', ')}`);
+      
+      // Heuristic: check if current model is in the list
+      const current = config?.embeddingModel;
+      if (current && !modelNames.includes(current)) {
+        const found = modelNames.find((m: string) => m.startsWith(current) || current.startsWith(m));
+        if (found) {
+          alert(`Name Mismatch Detected!\n\nYou selected "${current}" but Ollama has it as "${found}". Updating to the correct name...`);
+          updateConfig('embeddingModel', found);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to connect to Ollama. Make sure it is running and the URL is correct.');
+    } finally {
+      setOllamaSyncing(false);
+    }
+  };
+
   const renderProviderFields = (providerType: string) => {
     if (!config) return null;
 
@@ -140,15 +167,26 @@ export default function ConfigView() {
         return (
           <div className="space-y-2">
             <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Ollama URL</label>
-            <div className="relative">
-              <Globe className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
-              <input 
-                type="text" 
-                value={config.ollamaUrl}
-                onChange={(e) => updateConfig('ollamaUrl', e.target.value)}
-                className="w-full bg-secondary border border-border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground"
-                placeholder="http://localhost:11434"
-              />
+            <div className="relative flex gap-2">
+              <div className="relative flex-1">
+                <Globe className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
+                <input 
+                  type="text" 
+                  value={config.ollamaUrl}
+                  onChange={(e) => updateConfig('ollamaUrl', e.target.value)}
+                  className="w-full bg-secondary border border-border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground"
+                  placeholder="http://localhost:11434"
+                />
+              </div>
+              <button 
+                onClick={handleOllamaSync}
+                disabled={ollamaSyncing}
+                className="px-4 bg-secondary border border-border rounded-xl hover:border-primary/50 transition-all text-muted-foreground hover:text-primary disabled:opacity-50 flex items-center gap-2"
+                title="Sync & Verify Models"
+              >
+                {ollamaSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                <span className="text-[10px] font-bold uppercase">Sync</span>
+              </button>
             </div>
           </div>
         );
