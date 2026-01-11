@@ -28,7 +28,11 @@ interface IndexProgress {
   status: string;
 }
 
-export default function KBView() {
+interface KBViewProps {
+  onExplore?: (filters: { projectName?: string; collection?: string }) => void;
+}
+
+export default function KBView({ onExplore }: KBViewProps) {
   const [stats, setStats] = useState<Stats>({ collections: 0, projects: 0, status: 'idle' });
   const [kb, setKb] = useState<Record<string, string[]>>({});
   const [watchers, setWatchers] = useState<Watcher[]>([]);
@@ -310,7 +314,11 @@ export default function KBView() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                    <button className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+                    <button 
+                      onClick={() => onExplore?.({ projectName: project, collection })}
+                      className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      title="Explore in Search"
+                    >
                       <ExternalLink size={16} />
                     </button>
                     <button 

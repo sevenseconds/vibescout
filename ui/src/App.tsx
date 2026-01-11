@@ -24,6 +24,12 @@ import LiveLogs from './components/LiveLogs';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'search' | 'kb' | 'config' | 'chat' | 'graph'>('search');
+  const [searchFilters, setSearchFilters] = useState<{ projectName?: string; collection?: string }>({});
+
+  const navigateToSearch = (filters: { projectName?: string; collection?: string }) => {
+    setSearchFilters(filters);
+    setActiveTab('search');
+  };
 
   const navItems = [
     { id: 'search', label: 'Search', icon: Search },
@@ -76,10 +82,15 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 overflow-auto relative">
         <div className="h-full w-full">
-          {activeTab === 'search' && <SearchView />}
+          {activeTab === 'search' && (
+            <SearchView 
+              initialFilters={searchFilters} 
+              onFiltersClear={() => setSearchFilters({})} 
+            />
+          )}
           {activeTab === 'chat' && <ChatView />}
           {activeTab === 'graph' && <GraphView />}
-          {activeTab === 'kb' && <KBView />}
+          {activeTab === 'kb' && <KBView onExplore={navigateToSearch} />}
           {activeTab === 'config' && <ConfigView />}
         </div>
         <LiveLogs />

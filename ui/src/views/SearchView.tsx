@@ -22,15 +22,20 @@ interface SearchResult {
   rerankScore: number;
 }
 
-export default function SearchView() {
+interface SearchViewProps {
+  initialFilters?: { projectName?: string; collection?: string };
+  onFiltersClear?: () => void;
+}
+
+export default function SearchView({ initialFilters, onFiltersClear }: SearchViewProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(!!initialFilters?.projectName || !!initialFilters?.collection);
   
   // Filters
-  const [projectName, setProjectName] = useState('');
-  const [collection, setCollection] = useState('');
+  const [projectName, setProjectName] = useState(initialFilters?.projectName || '');
+  const [collection, setCollection] = useState(initialFilters?.collection || '');
   const [fileType, setFileType] = useState('');
 
   const handleSearch = async () => {
@@ -55,6 +60,7 @@ export default function SearchView() {
     setProjectName('');
     setCollection('');
     setFileType('');
+    onFiltersClear?.();
   };
 
   return (
