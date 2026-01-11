@@ -61,12 +61,18 @@ export class AdaptiveThrottler {
 
   isConcurrencyError(err) {
     const msg = err.message || "";
-    // If no patterns defined, use a safe default including Z.AI specific codes
-    const patterns = this.errorPatterns.length > 0 
-      ? this.errorPatterns 
-      : ["429", "Rate limit", "too many requests", "1214", "1301", "1302", "并发数过高"];
-
-    return patterns.some(p => msg.includes(p));
+    // Always include these critical codes even if not in user config
+    const builtinPatterns = ["429", "1214", "1301", "1302", "并发数过高"];
+    const userPatterns = this.errorPatterns || [];
+    
+    const allPatterns = [...new Set([...builtinPatterns, ...userPatterns])];
+    const matched = allPatterns.find(p => msg.includes(p));
+    
+    if (matched) {
+      logger.debug(`[Throttler:${this.name}] Match found for pattern: "${matched}"`);
+      return true;
+    }
+    return false;
   }
 
   handleSuccess() {
@@ -105,8 +111,7 @@ export function getThrottler(providerName, errorPatterns = []) {
     throttlers.set(providerName, new AdaptiveThrottler(providerName));
   }
   const throttler = throttlers.get(providerName);
-  if (errorPatterns.length > 0) {
-    throttler.setErrorPatterns(errorPatterns);
-  }
+  // Always update patterns to stay in sync with latest config
+  throttler.setErrorPatterns(errorPatterns);
   return throttler;
 }
