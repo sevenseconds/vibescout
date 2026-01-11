@@ -52,13 +52,13 @@ export default function LiveLogs() {
 
   return (
     <div className={cn(
-      "fixed bottom-0 left-0 right-0 z-50 transition-all duration-300",
+      "w-full bg-card border-t border-border shrink-0 transition-all duration-300 flex flex-col",
       isOpen ? "h-80" : "h-12"
     )}>
       {/* Header / Toggle */}
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className="h-12 bg-secondary border-t border-border flex items-center justify-between px-6 cursor-pointer hover:bg-secondary/80 transition-colors shadow-2xl"
+        className="h-12 bg-secondary/50 border-b border-border/10 flex items-center justify-between px-6 cursor-pointer hover:bg-secondary transition-colors shrink-0"
       >
         <div className="flex items-center gap-3">
           <Terminal size={18} className={cn(isOpen ? "text-primary" : "text-muted-foreground")} />

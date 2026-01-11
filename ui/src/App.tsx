@@ -86,8 +86,8 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto relative">
-        <div className="h-full w-full">
+      <main className="flex-1 flex flex-col min-h-0 relative">
+        <div className="flex-1 overflow-auto w-full">
           {activeTab === 'search' && (
             <SearchView 
               initialFilters={searchFilters} 
