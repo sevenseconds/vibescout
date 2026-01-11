@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info } from 'lucide-react';
+import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Folder } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -38,6 +38,7 @@ export default function KBView({ onExplore }: KBViewProps) {
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [loading, setLoading] = useState(true);
   const [removingWatcher, setRemovingWatcher] = useState<string | null>(null);
+  const [selectingPath, setSelectingPath] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newWatcher, setNewWatcher] = useState<Watcher>({ folderPath: '', projectName: '', collection: 'default' });
   
@@ -92,6 +93,23 @@ export default function KBView({ onExplore }: KBViewProps) {
       fetchData();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleBrowseFolder = async () => {
+    setSelectingPath(true);
+    try {
+      const response = await axios.get('/api/dialog/directory');
+      if (response.data.path) {
+        const path = response.data.path;
+        // Auto-fill project name from folder name if empty
+        const projectName = newWatcher.projectName || path.split(/[\\/]/).pop() || '';
+        setNewWatcher(prev => ({ ...prev, folderPath: path, projectName }));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSelectingPath(false);
     }
   };
 
@@ -222,14 +240,24 @@ export default function KBView({ onExplore }: KBViewProps) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Absolute Folder Path</label>
-              <input 
-                type="text" 
-                placeholder="/Users/name/workspaces/my-app"
-                value={newWatcher.folderPath}
-                onChange={(e) => setNewWatcher({...newWatcher, folderPath: e.target.value})}
-                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
-              />
+              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1 text-center">Absolute Folder Path</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="/Users/name/workspaces/my-app"
+                  value={newWatcher.folderPath}
+                  onChange={(e) => setNewWatcher({...newWatcher, folderPath: e.target.value})}
+                  className="flex-1 bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
+                />
+                <button 
+                  onClick={handleBrowseFolder}
+                  disabled={selectingPath}
+                  className="px-4 bg-secondary border border-border rounded-xl hover:border-primary/50 transition-all text-muted-foreground hover:text-primary disabled:opacity-50"
+                  title="Browse Folders"
+                >
+                  {selectingPath ? <Loader2 size={20} className="animate-spin" /> : <Folder size={20} />}
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Project Name (Identifier)</label>
