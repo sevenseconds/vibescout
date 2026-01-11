@@ -34,23 +34,35 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async summarize(text: string): Promise<string> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
     try {
+      const payload = {
+        model: this.modelName,
+        prompt: `Summarize the following code or documentation briefly and concisely:\n\n${text}`,
+        stream: false,
+      };
+
+      requestId = debugStore.logRequest(`${this.name}:summarize`, this.modelName, payload);
+
       const response = await fetch(`${this.baseUrl}/api/generate`, {
         method: "POST",
-        body: JSON.stringify({
-          model: this.modelName,
-          prompt: `Summarize the following code or documentation briefly and concisely:\n\n${text}`,
-          stream: false,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
+        const error = await response.text();
+        debugStore.updateError(requestId, error);
         throw new Error(`Ollama error: ${response.statusText}`);
       }
 
       const data = await response.json() as { response: string };
-      return data.response.trim();
+      const result = data.response.trim();
+      debugStore.updateResponse(requestId, result);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Ollama Summarization failed: ${err.message}`);
       return "";
     }

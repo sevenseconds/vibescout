@@ -10,7 +10,7 @@ export interface ChatMessage {
 
 export interface SummarizerProvider {
   name: string;
-  summarize(text: string): Promise<string>;
+  summarize(text: string, requestId?: string): Promise<string>;
   generateResponse(prompt: string, context: string, history?: ChatMessage[]): Promise<string>;
 }
 

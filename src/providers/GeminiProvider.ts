@@ -12,53 +12,78 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
     try {
       const model = this.modelName || "text-embedding-004";
+      const payload = {
+        content: { parts: [{ text }] }
+      };
+
+      requestId = debugStore.logRequest(`${this.name}:embed`, model, payload);
+
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${this.apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content: { parts: [{ text }] }
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
       if (!response.ok) {
         const error = await response.text();
+        debugStore.updateError(requestId, error);
         throw new Error(`Gemini error: ${error}`);
       }
 
       const data = await response.json() as { embedding: { values: number[] } };
-      return data.embedding.values;
+      const result = data.embedding.values;
+      debugStore.updateResponse(requestId, `[Embedding Vector: size ${result.length}]`);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Gemini Embedding failed: ${err.message}`);
       throw err;
     }
   }
 
   async summarize(text: string): Promise<string> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
     try {
       const model = this.modelName || "gemini-1.5-flash";
+      const payload = {
+        contents: [{
+          parts: [{ text: `Summarize this code briefly:\n\n${text}` }]
+        }]
+      };
+
+      requestId = debugStore.logRequest(`${this.name}:summarize`, model, payload);
+
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{ text: `Summarize this code briefly:\n\n${text}` }]
-            }]
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
-      if (!response.ok) throw new Error(`Gemini error: ${response.statusText}`);
+      if (!response.ok) {
+        const error = await response.text();
+        debugStore.updateError(requestId, error);
+        throw new Error(`Gemini error: ${error}`);
+      }
 
       const data = await response.json() as { candidates: [{ content: { parts: [{ text: string }] } }] };
-      return data.candidates[0].content.parts[0].text.trim();
+      const result = data.candidates[0].content.parts[0].text.trim();
+      debugStore.updateResponse(requestId, result);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Gemini Summarization failed: ${err.message}`);
       return "";
     }

@@ -14,10 +14,20 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
     try {
       if (!this.apiKey || this.apiKey === "not-needed") {
         throw new Error(`API Key is missing for ${this.name} provider.`);
       }
+
+      const payload = {
+        model: this.modelName,
+        input: text,
+      };
+
+      requestId = debugStore.logRequest(`${this.name}:embed`, this.modelName, payload);
 
       const response = await fetch(`${this.baseUrl}/embeddings`, {
         method: "POST",
@@ -25,30 +35,45 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.modelName,
-          input: text,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const error = await response.text();
+        debugStore.updateError(requestId, error);
         throw new Error(`${this.name} error: ${error}`);
       }
 
       const data = await response.json() as { data: [{ embedding: number[] }] };
-      return data.data[0].embedding;
+      const result = data.data[0].embedding;
+      debugStore.updateResponse(requestId, `[Embedding Vector: size ${result.length}]`);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`${this.name} Embedding failed: ${err.message}`);
       throw err;
     }
   }
 
   async summarize(text: string): Promise<string> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
     try {
       if (!this.apiKey || this.apiKey === "not-needed") {
         throw new Error(`API Key is missing for ${this.name} provider.`);
       }
+
+      const payload = {
+        model: this.modelName,
+        messages: [
+          { role: "system", content: "You are a helpful assistant that summarizes code and documentation concisely." },
+          { role: "user", content: `Summarize this briefly:\n\n${text}` }
+        ],
+        max_tokens: 150,
+      };
+
+      requestId = debugStore.logRequest(`${this.name}:summarize`, this.modelName, payload);
 
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: "POST",
@@ -56,24 +81,21 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.modelName,
-          messages: [
-            { role: "system", content: "You are a helpful assistant that summarizes code and documentation concisely." },
-            { role: "user", content: `Summarize this briefly:\n\n${text}` }
-          ],
-          max_tokens: 150,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const error = await response.text();
+        debugStore.updateError(requestId, error);
         throw new Error(`${this.name} error: ${error}`);
       }
 
       const data = await response.json() as { choices: [{ message: { content: string } }] };
-      return data.choices[0].message.content.trim();
+      const result = data.choices[0].message.content.trim();
+      debugStore.updateResponse(requestId, result);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`${this.name} Summarization failed: ${err.message}`);
       return "";
     }
