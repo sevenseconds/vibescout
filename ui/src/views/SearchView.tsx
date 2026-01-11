@@ -33,6 +33,8 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(!!initialFilters?.projectName || !!initialFilters?.collection);
+  const [summarizing, setSummarizing] = useState(false);
+  const [draftSummary, setDraftSummary] = useState('');
   
   // Filters
   const [projectName, setProjectName] = useState(initialFilters?.projectName || '');
@@ -42,6 +44,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
   const handleSearch = async () => {
     if (!query.trim()) return;
     setLoading(true);
+    setDraftSummary(''); // Clear old summary
     try {
       const parsedFileTypes = fileType 
         ? fileType.split(',').map(t => t.trim()).filter(t => t.length > 0)
@@ -61,13 +64,29 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
     }
   };
 
-  const handleAskChat = () => {
+  const handleSummarize = async () => {
+    if (results.length === 0) return;
+    setSummarizing(true);
+    try {
+      const response = await axios.post('/api/search/summarize', { 
+        query, 
+        results 
+      });
+      setDraftSummary(response.data.summary);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
+  const handleAskChat = (textOverride?: string) => {
     const parsedFileTypes = fileType 
       ? fileType.split(',').map(t => t.trim()).filter(t => t.length > 0)
       : undefined;
 
     onAskChat?.({
-      query,
+      query: textOverride || query,
       projectName: projectName || undefined,
       collection: collection || undefined,
       fileTypes: parsedFileTypes
@@ -183,13 +202,44 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
               <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                 Found {results.length} matches
               </h3>
-              <button 
-                onClick={handleAskChat}
-                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-xs hover:bg-primary/20 transition-all shadow-lg shadow-primary/5"
-              >
-                <Sparkles size={14} /> Ask AI about these results
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleSummarize}
+                  disabled={summarizing}
+                  className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-xl font-bold text-xs hover:bg-secondary/80 transition-all text-muted-foreground disabled:opacity-50"
+                >
+                  {summarizing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  Summarize Findings
+                </button>
+                <button 
+                  onClick={() => handleAskChat()}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-xs hover:bg-primary/20 transition-all shadow-lg shadow-primary/5"
+                >
+                  Ask AI about this
+                </button>
+              </div>
             </div>
+
+            {draftSummary && (
+              <div className="bg-primary/5 border-2 border-primary/20 p-6 rounded-3xl space-y-4 animate-in fade-in zoom-in-95 duration-300">
+                <div className="flex items-center gap-2 text-primary">
+                  <Sparkles size={18} />
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em]">AI Draft Prompt</h4>
+                </div>
+                <div className="text-sm text-foreground/90 leading-relaxed font-medium bg-black/20 p-4 rounded-2xl border border-primary/10">
+                  {draftSummary}
+                </div>
+                <div className="flex justify-end">
+                  <button 
+                    onClick={() => handleAskChat(draftSummary)}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-xl font-black uppercase tracking-widest text-[10px] hover:opacity-90 transition-all shadow-xl shadow-primary/20"
+                  >
+                    Continue in Chat <ArrowRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4">
               {results.map((result, i) => (
                 <div key={i} className="bg-card border border-border p-6 rounded-3xl space-y-4 shadow-sm hover:border-primary/50 transition-all group relative overflow-hidden">
