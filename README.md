@@ -5,14 +5,29 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 ## 🚀 Features
 
 - **Web Dashboard**: A modern React-based UI for visual searching, chatting with your code, and managing your knowledge base.
-- **Chat with Code (RAG)**: Ask natural language questions about your codebase. VibeScout maintains persistent conversation history and answers using your preferred AI provider.
-- **Visual Dependency Graph**: Explore your codebase architecture visually. Understand how files and symbols are connected across projects.
+- **Proactive Indexing**: Connect folders directly from the browser with real-time indexing progress bars.
+- **Separate LLM & Embedding Config**: Independently configure your embedding models (e.g., local BGE) and your chat LLMs (e.g., Claude 3.5 or GPT-4o).
+- **Chat with Code (RAG)**: Ask natural language questions about your codebase. Features full **Markdown support** and **Syntax Highlighting** for code snippets.
+- **Visual Dependency Graph**: Explore your codebase architecture visually. Includes a **Symbol Intelligence** panel showing exact exports and imports for every file.
+- **IDE Integration**: "Open in Editor" buttons throughout the UI to jump directly from search results or the graph into your local IDE.
 - **Multi-Language Support**: Robust semantic extraction for **TypeScript/JS**, **Python**, **Go**, **Java**, **Kotlin**, **Dart**, **Markdown**, **JSON**, **TOML**, and **XML**.
-- **Multi-Provider AI**: Flexible support for **Ollama**, **LM Studio**, **OpenAI**, **Google Gemini**, **AWS Bedrock**, **Z.AI**, **Cloudflare Workers AI**, or built-in **Transformers.js**.
+- **Multi-Provider AI**: Support for **Ollama**, **LM Studio**, **OpenAI**, **Google Gemini**, **AWS Bedrock**, **Z.AI (incl. Coding Plan)**, **Cloudflare Workers AI**, or built-in **Transformers.js**.
 - **Hybrid Storage**: Use local **LanceDB** for speed or **Cloudflare Vectorize** for cloud-synchronized embeddings.
-- **Persistent Watchers**: Automated background indexing. Add a folder once, and VibeScout keeps it in sync forever.
+- **Persistent Watchers**: Automated background indexing dashboard. Manage active watchers and force syncs directly from the UI.
 - **Project-level Exclusions**: Support for `.vibeignore` and `.gitignore` to control exactly what gets indexed.
-- **Local & Private**: Secure by design. By default, 100% of execution and data stays on your machine.
+
+## 🤖 Supported Providers
+
+| Provider | Type | Description |
+| :--- | :--- | :--- |
+| **Local** | Built-in | Transformers.js (BGE, MiniLM). High-speed, zero config. |
+| **Ollama** | Local API | Full support for local models like Llama 3, Mistral, and Nomic. |
+| **Z.AI** | Cloud | BigModel.cn integration. Supports **GLM-4** and dedicated **Coding Plans**. |
+| **Bedrock** | Cloud | AWS Bedrock (Claude 3, Titan). Supports AWS Profiles. |
+| **Gemini** | Cloud | Google Generative AI (1.5 Flash/Pro) and specialized embeddings. |
+| **OpenAI** | Cloud | Standard OpenAI API or compatible (DeepSeek, Groq, etc). |
+| **Cloudflare** | Cloud | Workers AI & Vectorize integration for cloud-native indexing. |
+| **LM Studio** | Local API | OpenAI-compatible local server preset. |
 
 ## 🛠 Installation
 
@@ -38,32 +53,19 @@ vibescout search "how does the auth flow work?"
 ```
 
 ### Interactive Configuration
-Visually manage providers, models, and paths:
+Visually manage providers, models, and paths via CLI:
 ```bash
 vibescout config
 ```
 
 ### Indexing & Maintenance
 ```bash
-# Index a project
+# Index a project manually
 vibescout index ./my-app "My Project"
 
 # Cleanup stale files and optimize DB
 vibescout compact
 ```
-
-## 🤖 Supported Providers
-
-| Provider | Type | Description |
-| :--- | :--- | :--- |
-| **Local** | Built-in | Transformers.js (BGE, MiniLM). No setup required. |
-| **Ollama** | Local API | Offload to your local Ollama instance. |
-| **LM Studio** | Local API | OpenAI-compatible local server preset. |
-| **Bedrock** | Cloud | AWS Bedrock (Claude 3, Titan). Supports AWS Profiles. |
-| **Gemini** | Cloud | Google Generative AI (1.5 Flash/Pro). |
-| **Z.AI** | Cloud | BigModel.cn (GLM series) integration. |
-| **OpenAI** | Cloud | Standard OpenAI API or compatible (DeepSeek, Groq). |
-| **Cloudflare** | Cloud | Workers AI & Vectorize integration. |
 
 ## 🔌 Client Integration
 
