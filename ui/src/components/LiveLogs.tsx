@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { Terminal, ChevronUp, ChevronDown } from 'lucide-react';
-import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -19,19 +18,29 @@ export default function LiveLogs() {
   const [isOpen, setIsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const fetchLogs = async () => {
-    try {
-      const response = await axios.get('/api/logs');
-      setLogs(response.data);
-    } catch (err) {
-      console.error('Failed to fetch logs:', err);
-    }
-  };
-
   useEffect(() => {
-    fetchLogs();
-    const interval = setInterval(fetchLogs, 1000);
-    return () => clearInterval(interval);
+    const eventSource = new EventSource('/api/logs/stream');
+    
+    eventSource.addEventListener('log', (event) => {
+      const newLog = JSON.parse(event.data);
+      setLogs(prev => {
+        // Prevent duplicates from initial buffer sync
+        const isDuplicate = prev.some(l => l.timestamp === newLog.timestamp && l.message === newLog.message);
+        if (isDuplicate) return prev;
+        
+        const updated = [...prev, newLog];
+        return updated.slice(-100); // Keep last 100
+      });
+    });
+
+    eventSource.onerror = (err) => {
+      console.error('SSE Error:', err);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
   }, []);
 
   useEffect(() => {
