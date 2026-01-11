@@ -42,19 +42,6 @@ export default function GraphView() {
   const [cycles, setCycles] = useState<string[][]>([]);
   const [isScanning, setIsScanning] = useState(false);
 
-#### Visual Comparison(Theme Support)
-
-    ````carousel
-  ![Light Theme Graph](/Users/sevenseconds /.gemini / antigravity / brain / 1d392cf9 - 5787 - 45fc - a6f9 - 4a9989fff212 / graph_light_theme_1768129979761.png)
-  Nodes in light mode with slate background.
-< !--slide -->
-    ![Dark Theme Graph](/Users/sevenseconds /.gemini / antigravity / brain / 1d392cf9 - 5787 - 45fc - a6f9 - 4a9989fff212 / graph_dark_theme_1768129996803.png)
-  Nodes in dark mode with deep black background and glow effects.
-< !--slide -->
-    ![Side Panel in Dark Mode](/Users/sevenseconds /.gemini / antigravity / brain / 1d392cf9 - 5787 - 45fc - a6f9 - 4a9989fff212 / graph_side_panel_dark_theme_1768130049554.png)
-Selected node and functional side panel in dark mode.
-````
-
   const fgRef = useRef<any>(null);
 
   const findCycles = (graphData: GraphData) => {

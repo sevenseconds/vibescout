@@ -663,11 +663,92 @@ app.delete('/api/watchers', async (c) => {
   return c.json({ success: true });
 });
 
+// Helper function to match static imports (relative paths) to absolute file paths
+function matchImportToFile(importSource, targetFilePath) {
+  // Normalize the import source (remove './' and '../')
+  const normalizedImport = importSource.replace(/^\.\.?\//g, '');
+
+  // Split into segments
+  const importSegments = normalizedImport.split('/').filter(s => s);
+
+  // Common extensions to try
+  const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '.dart', '.java', '.kt', '.go', '.py'];
+
+  // Check if file path ends with the import pattern
+  for (const ext of extensions) {
+    const testPath = normalizedImport + ext;
+    if (targetFilePath.endsWith(testPath)) return true;
+
+    // Also check for barrel imports (index files)
+    const barrelPaths = [
+      normalizedImport + '/index' + ext,
+      normalizedImport + '/index.ts',
+      normalizedImport + '/index.tsx',
+      normalizedImport + '/index.js',
+      normalizedImport + '/index.jsx'
+    ];
+
+    for (const barrel of barrelPaths) {
+      if (targetFilePath.endsWith(barrel)) return true;
+    }
+  }
+
+  // Fallback: check if path segments match
+  const fileSegments = targetFilePath.split('/').filter(s => s);
+  if (importSegments.length > fileSegments.length) return false;
+
+  // Check if the last N segments match (allowing for extension differences)
+  const fileBasename = fileSegments[fileSegments.length - 1].replace(/\.[^.]+$/, ''); // remove extension
+  const importBasename = importSegments[importSegments.length - 1];
+
+  if (fileBasename === importBasename) {
+    // Check if parent segments also match
+    let matches = true;
+    for (let i = 1; i < importSegments.length; i++) {
+      if (fileSegments[fileSegments.length - 1 - i] !== importSegments[importSegments.length - 1 - i]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+
+  return false;
+}
+
+// Helper function to resolve runtime registry paths (dot notation) to file paths
+function resolveRuntimePath(runtimePath, deps) {
+  // runtimePath: "controllers.User" or "integrations.stripe.webhooks.Handler"
+  // Convert dot notation to file path
+  const segments = runtimePath.split('.');
+  const directPath = segments.join('/');      // "controllers/User"
+  const indexPath = directPath + '/index';    // "controllers/User/index"
+
+  const extensions = ['.js', '.ts', '.jsx', '.tsx'];  // JavaScript only
+
+  // Try both direct file and index file
+  for (const variation of [directPath, indexPath]) {
+    for (const ext of extensions) {
+      const testPath = variation + ext;
+
+      // Find a file that ends with this path
+      const match = deps.find(d => {
+        // Check if file path ends with X/Y/Z.ext
+        return d.filePath.endsWith('/' + testPath) || d.filePath.endsWith(testPath);
+      });
+
+      if (match) return match.filePath;
+    }
+  }
+
+  return null;
+}
+
 app.get('/api/graph', async (c) => {
   const deps = await getAllDependencies();
   const nodes = [];
   const links = [];
-  
+
   if (!deps || deps.length === 0) return c.json({ nodes, links });
 
   const nodeMap = new Map();
@@ -681,17 +762,28 @@ app.get('/api/graph', async (c) => {
 
   for (const d of deps) {
     const imports = JSON.parse(d.imports);
+
     for (const imp of imports) {
-      const target = deps.find(other => 
-        other.filePath.endsWith(imp.source) || 
-        other.filePath.endsWith(imp.source + ".ts") ||
-        other.filePath.endsWith(imp.source + ".js") ||
-        other.filePath.endsWith(imp.source + ".dart") ||
-        other.filePath.endsWith(imp.source + ".java") ||
-        other.filePath.endsWith(imp.source + ".kt")
-      );
+      let target;
+
+      // Check if this is a runtime dependency (dot notation without ./ or ../)
+      if (imp.runtime || (!imp.source.startsWith('.') && !imp.source.startsWith('/'))) {
+        // Runtime dependency - resolve dot notation to file path
+        const targetPath = resolveRuntimePath(imp.source, deps);
+        target = targetPath ? deps.find(other => other.filePath === targetPath) : null;
+      } else {
+        // Static import - use improved matching logic
+        target = deps.find(other =>
+          other.filePath !== d.filePath && matchImportToFile(imp.source, other.filePath)
+        );
+      }
+
       if (target && target.filePath !== d.filePath) {
-        links.push({ source: d.filePath, target: target.filePath });
+        links.push({
+          source: d.filePath,
+          target: target.filePath,
+          type: imp.runtime ? 'runtime' : 'static'  // Optional: for styling
+        });
       }
     }
   }

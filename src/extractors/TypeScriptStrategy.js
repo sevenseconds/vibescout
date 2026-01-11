@@ -114,6 +114,70 @@ export const TypeScriptStrategy = {
         }
       }
 
+      // Runtime Registry Dependencies (e.g., app.controllers.User.getUserById())
+      if (node.type === "member_expression") {
+        const fullText = node.text;
+
+        // Match: app.X.Y.Z.method() where X.Y is module, Z might be class/export, method is the symbol
+        const registryPattern = /^app\.([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\.([a-zA-Z0-9_]+)/;
+        const match = fullText.match(registryPattern);
+
+        if (match) {
+          const fullPath = match[1];    // e.g., "controllers.User.getUserById"
+          const method = match[2];       // Could be part of path or actual method
+
+          // Parse segments to find module path and method
+          const segments = fullPath.split('.');
+
+          // Strategy: Try to identify the module path (usually first 2-3 segments)
+          // and the method being called (last segment or next one)
+          let modulePath, symbol;
+
+          if (segments.length >= 2) {
+            // For app.controllers.User.getUserById:
+            // - Try: controllers.User as module, getUserById as symbol
+            modulePath = segments.slice(0, 2).join('.');  // "controllers.User"
+            symbol = segments.length > 2 ? segments[segments.length - 1] : method;
+
+            // Also try deeper paths for nested modules:
+            // app.integrations.stripe.webhooks.Handler.process
+            if (segments.length > 2) {
+              // Try up to depth 4: integrations.stripe.webhooks.Handler
+              const deeperPath = segments.slice(0, Math.min(segments.length, 4)).join('.');
+              const deeperSymbol = segments.length > 4 ? segments[segments.length - 1] : method;
+
+              // Add to imports with symbol tracking
+              const existingImport = metadata.imports.find(imp => imp.source === deeperPath);
+              if (existingImport) {
+                if (!existingImport.symbols.includes(deeperSymbol)) {
+                  existingImport.symbols.push(deeperSymbol);
+                }
+              } else {
+                metadata.imports.push({
+                  source: deeperPath,
+                  symbols: [deeperSymbol],
+                  runtime: true  // Mark as runtime dependency
+                });
+              }
+            }
+
+            // Add the shorter path version too
+            const existingImport = metadata.imports.find(imp => imp.source === modulePath);
+            if (existingImport) {
+              if (!existingImport.symbols.includes(symbol)) {
+                existingImport.symbols.push(symbol);
+              }
+            } else {
+              metadata.imports.push({
+                source: modulePath,
+                symbols: [symbol],
+                runtime: true  // Mark as runtime dependency
+              });
+            }
+          }
+        }
+      }
+
       for (let i = 0; i < node.childCount; i++) traverse(node.child(i));
     }
 
