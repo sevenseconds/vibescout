@@ -80,6 +80,9 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
+    const { debugStore } = await import("../debug.js");
+    let requestId: string | null = null;
+
     try {
       if (!this.apiKey || this.apiKey === "not-needed") {
         throw new Error(`API Key is missing for ${this.name} provider.`);
@@ -91,6 +94,14 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
         { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
       ];
 
+      const payload = {
+        model: this.modelName,
+        messages,
+        max_tokens: 500,
+      };
+
+      requestId = debugStore.logRequest(this.name, this.modelName, payload);
+
       const url = `${this.baseUrl}/chat/completions`;
       logger.debug(`${this.name} requesting: ${url}`);
 
@@ -100,21 +111,21 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: this.modelName,
-          messages,
-          max_tokens: 500,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const error = await response.text();
+        debugStore.updateError(requestId, error);
         throw new Error(`${this.name} error: ${error}`);
       }
 
       const data = await response.json() as { choices: [{ message: { content: string } }] };
-      return data.choices[0].message.content.trim();
+      const result = data.choices[0].message.content.trim();
+      debugStore.updateResponse(requestId, result);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`${this.name} Response generation failed: ${err.message}`);
       return `${this.name} failed to generate response.`;
     }

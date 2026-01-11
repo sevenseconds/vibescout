@@ -256,6 +256,17 @@ app.get('/api/index/status', (c) => c.json(indexingProgress));
 
 app.get('/api/logs', (c) => c.json(logger.getRecentLogs()));
 
+app.get('/api/debug/requests', async (c) => {
+  const { debugStore } = await import("./debug.js");
+  return c.json(debugStore.getRequests());
+});
+
+app.delete('/api/debug/requests', async (c) => {
+  const { debugStore } = await import("./debug.js");
+  debugStore.clear();
+  return c.json({ success: true });
+});
+
 app.get('/api/deps', async (c) => {
   const filePath = c.req.query('filePath');
   if (!filePath) return c.json({ error: 'filePath required' }, 400);
