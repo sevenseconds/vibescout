@@ -351,29 +351,34 @@ export async function compactDatabase() {
 }
 
 export async function deleteProject(projectName: string) {
-  // 1. Delete from vector store
-  await getProvider().deleteByProject(projectName);
-
-  // 2. Delete from dependencies
   const db = await getMetaDb();
   const tables = await db.tableNames();
+  
+  // 1. Get all file paths for this project from dependencies before we delete them
+  let projectFiles: string[] = [];
+  if (tables.includes("dependencies")) {
+    const depTable = await db.openTable("dependencies");
+    const records = await depTable.query().where(`"projectName" = '${projectName}'`).select(["filePath"]).toArray();
+    projectFiles = records.map(r => r.filePath);
+  }
+
+  // 2. Delete from vector store
+  await getProvider().deleteByProject(projectName);
+
+  // 3. Delete from dependencies
   if (tables.includes("dependencies")) {
     const depTable = await db.openTable("dependencies");
     await depTable.delete(`"projectName" = '${projectName}'`);
   }
 
-  // 3. Delete hashes for files in this project
-  const hashes = await loadHashes();
-  const projectFiles = Object.keys(hashes).filter(fp => {
-    // This is a bit tricky without a file-to-project map in hashes
-    // But usually folder path contains project name or we can just leave it for compactDatabase
-    return false; // For now, let compactDatabase handle it or we could improve hash storage
-  });
-  
-  for (const fp of projectFiles) {
-    delete hashes[fp];
+  // 4. Clear file hashes so it can be re-indexed
+  if (projectFiles.length > 0) {
+    const hashes = await loadHashes();
+    for (const fp of projectFiles) {
+      delete hashes[fp];
+    }
+    await saveHashes(hashes);
   }
-  await saveHashes(hashes);
 }
 
 export async function clearDatabase() {
