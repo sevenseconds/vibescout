@@ -238,12 +238,32 @@ app.get('/api/kb', async (c) => {
   return c.json(kb);
 });
 
-app.delete('/api/projects', async (c) => {
-  const projectName = c.req.query('projectName');
-  if (!projectName) return c.json({ error: 'projectName required' }, 400);
-  await deleteProject(projectName);
-  return c.json({ success: true });
-});
+    if (pathName === "/api/projects" && req.method === "DELETE") {
+      const projectName = url.searchParams.get("projectName");
+      if (projectName) {
+        await deleteProject(projectName);
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: true }));
+      } else {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "projectName required" }));
+      }
+      return true;
+    }
+
+    if (pathName === "/api/projects/root" && req.method === "GET") {
+      const projectName = url.searchParams.get("projectName");
+      if (!projectName) return c.json({ error: 'projectName required' }, 400);
+      
+      const { getProjectFiles } = await import("./db.js");
+      const files = await getProjectFiles(projectName);
+      if (files.length === 0) return c.json({ error: 'Project not found' }, 404);
+      
+      // Heuristic: common prefix of first few files
+      const firstFile = files[0];
+      const rootPath = path.dirname(firstFile);
+      return c.json({ rootPath });
+    }
 
 app.post('/api/index', async (c) => {
   const { folderPath, projectName, collection, summarize } = await c.req.json();
