@@ -281,10 +281,20 @@ export async function addToWatchList(folderPath: string, projectName: string, co
 
 export async function removeFromWatchList(folderPath: string) {
   const db = await getMetaDb();
+  const tableName = "watch_list";
   const tables = await db.tableNames();
-  if (tables.includes("watch_list")) {
-    const table = await db.openTable("watch_list");
-    await table.delete(`"folderPath" = '${folderPath}'`);
+  if (tables.includes(tableName)) {
+    const table = await db.openTable(tableName);
+    const absolutePath = path.resolve(folderPath);
+    const countBefore = (await table.query().toArray()).length;
+    await table.delete(`"folderPath" = '${absolutePath}'`);
+    const countAfter = (await table.query().toArray()).length;
+    
+    if (countBefore !== countAfter) {
+      logger.info(`[DB] Successfully deleted ${folderPath} from watch_list.`);
+    } else {
+      logger.warn(`[DB] Failed to find ${absolutePath} in watch_list for deletion.`);
+    }
   }
 }
 

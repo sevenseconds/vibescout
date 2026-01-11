@@ -52,11 +52,18 @@ export async function watchProject(folderPath: string, projectName: string, coll
 
 export async function unwatchProject(folderPath: string) {
   const absolutePath = path.resolve(folderPath);
+  logger.info(`[Watcher] Attempting to stop watcher for: ${folderPath} (resolved: ${absolutePath})`);
+  
   const watcher = watchers.get(absolutePath);
   if (watcher) {
+    logger.debug(`[Watcher] Closing chokidar instance for ${absolutePath}`);
     await watcher.close();
     watchers.delete(absolutePath);
+    logger.info(`[Watcher] Successfully closed and removed watcher for: ${absolutePath}`);
+  } else {
+    logger.warn(`[Watcher] No active chokidar instance found for ${absolutePath}. Currently watching: ${Array.from(watchers.keys()).join(', ')}`);
   }
+  
   await removeFromWatchList(folderPath);
-  logger.info(`Stopped watcher for: ${folderPath}`);
+  logger.info(`[Watcher] Removed ${folderPath} from persistent watch list.`);
 }
