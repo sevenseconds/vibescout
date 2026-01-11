@@ -93,7 +93,96 @@ async function main() {
     .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", "stdio")
     .option("--port <number>", "Port for sse or http mode", config.port || process.env.PORT || 3000)
     .option("--log-level <level>", "Log level (debug, info, warn, error, none)", "info")
-    .option("--verbose", "Enable verbose logging (alias for --log-level debug)", config.verbose || false);
+    .option("--verbose", "Enable verbose logging (alias for --log-level debug)", config.verbose || false)
+    .option("--force", "Force full re-index of all watched projects on startup", false);
+
+  program.hook("preAction", async (thisCommand) => {
+    const opts = thisCommand.opts();
+    
+    let level = LogLevel.INFO;
+    if (opts.verbose) {
+      level = LogLevel.DEBUG;
+    } else {
+      switch (opts.logLevel?.toLowerCase()) {
+        case 'debug': level = LogLevel.DEBUG; break;
+        case 'info': level = LogLevel.INFO; break;
+        case 'warn': level = LogLevel.WARN; break;
+        case 'error': level = LogLevel.ERROR; break;
+        case 'none': level = LogLevel.NONE; break;
+      }
+    }
+    logger.setLevel(level);
+
+    if (opts.modelsPath) {
+      configureEnvironment(opts.modelsPath, opts.offline);
+    }
+
+    const providerConfig = {
+      type: (config.provider === "lmstudio" ? "openai" : config.provider) || "local",
+      modelName: config.embeddingModel || "Xenova/bge-small-en-v1.5",
+      baseUrl: config.provider === "ollama" ? config.ollamaUrl :
+        (config.provider === "openai" || config.provider === "lmstudio") ? config.openaiBaseUrl : undefined,
+      apiKey: config.provider === "gemini" ? config.geminiKey :
+        config.provider === "cloudflare" ? config.cloudflareToken :
+          (config.provider === "zai" || config.provider === "zai-coding") ? config.zaiKey :
+            config.openaiKey,
+      accountId: config.cloudflareAccountId,
+      awsRegion: config.awsRegion,
+      awsProfile: config.awsProfile
+    };
+
+    const llmConfig = {
+      type: (config.llmProvider === "lmstudio" ? "openai" : config.llmProvider || config.provider) || "local",
+      modelName: config.llmModel || config.embeddingModel || "Xenova/distilbart-cnn-6-6",
+      baseUrl: (config.llmProvider || config.provider) === "ollama" ? config.ollamaUrl :
+        ((config.llmProvider || config.provider) === "openai" || (config.llmProvider || config.provider) === "lmstudio") ? config.openaiBaseUrl : undefined,
+      apiKey: (config.llmProvider || config.provider) === "gemini" ? config.geminiKey :
+        (config.llmProvider || config.provider) === "cloudflare" ? config.cloudflareToken :
+          ((config.llmProvider || config.provider) === "zai" || (config.llmProvider || config.provider) === "zai-coding") ? config.zaiKey :
+            config.openaiKey,
+      accountId: config.cloudflareAccountId,
+      awsRegion: config.awsRegion,
+      awsProfile: config.awsProfile
+    };
+
+    await embeddingManager.setProvider(providerConfig, config.throttlingErrors);
+    await summarizerManager.setProvider(llmConfig, config.throttlingErrors);
+
+    await initDB({
+      type: config.dbProvider || "local",
+      accountId: config.cloudflareAccountId,
+      apiToken: config.cloudflareToken,
+      indexName: config.cloudflareVectorizeIndex
+    });
+
+    await initWatcher(!!opts.force);
+  });
+
+  program
+    .command("config")
+    .description("Interactive configuration TUI")
+    .action(async () => {
+      await interactiveConfig();
+    });
+
+  program
+    .command("ui")
+    .description("Start the Web UI")
+    .option("--force", "Force full re-index of all watched projects on startup", false)
+    .action(async (options) => {
+      const opts = program.opts();
+      const force = !!options.force || !!opts.force;
+      
+      await initDB({
+        type: config.dbProvider || "local",
+        accountId: config.cloudflareAccountId,
+        apiToken: config.cloudflareToken,
+        indexName: config.cloudflareVectorizeIndex
+      });
+      await initWatcher(force);
+      const port = parseInt(opts.port);
+      await startServer("http", port, true);
+    });
 
   program.hook("preAction", async (thisCommand) => {
     const opts = thisCommand.opts();

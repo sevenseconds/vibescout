@@ -6,24 +6,20 @@ import { getWatchList, deleteFileData, addToWatchList, removeFromWatchList } fro
 
 const watchers = new Map<string, chokidar.FSWatcher>();
 
-export async function initWatcher() {
+export async function initWatcher(force = false) {
   const watchList = await getWatchList();
   logger.info(`Initializing persistent watchers for ${watchList.length} projects...`);
   
   for (const item of watchList) {
     try {
-      await startWatching(item.folderPath, item.projectName, item.collection);
-      // Run an initial index in background
-      handleIndexFolder(item.folderPath, item.projectName, item.collection, true, true).catch(err => {
-        logger.error(`Initial background index failed for ${item.folderPath}: ${err.message}`);
-      });
+      await startWatching(item.folderPath, item.projectName, item.collection, force);
     } catch (err: any) {
       logger.error(`Failed to start watcher for ${item.folderPath}: ${err.message}`);
     }
   }
 }
 
-async function startWatching(folderPath: string, projectName: string, collection: string) {
+async function startWatching(folderPath: string, projectName: string, collection: string, force = false) {
   const absolutePath = path.resolve(folderPath);
   if (watchers.has(absolutePath)) return;
 
@@ -41,6 +37,11 @@ async function startWatching(folderPath: string, projectName: string, collection
 
   watchers.set(absolutePath, watcher);
   logger.info(`Started real-time watcher for: ${projectName} (${folderPath})`);
+
+  // Run an initial index in background
+  handleIndexFolder(folderPath, projectName, collection, true, true, force).catch(err => {
+    logger.error(`Initial background index failed for ${folderPath}: ${err.message}`);
+  });
 }
 
 export async function watchProject(folderPath: string, projectName: string, collection: string = "default") {
