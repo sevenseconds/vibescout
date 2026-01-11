@@ -30,7 +30,7 @@ export default function LiveLogs() {
 
   useEffect(() => {
     fetchLogs();
-    const interval = setInterval(fetchLogs, 3000);
+    const interval = setInterval(fetchLogs, 1000);
     return () => clearInterval(interval);
   }, []);
 

@@ -37,6 +37,7 @@ export default function KBView({ onExplore }: KBViewProps) {
   const [kb, setKb] = useState<Record<string, string[]>>({});
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [loading, setLoading] = useState(true);
+  const [removingWatcher, setRemovingWatcher] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newWatcher, setNewWatcher] = useState<Watcher>({ folderPath: '', projectName: '', collection: 'default' });
   
@@ -69,7 +70,7 @@ export default function KBView({ onExplore }: KBViewProps) {
       try {
         const res = await axios.get('/api/index/status');
         setIndexProgress(res.data);
-        if (!res.data.active) {
+        if (!res.data.active && indexProgress?.active) {
           // If just finished, refresh KB
           fetchData();
         }
@@ -78,7 +79,7 @@ export default function KBView({ onExplore }: KBViewProps) {
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [indexProgress?.active]);
 
   const handleAddWatcher = async () => {
     if (!newWatcher.folderPath || !newWatcher.projectName) return;
@@ -95,17 +96,27 @@ export default function KBView({ onExplore }: KBViewProps) {
   };
 
   const handleRemoveWatcher = async (path: string) => {
+    setRemovingWatcher(path);
     try {
       await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(path)}`);
-      fetchData();
+      await fetchData();
     } catch (err) {
       console.error(err);
+    } finally {
+      setRemovingWatcher(null);
     }
   };
 
   const handleDeleteProject = async (projectName: string) => {
     if (!confirm(`Are you sure you want to delete "${projectName}" from the index? This cannot be undone.`)) return;
     try {
+      // 1. Find if this project has a watcher and remove it first
+      const watcher = watchers.find(w => w.projectName === projectName);
+      if (watcher) {
+        await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(watcher.folderPath)}`);
+      }
+
+      // 2. Delete the project index
       await axios.delete(`/api/projects?projectName=${encodeURIComponent(projectName)}`);
       fetchData();
     } catch (err) {
@@ -273,7 +284,10 @@ export default function KBView({ onExplore }: KBViewProps) {
           {watchers.length > 0 ? (
             <div className="grid grid-cols-1 gap-3">
               {watchers.map((w) => (
-                <div key={w.folderPath} className="bg-card border border-border p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm">
+                <div key={w.folderPath} className={cn(
+                  "bg-card border border-border p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm",
+                  removingWatcher === w.folderPath && "opacity-50 grayscale pointer-events-none"
+                )}>
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div className="bg-secondary p-3 rounded-xl text-muted-foreground group-hover:text-primary transition-colors shrink-0">
                       <FolderGit2 size={20} />
@@ -283,20 +297,20 @@ export default function KBView({ onExplore }: KBViewProps) {
                       <p className="text-[10px] font-mono text-muted-foreground mt-0.5 truncate">{w.folderPath}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                  <div className="flex items-center gap-2 transition-all shrink-0">
                     <button 
                       onClick={() => handleReindex(w)}
-                      className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                      className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-110 active:scale-90"
                       title="Force Re-index"
                     >
                       <RefreshCw size={16} />
                     </button>
                     <button 
                       onClick={() => handleRemoveWatcher(w.folderPath)}
-                      className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                      className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all hover:scale-110 active:scale-90"
                       title="Stop Watching"
                     >
-                      <Trash2 size={16} />
+                      {removingWatcher === w.folderPath ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                     </button>
                   </div>
                 </div>
@@ -339,11 +353,11 @@ export default function KBView({ onExplore }: KBViewProps) {
                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">{collection}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                    <div className="flex items-center gap-2 transition-all shrink-0">
                       {!isWatched && (
                         <button 
                           onClick={() => handleEnableWatch(project, collection)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-lg transition-all"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-105 active:scale-90"
                           title="Enable Live Sync"
                         >
                           <Eye size={14} /> Live Sync
@@ -351,14 +365,14 @@ export default function KBView({ onExplore }: KBViewProps) {
                       )}
                       <button 
                         onClick={() => onExplore?.({ projectName: project, collection })}
-                        className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                        className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-110 active:scale-90"
                         title="Explore in Search"
                       >
                         <ExternalLink size={16} />
                       </button>
                       <button 
                         onClick={() => handleDeleteProject(project)}
-                        className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                        className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all hover:scale-110 active:scale-90"
                         title="Delete Project Index"
                       >
                         <Trash2 size={16} />
