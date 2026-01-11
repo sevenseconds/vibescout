@@ -281,21 +281,39 @@ export async function addToWatchList(folderPath: string, projectName: string, co
   }
 }
 
-export async function removeFromWatchList(folderPath: string) {
+export async function unwatchProject(folderPath: string, projectName?: string) {
+  const absolutePath = path.resolve(folderPath);
+  logger.info(`[Watcher] Attempting to stop watcher for: ${folderPath}`);
+  
+  const watcher = watchers.get(absolutePath);
+  if (watcher) {
+    await watcher.close();
+    watchers.delete(absolutePath);
+  }
+  
+  await removeFromWatchList(folderPath, projectName);
+}
+
+export async function removeFromWatchList(folderPath: string, projectName?: string) {
   const db = await getMetaDb();
   const tableName = "watch_list";
   const tables = await db.tableNames();
   if (tables.includes(tableName)) {
     const table = await db.openTable(tableName);
     const absolutePath = path.resolve(folderPath);
-    const countBefore = (await table.query().toArray()).length;
-    await table.delete(`"folderPath" = '${absolutePath}'`);
-    const countAfter = (await table.query().toArray()).length;
     
-    if (countBefore !== countAfter) {
-      logger.info(`[DB] Successfully deleted ${folderPath} from watch_list.`);
+    const all = await table.query().toArray();
+    // Try matching by path first, then by project name as a fallback
+    const target = all.find(r => 
+      path.resolve(r.folderPath) === absolutePath || 
+      (projectName && r.projectName === projectName)
+    );
+
+    if (target) {
+      await table.delete(`"folderPath" = '${target.folderPath}'`);
+      logger.info(`[DB] Successfully removed ${target.projectName} from watch_list.`);
     } else {
-      logger.warn(`[DB] Failed to find ${absolutePath} in watch_list for deletion.`);
+      logger.warn(`[DB] Could not find watcher record to delete.`);
     }
   }
 }

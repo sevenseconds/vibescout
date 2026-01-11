@@ -414,8 +414,9 @@ app.post('/api/watchers', async (c) => {
 
 app.delete('/api/watchers', async (c) => {
   const folderPath = c.req.query('folderPath');
+  const projectName = c.req.query('projectName');
   if (!folderPath) return c.json({ error: 'folderPath required' }, 400);
-  await unwatchProject(folderPath);
+  await unwatchProject(folderPath, projectName);
   return c.json({ success: true });
 });
 
