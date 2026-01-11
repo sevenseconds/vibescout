@@ -73,6 +73,28 @@ export class EmbeddingManager {
     const throttler = getThrottler(this.provider.name, this.throttlingErrors);
     return throttler.run(() => this.provider.generateEmbedding(text));
   }
+
+  async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+    // If provider supports batching, use it
+    if (this.provider.generateEmbeddingsBatch) {
+      const throttler = getThrottler(this.provider.name, this.throttlingErrors);
+      return throttler.run(() => this.provider.generateEmbeddingsBatch!(texts));
+    }
+
+    // Fallback: generate embeddings one by one (with some parallelization)
+    const PARALLEL_LIMIT = 5; // Process 5 at a time
+    const results: number[][] = [];
+
+    for (let i = 0; i < texts.length; i += PARALLEL_LIMIT) {
+      const batch = texts.slice(i, i + PARALLEL_LIMIT);
+      const batchResults = await Promise.all(
+        batch.map(text => this.generateEmbedding(text))
+      );
+      results.push(...batchResults);
+    }
+
+    return results;
+  }
 }
 
 class RerankerManager {

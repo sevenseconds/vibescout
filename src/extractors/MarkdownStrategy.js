@@ -15,6 +15,7 @@ export const MarkdownStrategy = {
   extract: async (code, filePath) => {
     const blocks = [];
     const metadata = { imports: [], exports: [] };
+    const lines = code.split("\n");
 
     try {
       const tree = parser.parse(code);
@@ -23,7 +24,7 @@ export const MarkdownStrategy = {
           const name = node.text.replace(/^#+\s*/, "").trim();
           const startLine = node.startPosition.row + 1;
           
-          let endLine = code.split("\n").length;
+          let endLine = lines.length;
           let next = node.nextNamedSibling;
           while (next) {
             if (next.type === "atx_heading" || next.type === "setext_heading") {
@@ -40,7 +41,7 @@ export const MarkdownStrategy = {
             startLine,
             endLine,
             comments: "",
-            content: code.split("\n").slice(startLine - 1, endLine).join("\n"),
+            content: lines.slice(startLine - 1, endLine).join("\n"),
             filePath
           });
         }
@@ -52,14 +53,15 @@ export const MarkdownStrategy = {
       const sections = code.split(/^(?=# )|^(?=## )|^(?=### )/m);
       for (const section of sections) {
         if (!section.trim()) continue;
-        const headingMatch = section.split("\n")[0].match(/^#+\s*(.*)/);
+        const headingLines = section.split("\n");
+        const headingMatch = headingLines[0].match(/^#+\s*(.*)/);
         const name = headingMatch ? headingMatch[1].trim() : path.basename(filePath);
         blocks.push({
           name: `Doc: ${name}`,
           type: "documentation",
           category: "documentation",
           startLine: 1,
-          endLine: section.split("\n").length,
+          endLine: headingLines.length,
           comments: "",
           content: section.trim(),
           filePath
@@ -73,7 +75,7 @@ export const MarkdownStrategy = {
         type: "documentation",
         category: "documentation",
         startLine: 1,
-        endLine: code.split("\n").length,
+        endLine: lines.length,
         comments: "",
         content: code,
         filePath

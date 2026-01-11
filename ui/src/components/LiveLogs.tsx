@@ -87,7 +87,7 @@ export default function LiveLogs() {
       <div 
         ref={scrollRef}
         className={cn(
-          "h-full bg-[#0d0d0d] overflow-y-auto p-4 font-mono text-[11px] space-y-1 transition-opacity duration-300",
+          "h-full bg-background overflow-y-auto p-4 font-mono text-[11px] space-y-1 transition-opacity duration-300",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
       >

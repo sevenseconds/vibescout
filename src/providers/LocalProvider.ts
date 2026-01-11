@@ -68,6 +68,27 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
     return Array.from(output.data);
   }
 
+  async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+    const pipe = await this.getEmbeddingPipe();
+
+    // Transformers.js supports batch processing natively
+    const output = await pipe(texts, { pooling: "mean", normalize: true });
+
+    // Convert batch output to array of embeddings
+    // Output is either 2D [batch_size, embedding_dim] or flat array
+    if (output.dims && output.dims.length === 2) {
+      const [batchSize, embeddingDim] = output.dims;
+      return Array.from({ length: batchSize }, (_, i) => {
+        const start = i * embeddingDim;
+        const end = start + embeddingDim;
+        return Array.from(output.data.slice(start, end));
+      });
+    } else {
+      // Fallback: single embedding
+      return [Array.from(output.data)];
+    }
+  }
+
   async summarize(text: string, options: { fileName?: string; projectName?: string } = {}): Promise<string> {
     try {
       const pipe = await this.getSummarizerPipe();

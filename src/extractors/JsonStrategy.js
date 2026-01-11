@@ -11,9 +11,9 @@ export const JsonStrategy = {
     const tree = parser.parse(code);
     const blocks = [];
     const metadata = { imports: [], exports: [] };
+    const lines = code.split("\n");
 
-    function traverse(node) {
-      // For JSON, we extract top-level keys as blocks for better RAG granularity
+    function processPair(node) {
       if (node.type === "pair") {
         const keyNode = node.childForFieldName("key");
         if (keyNode) {
@@ -25,8 +25,6 @@ export const JsonStrategy = {
           blocks.push({ name, type: "key_pair", category: "documentation", startLine, endLine, comments: "", content, filePath });
         }
       }
-
-      for (let i = 0; i < node.childCount; i++) traverse(node.child(i));
     }
 
     // Only extract top-level pairs to avoid over-chunking
@@ -34,7 +32,7 @@ export const JsonStrategy = {
     if (root && root.type === "object") {
       for (let i = 0; i < root.childCount; i++) {
         const child = root.child(i);
-        if (child.type === "pair") traverse(child);
+        if (child.type === "pair") processPair(child);
       }
     } else {
       // Fallback: entire file
@@ -43,7 +41,7 @@ export const JsonStrategy = {
         type: "file",
         category: "documentation",
         startLine: 1,
-        endLine: code.split("\n").length,
+        endLine: lines.length,
         comments: "",
         content: code,
         filePath

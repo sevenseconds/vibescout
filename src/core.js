@@ -53,7 +53,10 @@ export let indexingProgress = {
   failedFiles: 0,
   failedPaths: [],
   lastError: null,
-  status: "idle"
+  status: "idle",
+  currentFiles: [],  // Currently processing files
+  completedFiles: [], // Recently completed files (last 10)
+  skippedFiles: 0     // Count of skipped (unchanged) files
 };
 
 let isShuttingDown = false;
@@ -124,7 +127,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
     failedFiles: 0,
     failedPaths: [],
     lastError: null,
-    status: "indexing"
+    status: "indexing",
+    currentFiles: [],
+    completedFiles: [],
+    skippedFiles: 0
   };
 
   const runIndexing = async () => {
@@ -147,13 +153,17 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       
       const processFile = async (file) => {
         if (isShuttingDown) return;
-        
+
         // Wait if paused
         while (isPaused && !isShuttingDown) {
           await new Promise(r => setTimeout(r, 500));
         }
 
         const filePath = path.join(absolutePath, file);
+
+        // Track that we're processing this file
+        indexingProgress.currentFiles.push(file);
+
         try {
           const content = await fs.readFile(filePath, "utf-8");
           const hash = crypto.createHash("md5").update(content).digest("hex");
@@ -161,7 +171,14 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
           if (existingHash === hash) {
             skipped++;
+            indexingProgress.skippedFiles++;
             indexingProgress.processedFiles++;
+
+            // Remove from currentFiles and add to completed
+            indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
+            indexingProgress.completedFiles.unshift({ file, status: 'skipped' });
+            if (indexingProgress.completedFiles.length > 20) indexingProgress.completedFiles.pop();
+
             return;
           }
 
@@ -188,17 +205,16 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               }
             }
 
-            const dataToInsert = [];
+            // Prepare all texts to embed (batch optimization)
+            const textsToEmbed = [];
+            const blockData = [];
+
             for (const block of blocks) {
               if (isShuttingDown) break;
-              // Wait if paused during embedding
-              while (isPaused && !isShuttingDown) {
-                await new Promise(r => setTimeout(r, 500));
-              }
 
               let summary = "";
               if (summarize) {
-                summary = block.type === "chunk" 
+                summary = block.type === "chunk"
                   ? await summarizerManager.summarize(block.content, { fileName: file, projectName: derivedProjectName, type: 'chunk', parentName: block.parentName })
                   : parentSummaries.get(block.name) || "";
               }
@@ -206,14 +222,28 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
               const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${derivedProjectName}\nFile: ${file}\nType: ${block.type}\nName: ${block.name}\nComments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
 
-              const vector = await embeddingManager.generateEmbedding(textToEmbed);
-              dataToInsert.push({
-                vector, collection, projectName: derivedProjectName, name: block.name, type: block.type,
+              textsToEmbed.push(textToEmbed);
+              blockData.push({
+                collection, projectName: derivedProjectName, name: block.name, type: block.type,
                 category: block.category || (file.endsWith('.md') ? 'documentation' : 'code'),
                 filePath, startLine: block.startLine, endLine: block.endLine,
                 comments: block.comments, content: block.content, summary
               });
             }
+
+            // Wait if paused before batch embedding
+            while (isPaused && !isShuttingDown) {
+              await new Promise(r => setTimeout(r, 500));
+            }
+
+            // Generate embeddings in batch (much faster!)
+            const vectors = isShuttingDown ? [] : await embeddingManager.generateEmbeddingsBatch(textsToEmbed);
+
+            // Combine vectors with block data
+            const dataToInsert = blockData.map((data, i) => ({
+              ...data,
+              vector: vectors[i]
+            }));
             if (!isShuttingDown) {
               await createOrUpdateTable(dataToInsert, embeddingManager.getModel());
               totalIndexed += blocks.length;
@@ -221,12 +251,23 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           }
           hashUpdates.push({ filePath, hash });
           indexingProgress.processedFiles++;
+
+          // Remove from currentFiles and add to completed
+          indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
+          indexingProgress.completedFiles.unshift({ file, status: 'completed', blocks: blocks.length });
+          if (indexingProgress.completedFiles.length > 20) indexingProgress.completedFiles.pop();
+
         } catch (err) {
           logger.error(`Error processing ${file}: ${err.message}`);
           indexingProgress.failedFiles++;
           indexingProgress.processedFiles++;
           indexingProgress.failedPaths.push(filePath);
           indexingProgress.lastError = err.message;
+
+          // Remove from currentFiles and add to completed as failed
+          indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
+          indexingProgress.completedFiles.unshift({ file, status: 'failed', error: err.message });
+          if (indexingProgress.completedFiles.length > 20) indexingProgress.completedFiles.pop();
         }
       };
 

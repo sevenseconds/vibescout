@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X } from 'lucide-react';
+import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X, ChevronDown, Check, XCircle, Clock, Bug } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import DebugPanel from '../components/DebugPanel';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -28,6 +29,9 @@ interface IndexProgress {
   failedFiles: number;
   lastError: string | null;
   status: string;
+  currentFiles: string[];
+  completedFiles: Array<{ file: string; status: string; blocks?: number; error?: string }>;
+  skippedFiles: number;
 }
 
 interface KBViewProps {
@@ -45,6 +49,8 @@ export default function KBView({ onExplore }: KBViewProps) {
   
   const [indexProgress, setIndexProgress] = useState<IndexProgress | null>(null);
   const [summarize, setSummarize] = useState(true);
+  const [showIndexDetails, setShowIndexDetails] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -197,322 +203,419 @@ export default function KBView({ onExplore }: KBViewProps) {
   };
 
   return (
-    <div className="p-8 space-y-8 h-full flex flex-col max-w-7xl mx-auto w-full overflow-y-auto pb-20">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Knowledge Base</h2>
-          <p className="text-muted-foreground font-medium text-sm">Automated indexing and real-time monitoring for your codebases.</p>
-        </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={fetchData}
-            className="p-2.5 rounded-2xl bg-secondary border border-border text-muted-foreground hover:text-foreground transition-all"
-            title="Refresh Status"
-          >
-            <RefreshCw size={20} className={cn(loading && "animate-spin")} />
-          </button>
-          <button 
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-primary text-primary-foreground px-5 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/20"
-          >
-            {showAddForm ? <EyeOff size={20} /> : <Plus size={20} />}
-            {showAddForm ? 'Cancel' : 'Connect Folder'}
-          </button>
-        </div>
-      </div>
-
-      {/* Indexing Progress Bar */}
-      {(indexProgress?.active || indexProgress?.status === 'paused' || indexProgress?.status === 'completed_with_errors') && (
-        <div className={cn(
-          "bg-primary/5 border border-primary/20 p-6 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-300",
-          indexProgress?.status === 'paused' && "bg-amber-500/5 border-amber-500/20",
-          indexProgress?.status === 'completed_with_errors' && "bg-red-500/5 border-red-500/20"
-        )}>
+    <div className="flex h-full w-full overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-8 space-y-8 flex flex-col max-w-7xl mx-auto w-full pb-20">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {indexProgress?.status === 'paused' ? (
-                <Pause className="text-amber-500" size={20} />
-              ) : indexProgress?.status === 'completed_with_errors' ? (
-                <AlertCircle className="text-red-500" size={20} />
-              ) : (
-                <Loader2 className="animate-spin text-primary" size={20} />
-              )}
-              <div>
-                <h3 className="font-bold text-sm">
-                  {indexProgress?.status === 'paused' ? 'Indexing Paused' : 
-                   indexProgress?.status === 'completed_with_errors' ? 'Indexing Finished with Errors' :
-                   `Indexing "${indexProgress?.projectName}"`}
-                </h3>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">
-                  {indexProgress?.status === 'paused' ? 'Queue on hold' : 
-                   indexProgress?.status === 'completed_with_errors' ? `${indexProgress?.failedFiles} files failed` :
-                   'Background Task Active'}
-                </p>
-              </div>
+            <div className="space-y-1">
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">Knowledge Base</h2>
+              <p className="text-muted-foreground font-medium text-sm">Automated indexing and real-time monitoring for your codebases.</p>
             </div>
-            <div className="flex items-center gap-4">
-              {indexProgress?.active && (
-                <button 
-                  onClick={indexProgress?.status === 'paused' ? handleResume : handlePause}
-                  className={cn(
-                    "p-2 rounded-xl transition-all shadow-lg active:scale-95",
-                    indexProgress?.status === 'paused' 
-                      ? "bg-amber-500 text-white shadow-amber-500/20" 
-                      : "bg-secondary text-foreground border border-border"
-                  )}
-                  title={indexProgress?.status === 'paused' ? 'Resume Indexing' : 'Pause Indexing'}
-                >
-                  {indexProgress?.status === 'paused' ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
-                </button>
-              )}
-              {indexProgress?.status === 'completed_with_errors' && (
-                <div className="flex gap-2">
-                  <button 
-                    onClick={handleRetry}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500 text-white rounded-xl font-bold text-xs hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
-                    title="Retry Failed Files"
-                  >
-                    <RefreshCw size={14} /> Retry
-                  </button>
-                  <button 
-                    onClick={() => setIndexProgress(null)}
-                    className="p-2 hover:bg-red-500/10 rounded-xl text-red-500 transition-colors"
-                    title="Dismiss"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
-              <span className="text-sm font-mono font-bold">
-                {indexProgress?.processedFiles} / {indexProgress?.totalFiles} files
-              </span>
-            </div>
-          </div>
-          
-          {indexProgress?.lastError && indexProgress?.status === 'completed_with_errors' && (
-            <p className="text-[10px] font-mono text-red-400/80 bg-red-500/5 p-2 rounded-lg border border-red-500/10 truncate">
-              Last Error: {indexProgress.lastError}
-            </p>
-          )}
-
-          <div className="w-full bg-secondary rounded-full h-3 overflow-hidden border border-border/50">
-            <div 
-              className={cn(
-                "h-full transition-all duration-500 ease-out",
-                indexProgress?.status === 'paused' ? "bg-amber-500" : 
-                indexProgress?.status === 'completed_with_errors' ? "bg-red-500" : "bg-primary"
-              )}
-              style={{ width: `${((indexProgress?.processedFiles || 0) / (indexProgress?.totalFiles || 1)) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {showAddForm && (
-        <div className="bg-card border-2 border-primary/20 p-8 rounded-3xl space-y-6 animate-in zoom-in-95 duration-200 shadow-xl shadow-primary/5">
-          <div className="flex items-center gap-3">
-            <FolderGit2 className="text-primary" size={24} />
-            <h3 className="font-bold text-xl tracking-tight">Connect Local Project</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Absolute Folder Path</label>
-              <input 
-                type="text" 
-                placeholder="/Users/name/workspaces/my-app"
-                value={newWatcher.folderPath}
-                onChange={(e) => setNewWatcher({...newWatcher, folderPath: e.target.value})}
-                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Project Name (Identifier)</label>
-              <input 
-                type="text" 
-                placeholder="my-app"
-                value={newWatcher.projectName}
-                onChange={(e) => setNewWatcher({...newWatcher, projectName: e.target.value})}
-                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Collection (Group)</label>
-              <input 
-                type="text" 
-                placeholder="default"
-                value={newWatcher.collection}
-                onChange={(e) => setNewWatcher({...newWatcher, collection: e.target.value})}
-                className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-4 px-1">
-            <button 
-              onClick={() => setSummarize(!summarize)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl border font-bold text-xs transition-all",
-                summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
-              )}
-            >
-              {summarize ? <Plus size={14} className="rotate-45" /> : <Plus size={14} />}
-              AI Summarization {summarize ? "Enabled" : "Disabled"}
-            </button>
-            <p className="text-[10px] text-muted-foreground font-medium">Use Hierarchical Context for higher search accuracy (slower).</p>
-          </div>
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Info size={14} />
-              <p className="text-[10px] font-bold uppercase tracking-wider">Note: This will add a persistent watcher and start initial indexing.</p>
-            </div>
-            <button 
-              onClick={handleAddWatcher}
-              disabled={!newWatcher.folderPath || !newWatcher.projectName}
-              className="bg-primary text-primary-foreground px-8 py-3 rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg disabled:opacity-50"
-            >
-              Start Watching & Indexing
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard label="Collections" value={stats.collections} icon={Layers} color="blue" />
-        <StatCard label="Total Projects" value={stats.projects} icon={FolderGit2} color="purple" />
-        <StatCard label="System Status" value={indexProgress?.active ? "Indexing" : stats.status} isStatus active={indexProgress?.active} icon={ActivityIcon} color="green" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Watched Folders Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <Eye size={18} className="text-primary" />
-              <h3 className="font-bold text-lg tracking-tight">Active Watchers</h3>
-            </div>
-            {watchers.length > 0 && (
+            <div className="flex gap-3">
               <button 
-                onClick={async () => {
-                  if (confirm("Stop ALL active watchers?")) {
-                    await axios.delete('/api/watchers/all');
-                    fetchData();
-                  }
-                }}
-                className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-red-400 transition-colors"
+                onClick={() => setShowDebug(!showDebug)}
+                className={cn(
+                  "p-2.5 rounded-2xl border transition-all",
+                  showDebug 
+                    ? "bg-primary/10 border-primary/30 text-primary" 
+                    : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                )}
+                title="Inspect AI Requests"
               >
-                Stop All
+                <Bug size={20} />
               </button>
-            )}
+              <button 
+                onClick={fetchData}
+                className="p-2.5 rounded-2xl bg-secondary border border-border text-muted-foreground hover:text-foreground transition-all"
+                title="Refresh Status"
+              >
+                <RefreshCw size={20} className={cn(loading && "animate-spin")}
+ />
+              </button>
+              <button 
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="bg-primary text-primary-foreground px-5 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+              >
+                {showAddForm ? <EyeOff size={20} /> : <Plus size={20} />}
+                {showAddForm ? 'Cancel' : 'Connect Folder'}
+              </button>
+            </div>
           </div>
-          
-          {watchers.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3">
-              {watchers.map((w) => (
-                <div key={w.folderPath} className={cn(
-                  "bg-card border border-border p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm",
-                  removingWatcher === w.folderPath && "opacity-50 grayscale pointer-events-none"
-                )}>
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="bg-secondary p-3 rounded-xl text-muted-foreground group-hover:text-primary transition-colors shrink-0">
-                      <FolderGit2 size={20} />
-                    </div>
-                    <div className="truncate">
-                      <h4 className="font-bold text-base leading-tight truncate">{w.projectName}</h4>
-                      <p className="text-[10px] font-mono text-muted-foreground mt-0.5 truncate">{w.folderPath}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 transition-all shrink-0">
-                    <button 
-                      onClick={() => handleReindex(w)}
-                      className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-110 active:scale-90"
-                      title="Force Re-index"
-                    >
-                      <RefreshCw size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleRemoveWatcher(w.folderPath, w.projectName)}
-                      className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all hover:scale-110 active:scale-90"
-                      title="Stop Watching"
-                    >
-                      {removingWatcher === w.folderPath ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                    </button>
+
+          {/* Indexing Progress Bar */}
+          {(indexProgress?.active || indexProgress?.status === 'paused' || indexProgress?.status === 'completed_with_errors') && (
+            <div className={cn(
+              "bg-primary/5 border border-primary/20 p-6 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-300",
+              indexProgress?.status === 'paused' && "bg-amber-500/5 border-amber-500/20",
+              indexProgress?.status === 'completed_with_errors' && "bg-red-500/5 border-red-500/20"
+            )}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {indexProgress?.status === 'paused' ? (
+                    <Pause className="text-amber-500" size={20} />
+                  ) : indexProgress?.status === 'completed_with_errors' ? (
+                    <AlertCircle className="text-red-500" size={20} />
+                  ) : (
+                    <Loader2 className="animate-spin text-primary" size={20} />
+                  )}
+                  <div>
+                    <h3 className="font-bold text-sm">
+                      {indexProgress?.status === 'paused' ? 'Indexing Paused' : 
+                       indexProgress?.status === 'completed_with_errors' ? 'Indexing Finished with Errors' :
+                       `Indexing "${indexProgress?.projectName}"`}
+                    </h3>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">
+                      {indexProgress?.status === 'paused' ? 'Queue on hold' : 
+                       indexProgress?.status === 'completed_with_errors' ? `${indexProgress?.failedFiles} files failed` :
+                       'Background Task Active'}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-secondary/20 border border-dashed border-border rounded-2xl p-12 text-center">
-              <p className="text-sm text-muted-foreground font-medium italic">No folders are being watched.</p>
-            </div>
-          )}
-        </div>
+                <div className="flex items-center gap-4">
+                  {indexProgress?.active && (
+                    <button 
+                      onClick={indexProgress?.status === 'paused' ? handleResume : handlePause}
+                      className={cn(
+                        "p-2 rounded-xl transition-all shadow-lg active:scale-95",
+                        indexProgress?.status === 'paused' 
+                          ? "bg-amber-500 text-white shadow-amber-500/20" 
+                          : "bg-secondary text-foreground border border-border"
+                      )}
+                      title={indexProgress?.status === 'paused' ? 'Resume Indexing' : 'Pause Indexing'}
+                    >
+                      {indexProgress?.status === 'paused' ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
+                    </button>
+                  )}
+                  {indexProgress?.status === 'completed_with_errors' && (
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={handleRetry}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-red-500 text-white rounded-xl font-bold text-xs hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                        title="Retry Failed Files"
+                      >
+                        <RefreshCw size={14} /> Retry
+                      </button>
+                      <button 
+                        onClick={() => setIndexProgress(null)}
+                        className="p-2 hover:bg-red-500/10 rounded-xl text-red-500 transition-colors"
+                        title="Dismiss"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  )}
+                  <span className="text-sm font-mono font-bold">
+                    {indexProgress?.processedFiles} / {indexProgress?.totalFiles} files
+                  </span>
+                </div>
+              </div>
+              
+              {indexProgress?.lastError && indexProgress?.status === 'completed_with_errors' && (
+                <p className="text-[10px] font-mono text-red-400/80 bg-red-500/5 p-2 rounded-lg border border-red-500/10 truncate">
+                  Last Error: {indexProgress.lastError}
+                </p>
+              )}
 
-        {/* Index List Section */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 px-2">
-            <Database size={18} className="text-primary" />
-            <h3 className="font-bold text-lg tracking-tight">Indexed Projects</h3>
-            <div className="h-px flex-1 bg-border/50 ml-2" />
-          </div>
-          
-          <div className="grid grid-cols-1 gap-3">
-            {Object.entries(kb).map(([collection, projects]) => 
-              projects.map(project => {
-                const isWatched = watchers.some(w => w.projectName === project);
-                return (
-                  <div key={`${collection}-${project}`} className="bg-card border border-border p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-primary/10 p-3 rounded-xl text-primary shrink-0">
-                        <Database size={20} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-base leading-tight">{project}</h4>
-                          {isWatched && (
-                            <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                              <Eye size={8} /> Watching
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">{collection}</p>
+              <div className="w-full bg-secondary rounded-full h-3 overflow-hidden border border-border/50">
+                <div
+                  className={cn(
+                    "h-full transition-all duration-500 ease-out",
+                    indexProgress?.status === 'paused' ? "bg-amber-500" :
+                    indexProgress?.status === 'completed_with_errors' ? "bg-red-500" : "bg-primary"
+                  )}
+                  style={{ width: `${((indexProgress?.processedFiles || 0) / (indexProgress?.totalFiles || 1)) * 100}%` }}
+                />
+              </div>
+
+              {/* Collapsible Details */}
+              <button
+                onClick={() => setShowIndexDetails(!showIndexDetails)}
+                className="flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors w-full justify-between mt-2"
+              >
+                <span>
+                  {showIndexDetails ? 'Hide' : 'Show'} File Details
+                  {indexProgress?.currentFiles?.length > 0 && ` (${indexProgress.currentFiles.length} processing)`}
+                </span>
+                <ChevronDown size={16} className={cn("transition-transform", showIndexDetails && "rotate-180")} />
+              </button>
+
+              {showIndexDetails && (
+                <div className="space-y-4 pt-4 border-t border-border/50 animate-in slide-in-from-top-2 duration-200">
+                  {/* Currently Processing */}
+                  {indexProgress?.currentFiles && indexProgress.currentFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-2">
+                        <Loader2 size={12} className="animate-spin" />
+                        Currently Processing ({indexProgress.currentFiles.length})
+                      </h4>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {indexProgress.currentFiles.map((file, i) => (
+                          <div key={i} className="text-[10px] font-mono text-muted-foreground bg-secondary/30 p-2 rounded border border-border/30 truncate flex items-center gap-2">
+                            <Clock size={10} className="text-blue-400 shrink-0" />
+                            {file}
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 transition-all shrink-0">
-                      {!isWatched && (
-                        <button 
-                          onClick={() => handleEnableWatch(project, collection)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-105 active:scale-90"
-                          title="Enable Live Sync"
-                        >
-                          <Eye size={14} /> Live Sync
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => onExplore?.({ projectName: project, collection })}
-                        className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-110 active:scale-90"
-                        title="Explore in Search"
-                      >
-                        <ExternalLink size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteProject(project)}
-                        className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all hover:scale-110 active:scale-90"
-                        title="Delete Project Index"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                  )}
+
+                  {/* Recently Completed */}
+                  {indexProgress?.completedFiles && indexProgress.completedFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                        Recently Completed ({indexProgress.completedFiles.length})
+                      </h4>
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {indexProgress.completedFiles.map((item, i) => (
+                          <div key={i} className={cn(
+                            "text-[10px] font-mono p-2 rounded border flex items-center gap-2",
+                            item.status === 'completed' && "text-green-400 bg-green-500/5 border-green-500/20",
+                            item.status === 'skipped' && "text-muted-foreground bg-secondary/30 border-border/30",
+                            item.status === 'failed' && "text-red-400 bg-red-500/5 border-red-500/20"
+                          )}>
+                            {item.status === 'completed' && <Check size={10} className="shrink-0" />}
+                            {item.status === 'skipped' && <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30 shrink-0" />}
+                            {item.status === 'failed' && <XCircle size={10} className="shrink-0" />}
+                            <span className="truncate flex-1">{item.file}</span>
+                            {item.blocks !== undefined && (
+                              <span className="text-[9px] bg-green-500/10 px-1.5 py-0.5 rounded shrink-0">
+                                {item.blocks} blocks
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stats Summary */}
+                  <div className="grid grid-cols-3 gap-3 pt-2 border-t border-border/50">
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-foreground">{indexProgress?.processedFiles - (indexProgress?.skippedFiles || 0) - (indexProgress?.failedFiles || 0)}</div>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Indexed</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-muted-foreground">{indexProgress?.skippedFiles || 0}</div>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Skipped</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-red-400">{indexProgress?.failedFiles || 0}</div>
+                      <div className="text-[9px] text-muted-foreground uppercase tracking-widest font-black">Failed</div>
                     </div>
                   </div>
-                );
-              })
-            )}
-            {Object.keys(kb).length === 0 && !loading && (
-              <div className="bg-secondary/20 border border-dashed border-border rounded-2xl p-12 text-center">
-                <p className="text-sm text-muted-foreground font-medium italic">Database is empty.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showAddForm && (
+            <div className="bg-card border-2 border-primary/20 p-8 rounded-3xl space-y-6 animate-in zoom-in-95 duration-200 shadow-xl shadow-primary/5">
+              <div className="flex items-center gap-3">
+                <FolderGit2 className="text-primary" size={24} />
+                <h3 className="font-bold text-xl tracking-tight">Connect Local Project</h3>
               </div>
-            )}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Absolute Folder Path</label>
+                  <input 
+                    type="text" 
+                    placeholder="/Users/name/workspaces/my-app"
+                    value={newWatcher.folderPath}
+                    onChange={(e) => setNewWatcher({...newWatcher, folderPath: e.target.value})}
+                    className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Project Name (Identifier)</label>
+                  <input 
+                    type="text" 
+                    placeholder="my-app"
+                    value={newWatcher.projectName}
+                    onChange={(e) => setNewWatcher({...newWatcher, projectName: e.target.value})}
+                    className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Collection (Group)</label>
+                  <input 
+                    type="text" 
+                    placeholder="default"
+                    value={newWatcher.collection}
+                    onChange={(e) => setNewWatcher({...newWatcher, collection: e.target.value})}
+                    className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-4 px-1">
+                <button 
+                  onClick={() => setSummarize(!summarize)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-xl border font-bold text-xs transition-all",
+                    summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                  )}
+                >
+                  {summarize ? <Plus size={14} className="rotate-45" /> : <Plus size={14} />}
+                  AI Summarization {summarize ? "Enabled" : "Disabled"}
+                </button>
+                <p className="text-[10px] text-muted-foreground font-medium">Use Hierarchical Context for higher search accuracy (slower).</p>
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Info size={14} />
+                  <p className="text-[10px] font-bold uppercase tracking-wider">Note: This will add a persistent watcher and start initial indexing.</p>
+                </div>
+                <button 
+                  onClick={handleAddWatcher}
+                  disabled={!newWatcher.folderPath || !newWatcher.projectName}
+                  className="bg-primary text-primary-foreground px-8 py-3 rounded-2xl font-bold hover:opacity-90 transition-all shadow-lg disabled:opacity-50"
+                >
+                  Start Watching & Indexing
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard label="Collections" value={stats.collections} icon={Layers} color="blue" />
+            <StatCard label="Total Projects" value={stats.projects} icon={FolderGit2} color="purple" />
+            <StatCard label="System Status" value={indexProgress?.active ? "Indexing" : stats.status} isStatus active={indexProgress?.active} icon={ActivityIcon} color="green" />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Watched Folders Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-3">
+                  <Eye size={18} className="text-primary" />
+                  <h3 className="font-bold text-lg tracking-tight">Active Watchers</h3>
+                </div>
+                {watchers.length > 0 && (
+                  <button 
+                    onClick={async () => {
+                      if (confirm("Stop ALL active watchers?")) {
+                        await axios.delete('/api/watchers/all');
+                        fetchData();
+                      }
+                    }}
+                    className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-red-400 transition-colors"
+                  >
+                    Stop All
+                  </button>
+                )}
+              </div>
+              
+              {watchers.length > 0 ? (
+                <div className="grid grid-cols-1 gap-3">
+                  {watchers.map((w) => (
+                    <div key={w.folderPath} className={cn(
+                      "bg-card border border-border p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm",
+                      removingWatcher === w.folderPath && "opacity-50 grayscale pointer-events-none"
+                    )}>
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="bg-secondary p-3 rounded-xl text-muted-foreground group-hover:text-primary transition-colors shrink-0">
+                          <FolderGit2 size={20} />
+                        </div>
+                        <div className="truncate">
+                          <h4 className="font-bold text-base leading-tight truncate">{w.projectName}</h4>
+                          <p className="text-[10px] font-mono text-muted-foreground mt-0.5 truncate">{w.folderPath}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 transition-all shrink-0">
+                        <button 
+                          onClick={() => handleReindex(w)}
+                          className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-110 active:scale-90"
+                          title="Force Re-index"
+                        >
+                          <RefreshCw size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleRemoveWatcher(w.folderPath, w.projectName)}
+                          className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all hover:scale-110 active:scale-90"
+                          title="Stop Watching"
+                        >
+                          {removingWatcher === w.folderPath ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-secondary/20 border border-dashed border-border rounded-2xl p-12 text-center">
+                  <p className="text-sm text-muted-foreground font-medium italic">No folders are being watched.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Index List Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 px-2">
+                <Database size={18} className="text-primary" />
+                <h3 className="font-bold text-lg tracking-tight">Indexed Projects</h3>
+                <div className="h-px flex-1 bg-border/50 ml-2" />
+              </div>
+              
+              <div className="grid grid-cols-1 gap-3">
+                {Object.entries(kb).map(([collection, projects]) => 
+                  projects.map(project => {
+                    const isWatched = watchers.some(w => w.projectName === project);
+                    return (
+                      <div key={`${collection}-${project}`} className="bg-card border border-border p-4 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all shadow-sm">
+                        <div className="flex items-center gap-4">
+                          <div className="bg-primary/10 p-3 rounded-xl text-primary shrink-0">
+                            <Database size={20} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-base leading-tight">{project}</h4>
+                              {isWatched && (
+                                <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                  <Eye size={8} /> Watching
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-0.5">{collection}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 transition-all shrink-0">
+                          {!isWatched && (
+                            <button 
+                              onClick={() => handleEnableWatch(project, collection)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-105 active:scale-90"
+                              title="Enable Live Sync"
+                            >
+                              <Eye size={14} /> Live Sync
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => onExplore?.({ projectName: project, collection })}
+                            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all hover:scale-110 active:scale-90"
+                            title="Explore in Search"
+                          >
+                            <ExternalLink size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteProject(project)}
+                            className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all hover:scale-110 active:scale-90"
+                            title="Delete Project Index"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                {Object.keys(kb).length === 0 && !loading && (
+                  <div className="bg-secondary/20 border border-dashed border-border rounded-2xl p-12 text-center">
+                    <p className="text-sm text-muted-foreground font-medium italic">Database is empty.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
+      {showDebug && <DebugPanel />}
     </div>
   );
 }

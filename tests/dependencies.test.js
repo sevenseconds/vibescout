@@ -463,3 +463,118 @@ describe("Graph Dependencies - Integration Tests", () => {
     expect(links.some(l => l.target === '/project/src/models/User.js')).toBe(true);
   });
 });
+
+describe("Graph Dependencies - No Duplicates", () => {
+  it("should NOT create duplicate runtime imports", async () => {
+    const testFile = path.join(process.cwd(), "temp_no_duplicates_test.js");
+    const content = `
+function createOrder() {
+  // Single usage of app.models.User.findById
+  const user = app.models.User.findById(userId);
+  return user;
+}
+    `;
+    await fs.writeFile(testFile, content);
+
+    try {
+      const { metadata } = await extractCodeBlocks(testFile);
+
+      const runtimeImports = metadata.imports.filter(imp => imp.runtime);
+
+      // Count how many times 'models.User' appears
+      const modelsUserImports = runtimeImports.filter(imp => imp.source === 'models.User');
+
+      // Should only have ONE entry for models.User, not 3
+      expect(modelsUserImports.length).toBe(1);
+
+      // Should have findById as a symbol
+      if (modelsUserImports.length > 0) {
+        expect(modelsUserImports[0].symbols).toContain('findById');
+      }
+    } finally {
+      await fs.remove(testFile);
+    }
+  });
+
+  it("should NOT create duplicate exports", async () => {
+    const testFile = path.join(process.cwd(), "temp_no_dup_exports_test.js");
+    const content = `
+export class User {
+  getUserById(id) {
+    return { id };
+  }
+}
+    `;
+    await fs.writeFile(testFile, content);
+
+    try {
+      const { metadata } = await extractCodeBlocks(testFile);
+
+      // Count how many times 'User' appears in exports
+      const userExports = metadata.exports.filter(exp => exp === 'User');
+
+      // Should only have ONE 'User' export, not 3
+      expect(userExports.length).toBe(1);
+    } finally {
+      await fs.remove(testFile);
+    }
+  });
+
+  it("should NOT create duplicate static imports", async () => {
+    const testFile = path.join(process.cwd(), "temp_no_dup_static_test.js");
+    const content = `
+import { Button } from './components/Button';
+
+function App() {
+  return Button;
+}
+    `;
+    await fs.writeFile(testFile, content);
+
+    try {
+      const { metadata } = await extractCodeBlocks(testFile);
+
+      const staticImports = metadata.imports.filter(imp => !imp.runtime);
+
+      // Should only have ONE import from './components/Button'
+      const buttonImports = staticImports.filter(imp => imp.source === './components/Button');
+      expect(buttonImports.length).toBe(1);
+    } finally {
+      await fs.remove(testFile);
+    }
+  });
+
+  it("should handle multiple different runtime deps without duplication", async () => {
+    const testFile = path.join(process.cwd(), "temp_multiple_runtime_test.js");
+    const content = `
+function processOrder() {
+  const user = app.models.User.findById(userId);
+  const order = app.models.Order.create(data);
+  const payment = app.providers.Payment.process(amount);
+  return { user, order, payment };
+}
+    `;
+    await fs.writeFile(testFile, content);
+
+    try {
+      const { metadata } = await extractCodeBlocks(testFile);
+
+      const runtimeImports = metadata.imports.filter(imp => imp.runtime);
+
+      // Should have 3 different imports (User, Order, Payment)
+      expect(runtimeImports.length).toBe(3);
+
+      // Each should appear exactly once
+      const sources = runtimeImports.map(imp => imp.source);
+      const uniqueSources = [...new Set(sources)];
+      expect(sources.length).toBe(uniqueSources.length); // No duplicates
+
+      // Verify the sources
+      expect(sources).toContain('models.User');
+      expect(sources).toContain('models.Order');
+      expect(sources).toContain('providers.Payment');
+    } finally {
+      await fs.remove(testFile);
+    }
+  });
+});

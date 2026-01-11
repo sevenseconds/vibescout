@@ -163,7 +163,7 @@ function AppContent() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
           <Routes>
             <Route path="/" element={<Navigate to="/search" replace />} />
             <Route path="/search" element={

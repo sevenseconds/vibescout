@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, Eye, EyeOff, Settings, MessagesSquare, Zap, Plus, X, RefreshCw } from 'lucide-react';
+import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, Eye, EyeOff, Settings, MessagesSquare, Zap, Plus, X, RefreshCw, Bug } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import modelsData from '../models.json';
+import DebugPanel from '../components/DebugPanel';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -46,6 +47,7 @@ export default function ConfigView() {
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [testingEmbedding, setTestingEmbedding] = useState(false);
   const [testingLLM, setTestingLLM] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   const fetchOllamaModels = async (url: string) => {
     try {
@@ -278,243 +280,260 @@ export default function ConfigView() {
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-5xl mx-auto w-full overflow-y-auto pb-20">
-      <div className="flex justify-between items-start">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">System Settings</h2>
-          <p className="text-muted-foreground font-medium text-sm">Configure your AI providers, database, and system preferences.</p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          {saveStatus === 'success' && (
-            <div className="bg-emerald-500/10 text-emerald-500 px-4 py-2 rounded-xl flex items-center gap-2 border border-emerald-500/20 animate-in fade-in slide-in-from-top-4">
-              <Check size={16} />
-              <span className="text-xs font-bold uppercase tracking-wider">Settings Saved</span>
+    <div className="flex h-full w-full overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-8 space-y-8 max-w-5xl mx-auto w-full pb-20">
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">System Settings</h2>
+              <p className="text-muted-foreground font-medium text-sm">Configure your AI providers, database, and system preferences.</p>
             </div>
-          )}
-          <button 
-            disabled={saving}
-            onClick={handleSave}
-            className="bg-primary text-primary-foreground px-10 py-3 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:opacity-90 transition-all shadow-xl shadow-primary/20 group disabled:opacity-50"
-          >
-            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} className="group-hover:scale-110 transition-transform" />}
-            Save Configuration
-          </button>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
-          <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Settings size={20} className="text-primary" />
-              <h3 className="font-bold tracking-tight text-lg text-foreground">System Preferences</h3>
-            </div>
-          </div>
-          <div className="p-8 space-y-6">
-            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
-              <div className="space-y-1">
-                <h4 className="font-bold text-sm text-foreground">AI Summarization</h4>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Generate searchable summaries for code blocks</p>
-              </div>
+            
+            <div className="flex items-center gap-4">
               <button 
-                onClick={async () => {
-                  if (!config) return;
-                  const newSummarize = !config.summarize;
-                  // Update local state and immediately save for this toggle
-                  const newConfig = { ...config, summarize: newSummarize };
-                  setConfig(newConfig);
-                  setSaving(true);
-                  try {
-                    await axios.post('/api/config', newConfig);
-                    setSaveStatus('success');
-                    setTimeout(() => setSaveStatus('idle'), 3000);
-                  } finally {
-                    setSaving(false);
-                  }
-                }} 
+                onClick={() => setShowDebug(!showDebug)}
                 className={cn(
-                  "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
-                  config?.summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                  "p-2.5 rounded-2xl border transition-all",
+                  showDebug 
+                    ? "bg-primary/10 border-primary/30 text-primary" 
+                    : "bg-secondary border-border text-muted-foreground hover:text-foreground"
                 )}
+                title="Inspect AI Requests"
               >
-                {config?.summarize ? "Enabled" : "Disabled"}
+                <Bug size={20} />
               </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
-          <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Bot size={20} className="text-primary" />
-              <h3 className="font-bold tracking-tight text-lg text-foreground">Embedding Provider</h3>
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={handleTestEmbedding} disabled={testingEmbedding} className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all disabled:opacity-50">
-                {testingEmbedding ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
-                Test
-              </button>
-              <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">{config?.provider}</div>
-            </div>
-          </div>
-          <div className="p-8 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Selected Provider</label>
-                <select value={config?.provider} onChange={(e) => updateConfig('provider', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-bold transition-all appearance-none">
-                  <option value="local">Local (Transformers.js)</option>
-                  <option value="ollama">Ollama</option>
-                  <option value="lmstudio">LM Studio</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="gemini">Google Gemini</option>
-                  <option value="zai">Z.AI (BigModel.cn)</option>
-                  <option value="bedrock">AWS Bedrock</option>
-                  <option value="cloudflare">Cloudflare Workers AI</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Active Model</label>
-                <div className="relative group">
-                  <Cpu className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
-                  <input type="text" value={config?.embeddingModel} onChange={(e) => updateConfig('embeddingModel', e.target.value)} className="w-full bg-secondary border border-border rounded-xl pl-12 pr-10 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" list="embedding-model-suggestions" />
-                  <datalist id="embedding-model-suggestions">
-                    {config && (config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider])?.map(m => <option key={m} value={m} />)}
-                  </datalist>
+              {saveStatus === 'success' && (
+                <div className="bg-emerald-500/10 text-emerald-500 px-4 py-2 rounded-xl flex items-center gap-2 border border-emerald-500/20 animate-in fade-in slide-in-from-top-4">
+                  <Check size={16} />
+                  <span className="text-xs font-bold uppercase tracking-wider">Settings Saved</span>
                 </div>
-                {config && (config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider]) && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {(config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider]).map(m => (
-                      <button key={m} onClick={() => updateConfig('embeddingModel', m)} className={cn("text-[10px] px-2 py-1 rounded-md border transition-all", config.embeddingModel === m ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary border-border text-muted-foreground hover:border-muted-foreground')}>
-                        {m.split('/').pop()}
-                      </button>
-                    ))}
+              )}
+              <button 
+                disabled={saving}
+                onClick={handleSave}
+                className="bg-primary text-primary-foreground px-10 py-3 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:opacity-90 transition-all shadow-xl shadow-primary/20 group disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} className="group-hover:scale-110 transition-transform" />}
+                Save Configuration
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Settings size={20} className="text-primary" />
+                  <h3 className="font-bold tracking-tight text-lg text-foreground">System Preferences</h3>
+                </div>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-sm text-foreground">AI Summarization</h4>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Generate searchable summaries for code blocks</p>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      if (!config) return;
+                      const newSummarize = !config.summarize;
+                      // Update local state and immediately save for this toggle
+                      const newConfig = { ...config, summarize: newSummarize };
+                      setConfig(newConfig);
+                      setSaving(true);
+                      try {
+                        await axios.post('/api/config', newConfig);
+                        setSaveStatus('success');
+                        setTimeout(() => setSaveStatus('idle'), 3000);
+                      } finally {
+                        setSaving(false);
+                      }
+                    }} 
+                    className={cn(
+                      "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                      config?.summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                    )}
+                  >
+                    {config?.summarize ? "Enabled" : "Disabled"}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Bot size={20} className="text-primary" />
+                  <h3 className="font-bold tracking-tight text-lg text-foreground">Embedding Provider</h3>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={handleTestEmbedding} disabled={testingEmbedding} className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all disabled:opacity-50">
+                    {testingEmbedding ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                    Test
+                  </button>
+                  <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">{config?.provider}</div>
+                </div>
+              </div>
+              <div className="p-8 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Selected Provider</label>
+                    <select value={config?.provider} onChange={(e) => updateConfig('provider', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-bold transition-all appearance-none">
+                      <option value="local">Local (Transformers.js)</option>
+                      <option value="ollama">Ollama</option>
+                      <option value="lmstudio">LM Studio</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="gemini">Google Gemini</option>
+                      <option value="zai">Z.AI (BigModel.cn)</option>
+                      <option value="bedrock">AWS Bedrock</option>
+                      <option value="cloudflare">Cloudflare Workers AI</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Active Model</label>
+                    <div className="relative group">
+                      <Cpu className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
+                      <input type="text" value={config?.embeddingModel} onChange={(e) => updateConfig('embeddingModel', e.target.value)} className="w-full bg-secondary border border-border rounded-xl pl-12 pr-10 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" list="embedding-model-suggestions" />
+                      <datalist id="embedding-model-suggestions">
+                        {config && (config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider])?.map(m => <option key={m} value={m} />)}
+                      </datalist>
+                    </div>
+                    {config && (config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider]) && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {(config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider]).map(m => (
+                          <button key={m} onClick={() => updateConfig('embeddingModel', m)} className={cn("text-[10px] px-2 py-1 rounded-md border transition-all", config.embeddingModel === m ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary border-border text-muted-foreground hover:border-muted-foreground')}>
+                            {m.split('/').pop()}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-border/50">{config && renderProviderFields(config.provider)}</div>
+              </div>
+            </section>
+
+            <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <MessagesSquare size={20} className="text-primary" />
+                  <h3 className="font-bold tracking-tight text-lg text-foreground">LLM Provider</h3>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={handleTestLLM} disabled={testingLLM} className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all disabled:opacity-50">
+                    {testingLLM ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
+                    Test
+                  </button>
+                  <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">{config?.llmProvider || config?.provider}</div>
+                </div>
+              </div>
+              <div className="p-8 space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Selected Provider</label>
+                    <select value={config?.llmProvider || config?.provider} onChange={(e) => updateConfig('llmProvider', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-bold transition-all appearance-none">
+                      <option value="local">Local (Transformers.js)</option>
+                      <option value="ollama">Ollama</option>
+                      <option value="lmstudio">LM Studio</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="gemini">Google Gemini</option>
+                      <option value="zai">Z.AI (BigModel.cn)</option>
+                      <option value="zai-coding">Z.AI Coding Plan</option>
+                      <option value="bedrock">AWS Bedrock</option>
+                      <option value="cloudflare">Cloudflare Workers AI</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Active LLM Model</label>
+                    <div className="relative group">
+                      <Cpu className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
+                      <input type="text" value={config?.llmModel || config?.embeddingModel} onChange={(e) => updateConfig('llmModel', e.target.value)} className="w-full bg-secondary border border-border rounded-xl pl-12 pr-10 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" list="llm-model-suggestions" />
+                      <datalist id="llm-model-suggestions">
+                        {config && ((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider])?.map(m => <option key={m} value={m} />)}
+                      </datalist>
+                    </div>
+                    {config && ((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider]) && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider]).map(m => (
+                          <button key={m} onClick={() => updateConfig('llmModel', m)} className={cn("text-[10px] px-2 py-1 rounded-md border transition-all", (config.llmModel || config.embeddingModel) === m ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary border-border text-muted-foreground hover:border-muted-foreground')}>
+                            {m.split('/').pop()}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-border/50">{config && renderProviderFields(config.llmProvider || config.provider)}</div>
+              </div>
+            </section>
+
+            <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Shield size={20} className="text-primary" />
+                  <h3 className="font-bold tracking-tight text-lg text-foreground">Vector Database</h3>
+                </div>
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">DB Provider</label>
+                    <select value={config?.dbProvider} onChange={(e) => updateConfig('dbProvider', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-bold transition-all appearance-none">
+                      <option value="local">Local (LanceDB)</option>
+                      <option value="cloudflare">Cloudflare Vectorize</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Server Port</label>
+                    <div className="relative">
+                      <Server className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
+                      <input type="number" value={config?.port} onChange={(e) => updateConfig('port', parseInt(e.target.value))} className="w-full bg-secondary border border-border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-primary font-mono transition-all text-foreground" />
+                    </div>
+                  </div>
+                </div>
+                {config?.dbProvider === 'cloudflare' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-border/50">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Vectorize Index Name</label>
+                      <input type="text" value={config.cloudflareVectorizeIndex} onChange={(e) => updateConfig('cloudflareVectorizeIndex', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" />
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-border/50">{config && renderProviderFields(config.provider)}</div>
-          </div>
-        </section>
+            </section>
 
-        <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
-          <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <MessagesSquare size={20} className="text-primary" />
-              <h3 className="font-bold tracking-tight text-lg text-foreground">LLM Provider</h3>
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={handleTestLLM} disabled={testingLLM} className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all disabled:opacity-50">
-                {testingLLM ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
-                Test
-              </button>
-              <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">{config?.llmProvider || config?.provider}</div>
-            </div>
-          </div>
-          <div className="p-8 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Selected Provider</label>
-                <select value={config?.llmProvider || config?.provider} onChange={(e) => updateConfig('llmProvider', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-bold transition-all appearance-none">
-                  <option value="local">Local (Transformers.js)</option>
-                  <option value="ollama">Ollama</option>
-                  <option value="lmstudio">LM Studio</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="gemini">Google Gemini</option>
-                  <option value="zai">Z.AI (BigModel.cn)</option>
-                  <option value="zai-coding">Z.AI Coding Plan</option>
-                  <option value="bedrock">AWS Bedrock</option>
-                  <option value="cloudflare">Cloudflare Workers AI</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Active LLM Model</label>
-                <div className="relative group">
-                  <Cpu className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
-                  <input type="text" value={config?.llmModel || config?.embeddingModel} onChange={(e) => updateConfig('llmModel', e.target.value)} className="w-full bg-secondary border border-border rounded-xl pl-12 pr-10 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" list="llm-model-suggestions" />
-                  <datalist id="llm-model-suggestions">
-                    {config && ((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider])?.map(m => <option key={m} value={m} />)}
-                  </datalist>
+            <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Zap size={20} className="text-primary" />
+                  <h3 className="font-bold tracking-tight text-lg text-foreground">Throttling & Resilience</h3>
                 </div>
-                {config && ((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider]) && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider]).map(m => (
-                      <button key={m} onClick={() => updateConfig('llmModel', m)} className={cn("text-[10px] px-2 py-1 rounded-md border transition-all", (config.llmModel || config.embeddingModel) === m ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary border-border text-muted-foreground hover:border-muted-foreground')}>
-                        {m.split('/').pop()}
-                      </button>
-                    ))}
+              </div>
+              <div className="p-8 space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Throttling Error Patterns</label>
+                    <p className="text-[10px] text-muted-foreground px-1 mb-3">If any of these strings appear in an API error, VibeScout will automatically reduce concurrency and retry.</p>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {config?.throttlingErrors.map(pattern => (
+                        <span key={pattern} className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary border border-border rounded-xl text-xs font-mono text-foreground group">
+                          {pattern}
+                          <button onClick={() => removeErrorPattern(pattern)} className="text-muted-foreground hover:text-red-400 transition-colors"><X size={12} /></button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Add error message or code (e.g. 1302)" value={newErrorPattern} onChange={(e) => setNewErrorPattern(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addErrorPattern()} className="flex-1 bg-secondary border border-border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary transition-all" />
+                      <button onClick={addErrorPattern} className="bg-secondary border border-border hover:border-primary/50 p-2 rounded-xl text-muted-foreground hover:text-primary transition-all"><Plus size={20} /></button>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-border/50">{config && renderProviderFields(config.llmProvider || config.provider)}</div>
-          </div>
-        </section>
-
-        <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
-          <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Shield size={20} className="text-primary" />
-              <h3 className="font-bold tracking-tight text-lg text-foreground">Vector Database</h3>
-            </div>
-          </div>
-          <div className="p-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">DB Provider</label>
-                <select value={config?.dbProvider} onChange={(e) => updateConfig('dbProvider', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-bold transition-all appearance-none">
-                  <option value="local">Local (LanceDB)</option>
-                  <option value="cloudflare">Cloudflare Vectorize</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Server Port</label>
-                <div className="relative">
-                  <Server className="absolute left-4 top-3.5 text-muted-foreground" size={18} />
-                  <input type="number" value={config?.port} onChange={(e) => updateConfig('port', parseInt(e.target.value))} className="w-full bg-secondary border border-border rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-primary font-mono transition-all text-foreground" />
                 </div>
               </div>
-            </div>
-            {config?.dbProvider === 'cloudflare' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-border/50">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Vectorize Index Name</label>
-                  <input type="text" value={config.cloudflareVectorizeIndex} onChange={(e) => updateConfig('cloudflareVectorizeIndex', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" />
-                </div>
-              </div>
-            )}
+            </section>
           </div>
-        </section>
-
-        <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
-          <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Zap size={20} className="text-primary" />
-              <h3 className="font-bold tracking-tight text-lg text-foreground">Throttling & Resilience</h3>
-            </div>
-          </div>
-          <div className="p-8 space-y-6">
-            <div className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Throttling Error Patterns</label>
-                <p className="text-[10px] text-muted-foreground px-1 mb-3">If any of these strings appear in an API error, VibeScout will automatically reduce concurrency and retry.</p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {config?.throttlingErrors.map(pattern => (
-                    <span key={pattern} className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary border border-border rounded-xl text-xs font-mono text-foreground group">
-                      {pattern}
-                      <button onClick={() => removeErrorPattern(pattern)} className="text-muted-foreground hover:text-red-400 transition-colors"><X size={12} /></button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <input type="text" placeholder="Add error message or code (e.g. 1302)" value={newErrorPattern} onChange={(e) => setNewErrorPattern(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addErrorPattern()} className="flex-1 bg-secondary border border-border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary transition-all" />
-                  <button onClick={addErrorPattern} className="bg-secondary border border-border hover:border-primary/50 p-2 rounded-xl text-muted-foreground hover:text-primary transition-all"><Plus size={20} /></button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        </div>
       </div>
+      {showDebug && <DebugPanel />}
     </div>
   );
 }

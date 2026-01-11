@@ -118,51 +118,30 @@ export const TypeScriptStrategy = {
       if (node.type === "member_expression") {
         const fullText = node.text;
 
-        // Match: app.X.Y.Z.method() where X.Y is module, Z might be class/export, method is the symbol
-        const registryPattern = /^app\.([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)\.([a-zA-Z0-9_]+)/;
-        const match = fullText.match(registryPattern);
+        // Only process if this starts with 'app.' and has at least 3 parts (app.X.Y)
+        if (fullText.startsWith('app.')) {
+          // Skip if parent is also a member_expression starting with 'app.' (avoid duplicates from nested nodes)
+          const parent = node.parent;
+          if (parent && parent.type === "member_expression" && parent.text.startsWith('app.')) {
+            // Skip this node, let the parent handle it
+            for (let i = 0; i < node.childCount; i++) traverse(node.child(i));
+            return;
+          }
 
-        if (match) {
-          const fullPath = match[1];    // e.g., "controllers.User.getUserById"
-          const method = match[2];       // Could be part of path or actual method
+          // Match: app.X.Y.Z where we extract everything after 'app.'
+          const pathAfterApp = fullText.slice(4); // Remove 'app.'
+          const segments = pathAfterApp.split('.');
 
-          // Parse segments to find module path and method
-          const segments = fullPath.split('.');
+          // We need at least 3 segments total: X.Y.method (e.g., controllers.User.getUserById)
+          if (segments.length >= 3) {
+            // Module path: all segments except the last one (which is the method/symbol)
+            // For app.controllers.User.getUserById: controllers.User
+            // For app.integrations.stripe.webhooks.Handler.process: integrations.stripe.webhooks.Handler
+            const modulePath = segments.slice(0, -1).join('.');
+            const symbol = segments[segments.length - 1];
 
-          // Strategy: Try to identify the module path (usually first 2-3 segments)
-          // and the method being called (last segment or next one)
-          let modulePath, symbol;
-
-          if (segments.length >= 2) {
-            // For app.controllers.User.getUserById:
-            // - Try: controllers.User as module, getUserById as symbol
-            modulePath = segments.slice(0, 2).join('.');  // "controllers.User"
-            symbol = segments.length > 2 ? segments[segments.length - 1] : method;
-
-            // Also try deeper paths for nested modules:
-            // app.integrations.stripe.webhooks.Handler.process
-            if (segments.length > 2) {
-              // Try up to depth 4: integrations.stripe.webhooks.Handler
-              const deeperPath = segments.slice(0, Math.min(segments.length, 4)).join('.');
-              const deeperSymbol = segments.length > 4 ? segments[segments.length - 1] : method;
-
-              // Add to imports with symbol tracking
-              const existingImport = metadata.imports.find(imp => imp.source === deeperPath);
-              if (existingImport) {
-                if (!existingImport.symbols.includes(deeperSymbol)) {
-                  existingImport.symbols.push(deeperSymbol);
-                }
-              } else {
-                metadata.imports.push({
-                  source: deeperPath,
-                  symbols: [deeperSymbol],
-                  runtime: true  // Mark as runtime dependency
-                });
-              }
-            }
-
-            // Add the shorter path version too
-            const existingImport = metadata.imports.find(imp => imp.source === modulePath);
+            // Add to imports with symbol tracking (deduplicate)
+            const existingImport = metadata.imports.find(imp => imp.source === modulePath && imp.runtime);
             if (existingImport) {
               if (!existingImport.symbols.includes(symbol)) {
                 existingImport.symbols.push(symbol);
@@ -171,7 +150,7 @@ export const TypeScriptStrategy = {
               metadata.imports.push({
                 source: modulePath,
                 symbols: [symbol],
-                runtime: true  // Mark as runtime dependency
+                runtime: true
               });
             }
           }

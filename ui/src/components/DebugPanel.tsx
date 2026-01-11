@@ -66,12 +66,12 @@ export default function DebugPanel() {
   const selectedRequest = requests.find(r => r.id === selectedId);
 
   return (
-    <div className="flex h-full bg-[#0d0d0d] border-l border-border w-[500px] flex-col overflow-hidden animate-in slide-in-from-right-4 duration-300 shadow-2xl">
+    <div className="flex h-full bg-card border-l border-border w-[500px] flex-col overflow-hidden animate-in slide-in-from-right-4 duration-300 shadow-2xl">
       {/* Header */}
-      <div className="h-14 border-b border-border bg-card flex items-center justify-between px-4 shrink-0">
+      <div className="h-14 border-b border-border bg-secondary/30 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2">
           <Bug size={18} className="text-primary" />
-          <h3 className="text-xs font-black uppercase tracking-[0.2em]">AI Inspector</h3>
+          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-foreground">AI Inspector</h3>
         </div>
         <button 
           onClick={handleClear}
@@ -85,7 +85,7 @@ export default function DebugPanel() {
       <div className="flex-1 flex overflow-hidden">
         {/* Request List */}
         <div className={cn(
-          "flex-col border-r border-border bg-black/20 overflow-y-auto transition-all duration-300",
+          "flex-col border-r border-border bg-muted/30 overflow-y-auto transition-all duration-300",
           selectedId ? "w-32" : "w-full"
         )}>
           {requests.map((req) => (
@@ -93,7 +93,7 @@ export default function DebugPanel() {
               key={req.id}
               onClick={() => setSelectedId(req.id)}
               className={cn(
-                "p-3 border-b border-border/50 cursor-pointer hover:bg-white/5 transition-all group",
+                "p-3 border-b border-border/50 cursor-pointer hover:bg-accent/50 transition-all group",
                 selectedId === req.id ? "bg-primary/10 border-l-2 border-l-primary" : ""
               )}
             >
@@ -105,13 +105,13 @@ export default function DebugPanel() {
                   {req.provider}
                 </span>
                 {!selectedId && (
-                  <span className="text-[9px] text-muted-foreground/50 font-mono">
+                  <span className="text-[9px] text-muted-foreground font-mono">
                     {new Date(req.timestamp).toLocaleTimeString([], { hour12: false })}
                   </span>
                 )}
               </div>
               {!selectedId && (
-                <p className="text-[10px] font-bold text-muted-foreground truncate group-hover:text-foreground mt-1">
+                <p className="text-[10px] font-bold text-foreground truncate group-hover:text-primary mt-1">
                   {req.model}
                 </p>
               )}
@@ -127,7 +127,7 @@ export default function DebugPanel() {
 
         {/* Details View */}
         {selectedId && selectedRequest && (
-          <div className="flex-1 flex flex-col overflow-hidden bg-card/30">
+          <div className="flex-1 flex flex-col overflow-hidden bg-background">
             <div className="p-4 border-b border-border/50 space-y-3 shrink-0">
               <div className="flex items-center justify-between">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Request Details</h4>
@@ -136,7 +136,7 @@ export default function DebugPanel() {
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-2">
-                <div className="bg-black/40 p-2 rounded-lg border border-border/30 flex items-center justify-between">
+                <div className="bg-muted p-2 rounded-lg border border-border/30 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="opacity-50">
                       <Clock size={10} />
@@ -166,14 +166,14 @@ export default function DebugPanel() {
                   </button>
                   <button 
                     onClick={() => handleCopy(JSON.stringify(selectedRequest.payload, null, 2), 'payload')}
-                    className="p-1 hover:bg-white/10 rounded text-muted-foreground hover:text-foreground transition-all"
+                    className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-all"
                     title="Copy Payload"
                   >
                     {copiedPayload ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                   </button>
                 </div>
                 {!collapsedPayload && (
-                  <pre className="p-3 bg-black/60 rounded-xl border border-border/50 text-[10px] font-mono text-blue-300 overflow-x-auto whitespace-pre-wrap leading-relaxed animate-in fade-in slide-in-from-top-1 duration-200">
+                  <pre className="p-3 bg-muted rounded-xl border border-border/50 text-[10px] font-mono text-primary overflow-x-auto whitespace-pre-wrap leading-relaxed animate-in fade-in slide-in-from-top-1 duration-200">
                     {JSON.stringify(selectedRequest.payload, null, 2)}
                   </pre>
                 )}
@@ -184,14 +184,14 @@ export default function DebugPanel() {
                 <div className="flex items-center justify-between group/label">
                   <button 
                     onClick={() => setCollapsedResponse(!collapsedResponse)}
-                    className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 hover:text-emerald-400 transition-colors"
+                    className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 hover:text-emerald-500 transition-colors"
                   >
-                    {collapsedResponse ? <ChevronRight size={12} className="text-emerald-400" /> : <ChevronDown size={12} className="text-emerald-400" />}
+                    {collapsedResponse ? <ChevronRight size={12} className="text-emerald-500" /> : <ChevronDown size={12} className="text-emerald-500" />}
                     API Response
                   </button>
                   <button 
                     onClick={() => handleCopy(typeof selectedRequest.response === 'string' ? selectedRequest.response : JSON.stringify(selectedRequest.response, null, 2), 'response')}
-                    className="p-1 hover:bg-white/10 rounded text-muted-foreground hover:text-foreground transition-all"
+                    className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-all"
                     title="Copy Response"
                   >
                     {copiedResponse ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
@@ -200,11 +200,11 @@ export default function DebugPanel() {
                 {!collapsedResponse && (
                   <div className="animate-in fade-in slide-in-from-top-1 duration-200">
                     {selectedRequest.error ? (
-                      <pre className="p-3 bg-red-500/10 rounded-xl border border-red-500/30 text-[10px] font-mono text-red-400 overflow-x-auto whitespace-pre-wrap">
+                      <pre className="p-3 bg-destructive/10 rounded-xl border border-destructive/30 text-[10px] font-mono text-destructive overflow-x-auto whitespace-pre-wrap">
                         {selectedRequest.error}
                       </pre>
                     ) : (
-                      <pre className="p-3 bg-black/60 rounded-xl border border-border/50 text-[10px] font-mono text-emerald-300 overflow-x-auto whitespace-pre-wrap leading-relaxed">
+                      <pre className="p-3 bg-muted rounded-xl border border-border/50 text-[10px] font-mono text-emerald-600 dark:text-emerald-400 overflow-x-auto whitespace-pre-wrap leading-relaxed">
                         {typeof selectedRequest.response === 'string' 
                           ? selectedRequest.response 
                           : JSON.stringify(selectedRequest.response, null, 2)}

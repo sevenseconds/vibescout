@@ -1,6 +1,7 @@
 export interface EmbeddingProvider {
   name: string;
   generateEmbedding(text: string): Promise<number[]>;
+  generateEmbeddingsBatch?(texts: string[]): Promise<number[][]>;
 }
 
 export interface ChatMessage {
