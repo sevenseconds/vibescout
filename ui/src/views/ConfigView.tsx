@@ -37,6 +37,17 @@ export default function ConfigView() {
   const [showKeys, setShowKeys] = useState(false);
   const [newErrorPattern, setNewErrorPattern] = useState('');
   const [ollamaSyncing, setOllamaSyncing] = useState(false);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+
+  const fetchOllamaModels = async () => {
+    if (!config?.ollamaUrl) return;
+    try {
+      const res = await axios.get('/api/models/ollama');
+      setOllamaModels(res.data.map((m: any) => m.name));
+    } catch (err) {
+      console.error('Ollama models fetch failed:', err);
+    }
+  };
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -51,6 +62,12 @@ export default function ConfigView() {
     };
     fetchConfig();
   }, []);
+
+  useEffect(() => {
+    if (config?.ollamaUrl) {
+      fetchOllamaModels();
+    }
+  }, [config?.ollamaUrl]);
 
   if (loading) {
     return (
@@ -99,6 +116,7 @@ export default function ConfigView() {
       const res = await axios.get('/api/models/ollama');
       const models = res.data;
       const modelNames = models.map((m: any) => m.name);
+      setOllamaModels(modelNames);
       
       alert(`Ollama Sync Success!\n\nAvailable models: ${modelNames.join(', ')}`);
       
@@ -361,7 +379,7 @@ export default function ConfigView() {
                     list="embedding-model-suggestions"
                   />
                   <datalist id="embedding-model-suggestions">
-                    {config && EMBEDDING_MODELS[config.provider]?.map(m => (
+                    {config && (config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider])?.map(m => (
                       <option key={m} value={m} />
                     ))}
                   </datalist>
@@ -369,9 +387,9 @@ export default function ConfigView() {
                      <Settings size={16} className="text-muted-foreground/50" />
                   </div>
                 </div>
-                {config && EMBEDDING_MODELS[config.provider] && (
+                {config && (config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider]) && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {EMBEDDING_MODELS[config.provider].map(m => (
+                    {(config.provider === 'ollama' ? ollamaModels : EMBEDDING_MODELS[config.provider]).map(m => (
                       <button 
                         key={m}
                         onClick={() => updateConfig('embeddingModel', m)}
@@ -435,7 +453,7 @@ export default function ConfigView() {
                     list="llm-model-suggestions"
                   />
                   <datalist id="llm-model-suggestions">
-                    {config && CHAT_MODELS[config.llmProvider || config.provider]?.map(m => (
+                    {config && ((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider])?.map(m => (
                       <option key={m} value={m} />
                     ))}
                   </datalist>
@@ -443,9 +461,9 @@ export default function ConfigView() {
                      <Settings size={16} className="text-muted-foreground/50" />
                   </div>
                 </div>
-                {config && CHAT_MODELS[config.llmProvider || config.provider] && (
+                {config && ((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider]) && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {CHAT_MODELS[config.llmProvider || config.provider].map(m => (
+                    {((config.llmProvider || config.provider) === 'ollama' ? ollamaModels : CHAT_MODELS[config.llmProvider || config.provider]).map(m => (
                       <button 
                         key={m}
                         onClick={() => updateConfig('llmModel', m)}
