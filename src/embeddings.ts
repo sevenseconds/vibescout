@@ -137,14 +137,19 @@ export class SummarizerManager {
     }
   }
 
-  async summarize(text: string): Promise<string> {
+  async summarize(text: string, options?: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string }): Promise<string> {
     const throttler = getThrottler(this.provider.name, this.throttlingErrors);
-    return throttler.run(() => this.provider.summarize(text));
+    return throttler.run(() => this.provider.summarize(text, options));
   }
 
-  async generateResponse(prompt: string, context: string): Promise<string> {
+  async generateBestQuestion(query: string, context: string): Promise<string> {
     const throttler = getThrottler(this.provider.name, this.throttlingErrors);
-    return throttler.run(() => this.provider.generateResponse(prompt, context));
+    return throttler.run(() => this.provider.generateBestQuestion(query, context));
+  }
+
+  async generateResponse(prompt: string, context: string, history?: ChatMessage[]): Promise<string> {
+    const throttler = getThrottler(this.provider.name, this.throttlingErrors);
+    return throttler.run(() => this.provider.generateResponse(prompt, context, history));
   }
 }
 
