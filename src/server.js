@@ -468,6 +468,25 @@ app.post('/api/search/summarize', async (c) => {
   return c.json({ summary });
 });
 
+app.post('/api/prompts/generate', async (c) => {
+  const { description } = await c.req.json();
+  
+  const systemPrompt = `You are a prompt engineering expert for code analysis. 
+The user wants a summarization prompt template for a tool called VibeScout.
+You must use these exact placeholders in your generated template:
+{{code}} - The code snippet
+{{fileName}} - The name of the file
+{{projectName}} - The project name
+
+Generate a highly effective, technical, and concise prompt based on the user's requirement. 
+Return ONLY the prompt text, no preamble or explanation.`;
+
+  const prompt = `Requirement: ${description}`;
+  const generated = await summarizerManager.generateResponse(prompt, systemPrompt);
+  
+  return c.json({ prompt: generated });
+});
+
 app.post('/api/chat', async (c) => {
   const { query, collection, projectName, fileTypes } = await c.req.json();
   const history = await getChatMessages();

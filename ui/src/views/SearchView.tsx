@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, ArrowRight, FileCode2, Loader2, Filter, X, Sparkles, Maximize2 } from 'lucide-react';
+import { Search, ArrowRight, FileCode2, Loader2, Filter, X, Sparkles, Maximize2, Code, FileText, Layers } from 'lucide-react';
 import axios from 'axios';
 import CodeBlock from '../components/CodeBlock';
 import { clsx, type ClassValue } from 'clsx';
@@ -15,6 +15,7 @@ interface SearchResult {
   filePath: string;
   name: string;
   type: string;
+  category: 'code' | 'documentation';
   startLine: number;
   endLine: number;
   summary?: string;
@@ -44,6 +45,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
   const [projectName, setProjectName] = useState(initialFilters?.projectName || '');
   const [collection, setCollection] = useState(initialFilters?.collection || '');
   const [fileType, setFileType] = useState('');
+  const [filterCategory, setFilterCategory] = useState<'all' | 'code' | 'documentation'>('all');
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -115,6 +117,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
     setProjectName('');
     setCollection('');
     setFileType('');
+    setFilterCategory('all');
     onFiltersClear?.();
   };
 
@@ -216,10 +219,37 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
       <div className="space-y-6 pb-12">
         {results.length > 0 ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                Found {results.length} matches
-              </h3>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
+              <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl border border-border/50 self-start">
+                <button 
+                  onClick={() => setFilterCategory('all')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    filterCategory === 'all' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Layers size={14} /> All
+                </button>
+                <button 
+                  onClick={() => setFilterCategory('code')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    filterCategory === 'code' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Code size={14} /> Code
+                </button>
+                <button 
+                  onClick={() => setFilterCategory('documentation')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    filterCategory === 'documentation' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <FileText size={14} /> Docs
+                </button>
+              </div>
+
               <div className="flex gap-2">
                 <button 
                   onClick={handleSummarize}
@@ -259,12 +289,17 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
             )}
 
             <div className="grid grid-cols-1 gap-4">
-              {results.map((result, i) => (
+              {results
+                .filter(r => filterCategory === 'all' || r.category === filterCategory)
+                .map((result, i) => (
                 <div key={i} className="bg-card border border-border p-6 rounded-3xl space-y-4 shadow-sm hover:border-primary/50 transition-all group relative overflow-hidden">
                   <div className="flex items-center justify-between relative z-10">
                     <div className="flex items-center gap-3">
-                      <div className="bg-primary/10 p-2.5 rounded-xl text-primary shadow-inner">
-                        <FileCode2 size={22} />
+                      <div className={cn(
+                        "p-2.5 rounded-xl shadow-inner",
+                        result.category === 'documentation' ? "bg-amber-500/10 text-amber-500" : "bg-primary/10 text-primary"
+                      )}>
+                        {result.category === 'documentation' ? <FileText size={22} /> : <FileCode2 size={22} />}
                       </div>
                       <div>
                         <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{result.name}</h3>

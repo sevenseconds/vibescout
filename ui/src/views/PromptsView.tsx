@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Save, RefreshCw, Info, Check, Plus, Trash2, Zap, Layers } from 'lucide-react';
+import { MessageSquare, Save, RefreshCw, Info, Check, Plus, Trash2, Zap, Layers, Sparkles, Wand2, X } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -27,24 +27,31 @@ export default function PromptsView() {
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
+  // AI Generator state
+  const [showGenerator, setShowGenerator] = useState(false);
+  const [generatorDesc, setGeneratorDesc] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedPrompt, setGeneratedPrompt] = useState('');
+
+  const fetchData = async () => {
+    try {
+      const response = await axios.get('/api/config');
+      const data = response.data.prompts || {};
+      setPrompts({
+        summarizeTemplates: data.summarizeTemplates || [],
+        activeSummarizeId: data.activeSummarizeId || '',
+        chunkSummarize: data.chunkSummarize || '',
+        bestQuestion: data.bestQuestion || ''
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchPrompts = async () => {
-      try {
-        const response = await axios.get('/api/config');
-        const data = response.data.prompts || {};
-        setPrompts({
-          summarizeTemplates: data.summarizeTemplates || [],
-          activeSummarizeId: data.activeSummarizeId || '',
-          chunkSummarize: data.chunkSummarize || '',
-          bestQuestion: data.bestQuestion || ''
-        });
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPrompts();
+    fetchData();
   }, []);
 
   const handleSave = async () => {
@@ -70,7 +77,7 @@ export default function PromptsView() {
     const newTemplate: SummarizeTemplate = {
       id: newId,
       name: 'New Template',
-      text: 'Summarize this: {{code}}'
+      text: 'Summarize this code:\n\n{{code}}'
     };
     setPrompts({
       ...prompts,
@@ -95,6 +102,39 @@ export default function PromptsView() {
       ...prompts,
       summarizeTemplates: prompts.summarizeTemplates.map(t => t.id === id ? { ...t, ...updates } : t)
     });
+  };
+
+  const handleGenerate = async () => {
+    if (!generatorDesc.trim()) return;
+    setIsGenerating(true);
+    setGeneratedPrompt('');
+    try {
+      const res = await axios.post('/api/prompts/generate', { description: generatorDesc });
+      setGeneratedPrompt(res.data.prompt);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate prompt. Make sure your LLM provider is active.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const applyGeneratedTemplate = () => {
+    if (!generatedPrompt || !prompts) return;
+    const newId = Math.random().toString(36).substring(7);
+    const newTemplate: SummarizeTemplate = {
+      id: newId,
+      name: 'AI Generated',
+      text: generatedPrompt
+    };
+    setPrompts({
+      ...prompts,
+      summarizeTemplates: [...prompts.summarizeTemplates, newTemplate],
+      activeSummarizeId: newId
+    });
+    setShowGenerator(false);
+    setGeneratorDesc('');
+    setGeneratedPrompt('');
   };
 
   if (loading) {
@@ -151,19 +191,26 @@ export default function PromptsView() {
       </div>
 
       <div className="space-y-10">
-        {/* Summarization Template Library */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2 text-foreground">
               <Layers size={20} className="text-primary" />
               <h3 className="font-bold text-xl tracking-tight">Summarization Library</h3>
             </div>
-            <button 
-              onClick={addTemplate}
-              className="flex items-center gap-2 px-3 py-1.5 bg-secondary border border-border rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-secondary/80 transition-all"
-            >
-              <Plus size={14} /> Add Template
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setShowGenerator(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all"
+              >
+                <Sparkles size={14} /> AI Generator
+              </button>
+              <button 
+                onClick={addTemplate}
+                className="flex items-center gap-2 px-3 py-1.5 bg-secondary border border-border rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-secondary/80 transition-all"
+              >
+                <Plus size={14} /> Add Template
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -217,7 +264,6 @@ export default function PromptsView() {
           )}
         </section>
 
-        {/* Chunk Summarizer */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-2 text-foreground">
             <Zap size={20} className="text-primary" />
@@ -231,7 +277,6 @@ export default function PromptsView() {
           />
         </section>
 
-        {/* Best Question */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-2 text-foreground">
             <MessageSquare size={20} className="text-primary" />
@@ -245,6 +290,68 @@ export default function PromptsView() {
           />
         </section>
       </div>
+
+      {showGenerator && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-card border border-border w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col">
+            <div className="p-6 border-b border-border flex items-center justify-between bg-secondary/30">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
+                  <Sparkles size={24} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">AI Prompt Generator</h3>
+                  <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Natural Language to Template</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowGenerator(false)}
+                className="p-3 hover:bg-secondary rounded-2xl transition-colors text-muted-foreground"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6 overflow-y-auto">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Describe your requirement</label>
+                <textarea 
+                  value={generatorDesc}
+                  onChange={(e) => setGeneratorDesc(e.target.value)}
+                  className="w-full h-24 bg-secondary border border-border rounded-2xl p-4 text-sm focus:outline-none focus:border-primary transition-all resize-none"
+                  placeholder="e.g. Focus on security vulnerabilities and data flow analysis..."
+                />
+              </div>
+
+              <div className="flex justify-center">
+                <button 
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !generatorDesc.trim()}
+                  className="flex items-center gap-2 px-8 py-3 bg-primary text-primary-foreground rounded-2xl font-black uppercase tracking-widest text-xs hover:opacity-90 transition-all shadow-xl shadow-primary/20 disabled:opacity-50"
+                >
+                  {isGenerating ? <RefreshCw size={18} className="animate-spin" /> : <Wand2 size={18} />}
+                  {isGenerating ? 'Engineering Prompt...' : 'Generate Template'}
+                </button>
+              </div>
+
+              {generatedPrompt && (
+                <div className="space-y-2 animate-in slide-in-from-bottom-2 duration-300">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-emerald-500 px-1">AI Generated Preview</label>
+                  <pre className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/20 text-[11px] font-mono text-foreground leading-relaxed whitespace-pre-wrap italic">
+                    {generatedPrompt}
+                  </pre>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button onClick={() => setGeneratedPrompt('')} className="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground">Try Again</button>
+                    <button onClick={applyGeneratedTemplate} className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 text-white rounded-xl font-bold text-xs hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20">
+                      <Plus size={16} /> Add to Library
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -281,4 +388,3 @@ function PromptEditor({ title, description, value, onChange }: { title: string, 
     </section>
   );
 }
-
