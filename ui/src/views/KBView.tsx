@@ -170,8 +170,9 @@ export default function KBView({ onExplore }: KBViewProps) {
   };
 
   const handleReindex = async (w: Watcher) => {
+    if (!confirm(`Force a full re-index of "${w.projectName}"? This will clear its current index and re-scan every file.`)) return;
     try {
-      await axios.post('/api/index', { ...w, summarize });
+      await axios.post('/api/index', { ...w, summarize, force: true });
       fetchData();
     } catch (err) {
       console.error(err);
