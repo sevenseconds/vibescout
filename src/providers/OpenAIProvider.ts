@@ -149,7 +149,7 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
     } catch (err: any) {
       if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`${this.name} Response generation failed: ${err.message}`);
-      return `${this.name} failed to generate response.`;
+      return `${this.name} failed to generate response: ${err.message}`;
     }
   }
 }
