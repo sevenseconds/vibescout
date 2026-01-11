@@ -284,12 +284,23 @@ export default function ConfigView() {
           <h2 className="text-3xl font-bold tracking-tight text-foreground">System Settings</h2>
           <p className="text-muted-foreground font-medium text-sm">Configure your AI providers, database, and system preferences.</p>
         </div>
-        {saveStatus === 'success' && (
-          <div className="bg-emerald-500/10 text-emerald-500 px-4 py-2 rounded-xl flex items-center gap-2 border border-emerald-500/20 animate-in fade-in slide-in-from-top-4">
-            <Check size={16} />
-            <span className="text-xs font-bold uppercase tracking-wider">Settings Saved</span>
-          </div>
-        )}
+        
+        <div className="flex items-center gap-4">
+          {saveStatus === 'success' && (
+            <div className="bg-emerald-500/10 text-emerald-500 px-4 py-2 rounded-xl flex items-center gap-2 border border-emerald-500/20 animate-in fade-in slide-in-from-top-4">
+              <Check size={16} />
+              <span className="text-xs font-bold uppercase tracking-wider">Settings Saved</span>
+            </div>
+          )}
+          <button 
+            disabled={saving}
+            onClick={handleSave}
+            className="bg-primary text-primary-foreground px-10 py-3 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:opacity-90 transition-all shadow-xl shadow-primary/20 group disabled:opacity-50"
+          >
+            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} className="group-hover:scale-110 transition-transform" />}
+            Save Configuration
+          </button>
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -306,7 +317,27 @@ export default function ConfigView() {
                 <h4 className="font-bold text-sm text-foreground">AI Summarization</h4>
                 <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Generate searchable summaries for code blocks</p>
               </div>
-              <button onClick={() => updateConfig('summarize', !config?.summarize)} className={cn("px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all", config?.summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground")}>
+              <button 
+                onClick={async () => {
+                  if (!config) return;
+                  const newSummarize = !config.summarize;
+                  // Update local state and immediately save for this toggle
+                  const newConfig = { ...config, summarize: newSummarize };
+                  setConfig(newConfig);
+                  setSaving(true);
+                  try {
+                    await axios.post('/api/config', newConfig);
+                    setSaveStatus('success');
+                    setTimeout(() => setSaveStatus('idle'), 3000);
+                  } finally {
+                    setSaving(false);
+                  }
+                }} 
+                className={cn(
+                  "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                  config?.summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                )}
+              >
                 {config?.summarize ? "Enabled" : "Disabled"}
               </button>
             </div>
@@ -483,13 +514,6 @@ export default function ConfigView() {
             </div>
           </div>
         </section>
-
-        <div className="flex justify-end pt-4">
-          <button disabled={saving} onClick={handleSave} className="bg-primary text-primary-foreground px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-3 hover:opacity-90 transition-all shadow-xl shadow-primary/20 group disabled:opacity-50">
-            {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} className="group-hover:scale-110 transition-transform" />}
-            {saving ? 'Saving...' : 'Save Configuration'}
-          </button>
-        </div>
       </div>
     </div>
   );
