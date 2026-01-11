@@ -29,9 +29,9 @@ import {
   getChatMessages,
   clearChatMessages,
   initDB,
-  deleteProject
-} from "./db.js";
-import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
+  deleteProject,
+  getProjectFiles
+} from "./db.js";import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig, saveConfig } from "./config.js";
 
