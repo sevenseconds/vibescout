@@ -1,7 +1,7 @@
 import { logger } from "./logger.js";
 
 export class AdaptiveThrottler {
-  constructor(name, initialConcurrency = 2, maxConcurrency = 8) {
+  constructor(name, initialConcurrency = 16, maxConcurrency = 32) {
     this.name = name;
     this.concurrency = initialConcurrency;
     this.maxConcurrency = maxConcurrency;
@@ -61,10 +61,10 @@ export class AdaptiveThrottler {
 
   isConcurrencyError(err) {
     const msg = err.message || "";
-    // If no patterns defined, use a safe default
+    // If no patterns defined, use a safe default including Z.AI specific codes
     const patterns = this.errorPatterns.length > 0 
       ? this.errorPatterns 
-      : ["429", "Rate limit", "too many requests"];
+      : ["429", "Rate limit", "too many requests", "1214", "1301", "1302", "并发数过高"];
 
     return patterns.some(p => msg.includes(p));
   }
@@ -83,15 +83,11 @@ export class AdaptiveThrottler {
   handleFailure(err) {
     this.successCount = 0;
     const oldLimit = this.concurrency;
-    // Multiplicative Decrease: cut in half, or drop to 1 immediately if already low
-    if (this.concurrency <= 2) {
-      this.concurrency = 1;
-    } else {
-      this.concurrency = Math.max(this.minConcurrency, Math.floor(this.concurrency / 2));
-    }
+    // Multiplicative Decrease: cut in half immediately to find stable ground
+    this.concurrency = Math.max(this.minConcurrency, Math.floor(this.concurrency / 2));
     
     if (oldLimit !== this.concurrency) {
-      logger.warn(`[Throttler:${this.name}] Rate limit hit (Error ${err.message?.includes('1302') ? '1302' : 'Code'}). Reducing concurrency: ${oldLimit} -> ${this.concurrency}`);
+      logger.warn(`[Throttler:${this.name}] Rate limit hit. Reducing concurrency: ${oldLimit} -> ${this.concurrency}`);
     }
   }
 
