@@ -5,31 +5,37 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import path from "path";
 import fs from "fs-extra";
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { logger as honoLogger } from 'hono/logger';
 import { logger } from "./logger.js";
-import { 
-  handleIndexFolder, 
-  handleSearchCode, 
+import {
+  handleIndexFolder,
+  handleSearchCode,
   searchCode,
   chatWithCode,
   openFile,
-  indexingProgress 
+  indexingProgress
 } from "./core.js";
-import { 
-  listKnowledgeBase, 
-  clearDatabase, 
+import {
+  listKnowledgeBase,
+  clearDatabase,
   getFileDependencies,
   getAllDependencies,
   findSymbolUsages,
-    moveProjectToCollection, 
-    getWatchList,
-    addChatMessage,
-    getChatMessages,
-    clearChatMessages,
-    initDB,
-    deleteProject
-  } from "./db.js";import { watchProject, unwatchProject, initWatcher } from "./watcher.js";import { embeddingManager, summarizerManager } from "./embeddings.js";
+  moveProjectToCollection,
+  getWatchList,
+  addChatMessage,
+  getChatMessages,
+  clearChatMessages,
+  initDB,
+  deleteProject
+} from "./db.js";
+import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
+import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig, saveConfig } from "./config.js";
 
+// MCP Server Setup
 export const server = new Server(
   {
     name: "vibescout",
@@ -219,281 +225,184 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-/**
- * REST API Handlers for Web UI
- */
-export async function handleApiRequest(req, res) {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathName = url.pathname;
+// Hono App Setup
+export const app = new Hono();
 
-  if (!pathName.startsWith("/api/")) {
-    return false;
+app.use('*', honoLogger());
+app.use('*', cors());
+
+// API Routes
+app.get('/api/kb', async (c) => {
+  const kb = await listKnowledgeBase();
+  return c.json(kb);
+});
+
+app.delete('/api/projects', async (c) => {
+  const projectName = c.req.query('projectName');
+  if (!projectName) return c.json({ error: 'projectName required' }, 400);
+  await deleteProject(projectName);
+  return c.json({ success: true });
+});
+
+app.post('/api/index', async (c) => {
+  const { folderPath, projectName, collection, summarize } = await c.req.json();
+  handleIndexFolder(folderPath, projectName, collection || "default", summarize !== false, true)
+    .catch(err => logger.error(`Background indexing error: ${err.message}`));
+  return c.json({ success: true, message: "Indexing started in background" });
+});
+
+app.get('/api/index/status', (c) => c.json(indexingProgress));
+
+app.get('/api/deps', async (c) => {
+  const filePath = c.req.query('filePath');
+  if (!filePath) return c.json({ error: 'filePath required' }, 400);
+  const deps = await getFileDependencies(path.resolve(filePath));
+  return c.json(deps);
+});
+
+app.post('/api/search', async (c) => {
+  const { query, collection, projectName } = await c.req.json();
+  const results = await searchCode(query, collection, projectName);
+  return c.json(results);
+});
+
+app.post('/api/chat', async (c) => {
+  const { query, collection, projectName } = await c.req.json();
+  const history = await getChatMessages();
+  const response = await chatWithCode(query, collection, projectName, history);
+  
+  await addChatMessage("user", query);
+  await addChatMessage("assistant", response);
+  
+  return c.json({ response });
+});
+
+app.get('/api/chat', async (c) => {
+  const messages = await getChatMessages();
+  return c.json(messages);
+});
+
+app.delete('/api/chat', async (c) => {
+  await clearChatMessages();
+  return c.json({ success: true });
+});
+
+app.get('/api/stats', async (c) => {
+  const kb = await listKnowledgeBase();
+  const projectCount = Object.values(kb).reduce((acc, p) => acc + p.length, 0);
+  return c.json({
+    collections: Object.keys(kb).length,
+    projects: projectCount,
+    status: "active"
+  });
+});
+
+app.post('/api/open', async (c) => {
+  const { filePath } = await c.req.json();
+  await openFile(filePath);
+  return c.json({ success: true });
+});
+
+app.get('/api/config', async (c) => {
+  const config = await loadConfig();
+  return c.json(config);
+});
+
+app.post('/api/config', async (c) => {
+  const newConfig = await c.req.json();
+  await saveConfig(newConfig);
+
+  const providerConfig = {
+    type: (newConfig.provider === "lmstudio" ? "openai" : newConfig.provider) || "local",
+    modelName: newConfig.embeddingModel || "Xenova/bge-small-en-v1.5",
+    baseUrl: newConfig.provider === "ollama" ? newConfig.ollamaUrl :
+      (newConfig.provider === "openai" || newConfig.provider === "lmstudio") ? newConfig.openaiBaseUrl : undefined,
+    apiKey: newConfig.provider === "gemini" ? newConfig.geminiKey :
+      newConfig.provider === "cloudflare" ? newConfig.cloudflareToken :
+        (newConfig.provider === "zai" || newConfig.provider === "zai-coding") ? newConfig.zaiKey :
+          newConfig.openaiKey,
+    accountId: newConfig.cloudflareAccountId,
+    awsRegion: newConfig.awsRegion,
+    awsProfile: newConfig.awsProfile
+  };
+
+  const llmConfig = {
+    type: (newConfig.llmProvider === "lmstudio" ? "openai" : newConfig.llmProvider || newConfig.provider) || "local",
+    modelName: newConfig.llmModel || newConfig.embeddingModel || "Xenova/distilbart-cnn-6-6",
+    baseUrl: (newConfig.llmProvider || newConfig.provider) === "ollama" ? newConfig.ollamaUrl :
+      ((newConfig.llmProvider || newConfig.provider) === "openai" || (newConfig.llmProvider || newConfig.provider) === "lmstudio") ? newConfig.openaiBaseUrl : undefined,
+    apiKey: (newConfig.llmProvider || newConfig.provider) === "gemini" ? newConfig.geminiKey :
+      (newConfig.llmProvider || newConfig.provider) === "cloudflare" ? newConfig.cloudflareToken :
+        ((newConfig.llmProvider || newConfig.provider) === "zai" || (newConfig.llmProvider || newConfig.provider) === "zai-coding") ? newConfig.zaiKey :
+          newConfig.openaiKey,
+    accountId: newConfig.cloudflareAccountId,
+    awsRegion: newConfig.awsRegion,
+    awsProfile: newConfig.awsProfile
+  };
+
+  await embeddingManager.setProvider(providerConfig);
+  await summarizerManager.setProvider(llmConfig);
+
+  await initDB({
+    type: newConfig.dbProvider || "local",
+    accountId: newConfig.cloudflareAccountId,
+    apiToken: newConfig.cloudflareToken,
+    indexName: newConfig.cloudflareVectorizeIndex
+  });
+
+  await initWatcher();
+  return c.json({ success: true });
+});
+
+app.get('/api/watchers', async (c) => {
+  const watchers = await getWatchList();
+  return c.json(watchers);
+});
+
+app.post('/api/watchers', async (c) => {
+  const { folderPath, projectName, collection } = await c.req.json();
+  await watchProject(folderPath, projectName, collection);
+  return c.json({ success: true });
+});
+
+app.delete('/api/watchers', async (c) => {
+  const folderPath = c.req.query('folderPath');
+  if (!folderPath) return c.json({ error: 'folderPath required' }, 400);
+  await unwatchProject(folderPath);
+  return c.json({ success: true });
+});
+
+app.get('/api/graph', async (c) => {
+  const deps = await getAllDependencies();
+  const nodes = [];
+  const links = [];
+  
+  if (!deps || deps.length === 0) return c.json({ nodes, links });
+
+  const nodeMap = new Map();
+  for (const d of deps) {
+    if (!nodeMap.has(d.filePath)) {
+      const node = { id: d.filePath, label: path.basename(d.filePath), group: d.projectName, collection: d.collection };
+      nodes.push(node);
+      nodeMap.set(d.filePath, node);
+    }
   }
 
-  try {
-    if (pathName === "/api/kb" && req.method === "GET") {
-      const kb = await listKnowledgeBase();
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(kb));
-      return true;
-    }
-
-    if (pathName === "/api/projects" && req.method === "DELETE") {
-      const projectName = url.searchParams.get("projectName");
-      if (projectName) {
-        await deleteProject(projectName);
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ success: true }));
-      } else {
-        res.writeHead(400);
-        res.end(JSON.stringify({ error: "projectName required" }));
+  for (const d of deps) {
+    const imports = JSON.parse(d.imports);
+    for (const imp of imports) {
+      const target = deps.find(other => 
+        other.filePath.endsWith(imp.source) || 
+        other.filePath.endsWith(imp.source + ".ts") ||
+        other.filePath.endsWith(imp.source + ".js") ||
+        other.filePath.endsWith(imp.source + ".dart") ||
+        other.filePath.endsWith(imp.source + ".java") ||
+        other.filePath.endsWith(imp.source + ".kt")
+      );
+      if (target && target.filePath !== d.filePath) {
+        links.push({ source: d.filePath, target: target.filePath });
       }
-      return true;
     }
-
-    if (pathName === "/api/index" && req.method === "POST") {
-      let body = "";
-      for await (const chunk of req) body += chunk;
-      const { folderPath, projectName, collection, summarize } = JSON.parse(body);
-      
-      // Trigger indexing in background
-      handleIndexFolder(folderPath, projectName, collection || "default", summarize !== false, true)
-        .catch(err => logger.error(`Background indexing error: ${err.message}`));
-
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ success: true, message: "Indexing started in background" }));
-      return true;
-    }
-
-    if (pathName === "/api/index/status" && req.method === "GET") {
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(indexingProgress));
-      return true;
-    }
-
-    if (pathName === "/api/deps" && req.method === "GET") {
-      const filePath = url.searchParams.get("filePath");
-      if (filePath) {
-        const deps = await getFileDependencies(path.resolve(filePath));
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify(deps));
-      } else {
-        res.writeHead(400);
-        res.end(JSON.stringify({ error: "filePath required" }));
-      }
-      return true;
-    }
-
-    if (pathName === "/api/search" && req.method === "POST") {
-      let body = "";
-      for await (const chunk of req) body += chunk;
-      const { query, collection, projectName } = JSON.parse(body);
-      const results = await searchCode(query, collection, projectName);
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(results));
-      return true;
-    }
-
-    if (pathName === "/api/chat" && req.method === "POST") {
-      let body = "";
-      for await (const chunk of req) body += chunk;
-      const { query, collection, projectName } = JSON.parse(body);
-      
-      // Get history for context
-      const history = await getChatMessages();
-      
-      const response = await chatWithCode(query, collection, projectName, history);
-      
-      // Persist messages
-      await addChatMessage("user", query);
-      await addChatMessage("assistant", response);
-
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ response }));
-      return true;
-    }
-
-    if (pathName === "/api/chat" && req.method === "GET") {
-      const messages = await getChatMessages();
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(messages));
-      return true;
-    }
-
-    if (pathName === "/api/chat" && req.method === "DELETE") {
-      await clearChatMessages();
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ success: true }));
-      return true;
-    }
-
-    if (pathName === "/api/stats" && req.method === "GET") {
-      const kb = await listKnowledgeBase();
-      const projectCount = Object.values(kb).reduce((acc, p) => acc + p.length, 0);
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({
-        collections: Object.keys(kb).length,
-        projects: projectCount,
-        status: "active"
-      }));
-      return true;
-    }
-
-    if (pathName === "/api/open" && req.method === "POST") {
-      let body = "";
-      for await (const chunk of req) body += chunk;
-      const { filePath } = JSON.parse(body);
-      await openFile(filePath);
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ success: true }));
-      return true;
-    }
-
-    if (pathName === "/api/config" && req.method === "GET") {
-      const config = await loadConfig();
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(config));
-      return true;
-    }
-
-    if (pathName === "/api/config" && req.method === "POST") {
-      let body = "";
-      for await (const chunk of req) body += chunk;
-      const newConfig = JSON.parse(body);
-      
-      await saveConfig(newConfig);
-
-      // Re-initialize managers with new config
-      const providerConfig = {
-        type: (newConfig.provider === "lmstudio" ? "openai" : newConfig.provider) || "local",
-        modelName: newConfig.embeddingModel || "Xenova/bge-small-en-v1.5",
-        baseUrl: newConfig.provider === "ollama" ? newConfig.ollamaUrl :
-          (newConfig.provider === "openai" || newConfig.provider === "lmstudio") ? newConfig.openaiBaseUrl : undefined,
-        apiKey: newConfig.provider === "gemini" ? newConfig.geminiKey :
-          newConfig.provider === "cloudflare" ? newConfig.cloudflareToken :
-            (newConfig.provider === "zai" || newConfig.provider === "zai-coding") ? newConfig.zaiKey :
-              newConfig.openaiKey,
-        accountId: newConfig.cloudflareAccountId,
-        awsRegion: newConfig.awsRegion,
-        awsProfile: newConfig.awsProfile
-      };
-
-      const llmConfig = {
-        type: (newConfig.llmProvider === "lmstudio" ? "openai" : newConfig.llmProvider || newConfig.provider) || "local",
-        modelName: newConfig.llmModel || newConfig.embeddingModel || "Xenova/distilbart-cnn-6-6",
-        baseUrl: (newConfig.llmProvider || newConfig.provider) === "ollama" ? newConfig.ollamaUrl :
-          ((newConfig.llmProvider || newConfig.provider) === "openai" || (newConfig.llmProvider || newConfig.provider) === "lmstudio") ? newConfig.openaiBaseUrl : undefined,
-        apiKey: (newConfig.llmProvider || newConfig.provider) === "gemini" ? newConfig.geminiKey :
-          (newConfig.llmProvider || newConfig.provider) === "cloudflare" ? newConfig.cloudflareToken :
-            ((newConfig.llmProvider || newConfig.provider) === "zai" || (newConfig.llmProvider || newConfig.provider) === "zai-coding") ? newConfig.zaiKey :
-              newConfig.openaiKey,
-        accountId: newConfig.cloudflareAccountId,
-        awsRegion: newConfig.awsRegion,
-        awsProfile: newConfig.awsProfile
-      };
-
-      await embeddingManager.setProvider(providerConfig);
-      await summarizerManager.setProvider(llmConfig);
-
-      await initDB({
-        type: newConfig.dbProvider || "local",
-        accountId: newConfig.cloudflareAccountId,
-        apiToken: newConfig.cloudflareToken,
-        indexName: newConfig.cloudflareVectorizeIndex
-      });
-
-      await initWatcher();
-
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ success: true }));
-      return true;
-    }
-
-    if (pathName === "/api/watchers" && req.method === "GET") {
-      const watchers = await getWatchList();
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(watchers));
-      return true;
-    }
-
-    if (pathName === "/api/watchers" && req.method === "POST") {
-      let body = "";
-      for await (const chunk of req) body += chunk;
-      const { folderPath, projectName, collection } = JSON.parse(body);
-      await watchProject(folderPath, projectName, collection);
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ success: true }));
-      return true;
-    }
-
-    if (pathName === "/api/watchers" && req.method === "DELETE") {
-      const folderPath = url.searchParams.get("folderPath");
-      if (folderPath) {
-        await unwatchProject(folderPath);
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ success: true }));
-      } else {
-        res.writeHead(400);
-        res.end(JSON.stringify({ error: "folderPath required" }));
-      }
-      return true;
-    }
-
-    if (pathName === "/api/graph" && req.method === "GET") {
-      const deps = await getAllDependencies();
-      const nodes = [];
-      const links = [];
-      
-      if (!deps || deps.length === 0) {
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ nodes, links }));
-        return true;
-      }
-
-      const nodeMap = new Map();
-
-      for (const d of deps) {
-        if (!nodeMap.has(d.filePath)) {
-          const node = { 
-            id: d.filePath, 
-            label: path.basename(d.filePath), 
-            group: d.projectName,
-            collection: d.collection
-          };
-          nodes.push(node);
-          nodeMap.set(d.filePath, node);
-        }
-      }
-
-      for (const d of deps) {
-        const imports = JSON.parse(d.imports);
-        for (const imp of imports) {
-          const target = deps.find(other => 
-            other.filePath.endsWith(imp.source) || 
-            other.filePath.endsWith(imp.source + ".ts") ||
-            other.filePath.endsWith(imp.source + ".js") ||
-            other.filePath.endsWith(imp.source + ".dart") ||
-            other.filePath.endsWith(imp.source + ".java") ||
-            other.filePath.endsWith(imp.source + ".kt")
-          );
-
-          if (target && target.filePath !== d.filePath) {
-            links.push({ source: d.filePath, target: target.filePath });
-          }
-        }
-      }
-
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ nodes, links }));
-      return true;
-    }
-  } catch (err) {
-    if (!res.headersSent) {
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: err.message }));
-    }
-    return true;
   }
-
-  return false;
-}
+  return c.json({ nodes, links });
+});

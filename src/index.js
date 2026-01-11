@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import http from "http";
+import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Command } from "commander";
+import fs from "fs-extra";
 import { logger, LogLevel } from "./logger.js";
 import { configureEnvironment, embeddingManager, summarizerManager } from "./embeddings.js";
 import { closeDb, compactDatabase, initDB } from "./db.js";
 import { handleIndexFolder } from "./core.js";
-import { server, handleApiRequest } from "./server.js";
+import { server, app } from "./server.js";
 import { initWatcher } from "./watcher.js";
 import { loadConfig, interactiveConfig } from "./config.js";
 import { interactiveSearch } from "./tui.js";
-import sirv from "sirv";
 import { fileURLToPath } from "url";
 import path from "path";
 
@@ -26,38 +27,34 @@ async function startServer(mode, port, isUI = false) {
     const transport = new StreamableHTTPServerTransport({ endpoint: "/mcp" });
     await server.connect(transport);
 
-    const assets = isUI ? sirv(path.join(__dirname, "../ui/dist"), { dev: false, single: true }) : null;
-
-    const httpServer = http.createServer(async (req, res) => {
-      const url = new URL(req.url, `http://${req.headers.host}`);
-      const pathName = url.pathname;
-
-      // 1. Handle API requests
-      if (pathName.startsWith("/api/")) {
-        const isApi = await handleApiRequest(req, res);
-        if (isApi) return;
-      }
-
-      // 2. Handle MCP transport (only on /mcp path)
-      if (pathName === "/mcp") {
-        try {
-          await transport.handleRequest(req, res);
-          return;
-        } catch (err) {
-          logger.error("Error handling MCP request:", err);
-        }
-      }
-
-      // 3. Handle UI assets (fallback)
-      if (assets && !res.headersSent) {
-        assets(req, res);
-      } else if (!res.headersSent) {
-        res.writeHead(404);
-        res.end("Not Found");
-      }
+    // MCP Transport handler via Hono (using Node.js adapter raw req/res)
+    app.all('/mcp', async (c) => {
+      // @ts-ignore - node-server specific
+      const nodeReq = c.env.incoming;
+      // @ts-ignore - node-server specific
+      const nodeRes = c.env.outgoing;
+      await transport.handleRequest(nodeReq, nodeRes);
     });
-    
-    httpServer.listen(port);
+
+    if (isUI) {
+      const distPath = path.join(__dirname, "../ui/dist");
+      app.use('/*', serveStatic({ root: path.relative(process.cwd(), distPath) }));
+      // Fallback for SPA
+      app.get('*', async (c, next) => {
+        const url = new URL(c.req.url);
+        if (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/mcp')) {
+          const html = await fs.readFile(path.join(distPath, "index.html"), "utf-8");
+          return c.html(html);
+        }
+        return next();
+      });
+    }
+
+    serve({
+      fetch: app.fetch,
+      port
+    });
+
     if (isUI || !isSSE) {
       if (isUI) console.log(`\nVibeScout Web UI available at: http://localhost:${port}`);
       console.log(`MCP Endpoint available at: http://localhost:${port}/mcp`);
@@ -79,7 +76,7 @@ async function main() {
   program
     .name("vibescout")
     .description("Local Code Search MCP Server")
-    .version("0.1.0")
+    .version("0.5.0")
     .option("--models-path <path>", "Path to local models directory", config.modelsPath || process.env.MODELS_PATH)
     .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
     .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", "stdio")
