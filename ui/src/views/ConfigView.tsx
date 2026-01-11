@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, AlertCircle, Eye, EyeOff, Settings, MessagesSquare } from 'lucide-react';
+import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, AlertCircle, Eye, EyeOff, Settings, MessagesSquare, Zap, Plus, X } from 'lucide-react';
 import axios from 'axios';
 import modelsData from '../models.json';
 
@@ -26,6 +26,7 @@ interface Config {
   port: number;
   summarize: boolean;
   verbose: boolean;
+  throttlingErrors: string[];
 }
 
 export default function ConfigView() {
@@ -34,6 +35,7 @@ export default function ConfigView() {
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [showKeys, setShowKeys] = useState(false);
+  const [newErrorPattern, setNewErrorPattern] = useState('');
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -75,6 +77,19 @@ export default function ConfigView() {
 
   const updateConfig = (key: keyof Config, value: any) => {
     setConfig(prev => prev ? { ...prev, [key]: value } : null);
+  };
+
+  const addErrorPattern = () => {
+    if (!newErrorPattern.trim() || !config) return;
+    if (config.throttlingErrors.includes(newErrorPattern.trim())) return;
+    
+    updateConfig('throttlingErrors', [...config.throttlingErrors, newErrorPattern.trim()]);
+    setNewErrorPattern('');
+  };
+
+  const removeErrorPattern = (pattern: string) => {
+    if (!config) return;
+    updateConfig('throttlingErrors', config.throttlingErrors.filter(p => p !== pattern));
   };
 
   const renderProviderFields = (providerType: string) => {
@@ -463,6 +478,56 @@ export default function ConfigView() {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* Throttling & Resilience Section */}
+        <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+          <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Zap size={20} className="text-primary" />
+              <h3 className="font-bold tracking-tight text-lg text-foreground">Throttling & Resilience</h3>
+            </div>
+            <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
+              Adaptive Control
+            </div>
+          </div>
+          <div className="p-8 space-y-6">
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Throttling Error Patterns</label>
+                <p className="text-[10px] text-muted-foreground px-1 mb-3">If any of these strings appear in an API error, VibeScout will automatically reduce concurrency and retry.</p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {config?.throttlingErrors.map(pattern => (
+                    <span key={pattern} className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary border border-border rounded-xl text-xs font-mono text-foreground group">
+                      {pattern}
+                      <button 
+                        onClick={() => removeErrorPattern(pattern)}
+                        className="text-muted-foreground hover:text-red-400 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Add error message or code (e.g. 1302)"
+                    value={newErrorPattern}
+                    onChange={(e) => setNewErrorPattern(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addErrorPattern()}
+                    className="flex-1 bg-secondary border border-border rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary transition-all"
+                  />
+                  <button 
+                    onClick={addErrorPattern}
+                    className="bg-secondary border border-border hover:border-primary/50 p-2 rounded-xl text-muted-foreground hover:text-primary transition-all"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
