@@ -36,6 +36,9 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
       if (!response.ok) {
         const error = await response.text();
         debugStore.updateError(requestId, error);
+        if (response.status === 404) {
+          throw new Error(`Ollama model "${this.modelName}" not found. Please run 'ollama pull ${this.modelName}' in your terminal.`);
+        }
         throw new Error(`Ollama error: ${response.statusText} - ${error}`);
       }
 
@@ -70,6 +73,9 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
       if (!response.ok) {
         const error = await response.text();
         debugStore.updateError(requestId, error);
+        if (response.status === 404) {
+          throw new Error(`Ollama model "${this.modelName}" not found. Please run 'ollama pull ${this.modelName}' in your terminal.`);
+        }
         throw new Error(`Ollama error: ${response.statusText}`);
       }
 
@@ -108,6 +114,9 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
       if (!response.ok) {
         const error = await response.text();
         debugStore.updateError(requestId, error);
+        if (response.status === 404) {
+          throw new Error(`Ollama model "${this.modelName}" not found. Please run 'ollama pull ${this.modelName}' in your terminal.`);
+        }
         throw new Error(`Ollama error: ${response.statusText}`);
       }
 
