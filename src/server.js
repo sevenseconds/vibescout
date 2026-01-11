@@ -20,14 +20,14 @@ import {
   getFileDependencies,
   getAllDependencies,
   findSymbolUsages,
-  moveProjectToCollection,
-  getWatchList,
-  addChatMessage,
-  getChatMessages,
-  clearChatMessages,
-  initDB
-} from "./db.js";import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
-import { embeddingManager, summarizerManager } from "./embeddings.js";
+    moveProjectToCollection, 
+    getWatchList,
+    addChatMessage,
+    getChatMessages,
+    clearChatMessages,
+    initDB,
+    deleteProject
+  } from "./db.js";import { watchProject, unwatchProject, initWatcher } from "./watcher.js";import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig, saveConfig } from "./config.js";
 
 export const server = new Server(
@@ -235,6 +235,39 @@ export async function handleApiRequest(req, res) {
       const kb = await listKnowledgeBase();
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify(kb));
+      return true;
+    }
+
+    if (pathName === "/api/projects" && req.method === "DELETE") {
+      const projectName = url.searchParams.get("projectName");
+      if (projectName) {
+        await deleteProject(projectName);
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: true }));
+      } else {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: "projectName required" }));
+      }
+      return true;
+    }
+
+    if (pathName === "/api/index" && req.method === "POST") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const { folderPath, projectName, collection, summarize } = JSON.parse(body);
+      
+      // Trigger indexing in background
+      handleIndexFolder(folderPath, projectName, collection || "default", summarize !== false, true)
+        .catch(err => logger.error(`Background indexing error: ${err.message}`));
+
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ success: true, message: "Indexing started in background" }));
+      return true;
+    }
+
+    if (pathName === "/api/index/status" && req.method === "GET") {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(indexingProgress));
       return true;
     }
 

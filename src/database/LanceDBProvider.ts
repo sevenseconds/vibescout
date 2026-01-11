@@ -84,6 +84,11 @@ export class LanceDBProvider implements VectorDBProvider {
     if (table) await table.delete(`"filePath" = '${filePath}'`);
   }
 
+  async deleteByProject(projectName: string): Promise<void> {
+    const table = await this.getTable();
+    if (table) await table.delete(`"projectName" = '${projectName}'`);
+  }
+
   async clear(): Promise<void> {
     if (this.activeDb) {
       this.activeDb = null;

@@ -18,6 +18,7 @@ export interface VectorDBProvider {
   insert(data: VectorResult[]): Promise<void>;
   search(embedding: number[], options: { collection?: string; projectName?: string; limit?: number }): Promise<VectorResult[]>;
   deleteByFile(filePath: string): Promise<void>;
+  deleteByProject(projectName: string): Promise<void>;
   clear(): Promise<void>;
 }
 

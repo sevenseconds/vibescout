@@ -117,6 +117,10 @@ export class VectorizeProvider implements VectorDBProvider {
     logger.debug(`File-level deletion requested for ${filePath} in Vectorize mode. (Note: Pruning requires IDs)`);
   }
 
+  async deleteByProject(projectName: string): Promise<void> {
+    logger.debug(`Project-level deletion requested for ${projectName} in Vectorize mode. (Note: Pruning requires IDs)`);
+  }
+
   async clear(): Promise<void> {
     // Not safely implemented via REST to avoid accidental data loss.
     logger.warn("Clear database requested in Vectorize mode. Please use Cloudflare Dashboard to reset your index.");
