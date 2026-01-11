@@ -120,6 +120,11 @@ export default function KBView({ onExplore }: KBViewProps) {
     fetchData();
   };
 
+  const handleRetry = async () => {
+    await axios.post('/api/index/retry');
+    fetchData();
+  };
+
   const handleDeleteProject = async (projectName: string) => {
     if (!confirm(`Are you sure you want to delete "${projectName}" from the index? This cannot be undone.`)) return;
     try {
@@ -260,13 +265,22 @@ export default function KBView({ onExplore }: KBViewProps) {
                 </button>
               )}
               {indexProgress?.status === 'completed_with_errors' && (
-                <button 
-                  onClick={() => setIndexProgress(null)}
-                  className="p-2 hover:bg-red-500/10 rounded-xl text-red-500 transition-colors"
-                  title="Dismiss"
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleRetry}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500 text-white rounded-xl font-bold text-xs hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                    title="Retry Failed Files"
+                  >
+                    <RefreshCw size={14} /> Retry
+                  </button>
+                  <button 
+                    onClick={() => setIndexProgress(null)}
+                    className="p-2 hover:bg-red-500/10 rounded-xl text-red-500 transition-colors"
+                    title="Dismiss"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               )}
               <span className="text-sm font-mono font-bold">
                 {indexProgress?.processedFiles} / {indexProgress?.totalFiles} files
