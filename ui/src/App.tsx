@@ -1,5 +1,13 @@
 import { useState } from 'react';
 import { 
+  BrowserRouter as Router, 
+  Routes, 
+  Route, 
+  NavLink, 
+  useNavigate,
+  Navigate
+} from 'react-router-dom';
+import { 
   Search, 
   Database, 
   Settings, 
@@ -23,28 +31,28 @@ import GraphView from './views/GraphView';
 import LiveLogs from './components/LiveLogs';
 import NotificationTray from './components/NotificationTray';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState<'search' | 'kb' | 'config' | 'chat' | 'graph'>('search');
+function AppContent() {
+  const navigate = useNavigate();
   const [searchFilters, setSearchFilters] = useState<{ projectName?: string; collection?: string }>({});
   const [chatPreFill, setChatPreFill] = useState<{ query?: string; projectName?: string; collection?: string; fileTypes?: string[] }>({});
 
-  const navigateToSearch = (filters: { projectName?: string; collection?: string }) => {
+  const handleExploreProject = (filters: { projectName?: string; collection?: string }) => {
     setSearchFilters(filters);
-    setActiveTab('search');
+    navigate('/search');
   };
 
-  const navigateToChat = (data: { query?: string; projectName?: string; collection?: string; fileTypes?: string[] }) => {
+  const handleAskChat = (data: { query?: string; projectName?: string; collection?: string; fileTypes?: string[] }) => {
     setChatPreFill(data);
-    setActiveTab('chat');
+    navigate('/chat');
   };
 
   const navItems = [
-    { id: 'search', label: 'Search', icon: Search },
-    { id: 'chat', label: 'Chat', icon: Sparkles },
-    { id: 'graph', label: 'Graph', icon: Share2 },
-    { id: 'kb', label: 'Knowledge Base', icon: Database },
-    { id: 'config', label: 'Settings', icon: Settings },
-  ] as const;
+    { path: '/search', label: 'Search', icon: Search },
+    { path: '/chat', label: 'Chat', icon: Sparkles },
+    { path: '/graph', label: 'Graph', icon: Share2 },
+    { path: '/kb', label: 'Knowledge Base', icon: Database },
+    { path: '/config', label: 'Settings', icon: Settings },
+  ];
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans">
@@ -62,19 +70,23 @@ export default function App() {
 
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={cn(
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) => cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 group text-sm font-bold",
-                activeTab === item.id 
+                isActive 
                   ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
             >
-              <item.icon size={20} className={cn(activeTab === item.id ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />
-              {item.label}
-            </button>
+              {({ isActive }) => (
+                <>
+                  <item.icon size={20} className={cn(isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />
+                  {item.label}
+                </>
+              )}
+            </NavLink>
           ))}
         </nav>
 
@@ -91,25 +103,36 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-h-0 relative">
         <div className="flex-1 overflow-auto w-full">
-          {activeTab === 'search' && (
-            <SearchView 
-              initialFilters={searchFilters} 
-              onFiltersClear={() => setSearchFilters({})} 
-              onAskChat={navigateToChat}
-            />
-          )}
-          {activeTab === 'chat' && (
-            <ChatView 
-              preFill={chatPreFill} 
-              onPreFillClear={() => setChatPreFill({})} 
-            />
-          )}
-          {activeTab === 'graph' && <GraphView />}
-          {activeTab === 'kb' && <KBView onExplore={navigateToSearch} />}
-          {activeTab === 'config' && <ConfigView />}
+          <Routes>
+            <Route path="/" element={<Navigate to="/search" replace />} />
+            <Route path="/search" element={
+              <SearchView 
+                initialFilters={searchFilters} 
+                onFiltersClear={() => setSearchFilters({})} 
+                onAskChat={handleAskChat}
+              />
+            } />
+            <Route path="/chat" element={
+              <ChatView 
+                preFill={chatPreFill} 
+                onPreFillClear={() => setChatPreFill({})} 
+              />
+            } />
+            <Route path="/graph" element={<GraphView />} />
+            <Route path="/kb" element={<KBView onExplore={handleExploreProject} />} />
+            <Route path="/config" element={<ConfigView />} />
+          </Routes>
         </div>
         <LiveLogs />
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   );
 }
