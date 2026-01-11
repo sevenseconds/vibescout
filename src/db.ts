@@ -383,6 +383,7 @@ export async function compactDatabase() {
 }
 
 export async function deleteProject(projectName: string) {
+  logger.info(`[DB] Attempting to delete project index: ${projectName}`);
   const db = await getMetaDb();
   const tables = await db.tableNames();
   
@@ -392,15 +393,18 @@ export async function deleteProject(projectName: string) {
     const depTable = await db.openTable("dependencies");
     const records = await depTable.query().where(`"projectName" = '${projectName}'`).select(["filePath"]).toArray();
     projectFiles = records.map(r => r.filePath);
+    logger.debug(`[DB] Found ${projectFiles.length} files to clear from cache for ${projectName}`);
   }
 
   // 2. Delete from vector store
   await getProvider().deleteByProject(projectName);
+  logger.info(`[DB] Successfully deleted ${projectName} from vector store.`);
 
   // 3. Delete from dependencies
   if (tables.includes("dependencies")) {
     const depTable = await db.openTable("dependencies");
     await depTable.delete(`"projectName" = '${projectName}'`);
+    logger.info(`[DB] Successfully deleted ${projectName} from dependencies table.`);
   }
 
   // 4. Clear file hashes so it can be re-indexed
@@ -410,6 +414,7 @@ export async function deleteProject(projectName: string) {
       delete hashes[fp];
     }
     await saveHashes(hashes);
+    logger.debug(`[DB] Successfully cleared ${projectFiles.length} file hashes for ${projectName}.`);
   }
 }
 
