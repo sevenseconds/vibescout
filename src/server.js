@@ -381,6 +381,20 @@ app.post('/api/open', async (c) => {
   return c.json({ success: true });
 });
 
+app.get('/api/dialog/directory', async (c) => {
+  const dialog = (await import('node-file-dialog')).default;
+  try {
+    const dir = await dialog({ type: 'directory' });
+    if (dir && dir.length > 0) {
+      return c.json({ path: dir[0] });
+    }
+    return c.json({ path: null });
+  } catch (err) {
+    logger.error(`Dialog error: ${err.message}`);
+    return c.json({ error: 'Failed to open dialog' }, 500);
+  }
+});
+
 app.get('/api/config', async (c) => {
   const config = await loadConfig();
   return c.json(config);
