@@ -203,7 +203,7 @@ export default function GraphView() {
     <div className="h-full w-full flex relative bg-[#0a0a0a] overflow-hidden">
       {/* Side Panel */}
       <div className={cn(
-        "absolute top-0 right-0 h-full w-96 bg-card border-l border-border z-20 transition-transform duration-300 transform shadow-2xl overflow-y-auto",
+        "absolute top-0 right-0 h-full w-96 bg-card/95 backdrop-blur-md border-l border-border z-[100] transition-transform duration-300 transform shadow-2xl overflow-y-auto",
         (selectedNode || cycles.length > 0) ? "translate-x-0" : "translate-x-full"
       )}>
         <div className="p-6 space-y-8 pb-20">
