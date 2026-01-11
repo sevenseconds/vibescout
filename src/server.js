@@ -423,10 +423,10 @@ app.post('/api/test/llm', async (c) => {
         awsProfile: body.awsProfile
       };
       await tempManager.setProvider(llmConfig, body.throttlingErrors);
-      manager = tempManager as any;
+      manager = tempManager;
     }
 
-    const response = await (manager as any).generateResponse("Hi", "You are a connectivity test.");
+    const response = await manager.generateResponse("Hi", "You are a connectivity test.");
     return c.json({ success: true, message: `Successfully reached LLM: "${response.substring(0, 50)}..."` });
   } catch (err) {
     return c.json({ success: false, error: err.message }, 500);
