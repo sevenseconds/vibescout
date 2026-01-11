@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, AlertCircle, Eye, EyeOff, Settings, MessagesSquare } from 'lucide-react';
 import axios from 'axios';
+import modelsData from '../models.json';
+
+const EMBEDDING_MODELS: Record<string, string[]> = modelsData.embedding;
+const CHAT_MODELS: Record<string, string[]> = modelsData.chat;
 
 interface Config {
   provider: string;
@@ -23,93 +27,6 @@ interface Config {
   summarize: boolean;
   verbose: boolean;
 }
-
-const EMBEDDING_MODELS: Record<string, string[]> = {
-  local: [
-    "Xenova/bge-small-en-v1.5",
-    "Xenova/all-MiniLM-L6-v2",
-    "Xenova/bge-base-en-v1.5",
-    "Xenova/paraphrase-multilingual-MiniLM-L12-v2"
-  ],
-  openai: [
-    "text-embedding-3-small",
-    "text-embedding-3-large",
-    "text-embedding-ada-002"
-  ],
-  gemini: [
-    "text-embedding-004"
-  ],
-  ollama: [
-    "nomic-embed-text",
-    "all-minilm",
-    "mxbai-embed-large"
-  ],
-  cloudflare: [
-    "@cf/baai/bge-small-en-v1.5",
-    "@cf/baai/bge-base-en-v1.5",
-    "@cf/baai/bge-large-en-v1.5"
-  ],
-  bedrock: [
-    "amazon.titan-embed-text-v1"
-  ],
-  zai: [
-    "embedding-2",
-    "embedding-3"
-  ],
-  lmstudio: [
-    "local-model"
-  ]
-};
-
-const CHAT_MODELS: Record<string, string[]> = {
-  local: [
-    "Xenova/distilbart-cnn-6-6"
-  ],
-  openai: [
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4-turbo",
-    "gpt-3.5-turbo"
-  ],
-  gemini: [
-    "gemini-1.5-pro",
-    "gemini-1.5-flash"
-  ],
-  ollama: [
-    "llama3",
-    "mistral",
-    "phi3",
-    "gemma2"
-  ],
-  cloudflare: [
-    "@cf/meta/llama-3-8b-instruct",
-    "@cf/qwen/qwen1.5-7b-chat-awq"
-  ],
-  bedrock: [
-    "anthropic.claude-3-sonnet-20240229-v1:0",
-    "anthropic.claude-3-haiku-20240307-v1:0"
-  ],
-  zai: [
-    "glm-4-plus",
-    "glm-4-0520",
-    "glm-4-air",
-    "glm-4-air-x",
-    "glm-4-flash",
-    "codegeex-4"
-  ],
-  "zai-coding": [
-    "glm-4.5",
-    "glm-4.5-air",
-    "glm-4.5-flash",
-    "glm-4.5v",
-    "glm-4.6",
-    "glm-4.6v",
-    "glm-4.7"
-  ],
-  lmstudio: [
-    "local-model"
-  ]
-};
 
 export default function ConfigView() {
   const [config, setConfig] = useState<Config | null>(null);
