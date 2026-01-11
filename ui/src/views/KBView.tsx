@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play } from 'lucide-react';
+import { Database, FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -25,6 +25,8 @@ interface IndexProgress {
   projectName: string;
   totalFiles: number;
   processedFiles: number;
+  failedFiles: number;
+  lastError: string | null;
   status: string;
 }
 
@@ -121,13 +123,27 @@ export default function KBView({ onExplore }: KBViewProps) {
   const handleDeleteProject = async (projectName: string) => {
     if (!confirm(`Are you sure you want to delete "${projectName}" from the index? This cannot be undone.`)) return;
     try {
-      // Optimistic UI update for the index list
+      // Optimistic UI update for the index list and stats
+      let deletedProjectCollectionCount = 0;
       setKb(prev => {
         const next = { ...prev };
         for (const col in next) {
-          next[col] = next[col].filter(p => p !== projectName);
+          const filtered = next[col].filter(p => p !== projectName);
+          if (filtered.length !== next[col].length) {
+            deletedProjectCollectionCount++;
+            next[col] = filtered;
+          }
           if (next[col].length === 0) delete next[col];
         }
+        
+        // Recalculate stats based on new KB structure
+        const projectCount = Object.values(next).reduce((acc, p) => acc + p.length, 0);
+        setStats(prev => ({
+          ...prev,
+          projects: projectCount,
+          collections: Object.keys(next).length
+        }));
+
         return next;
       });
 
@@ -200,50 +216,76 @@ export default function KBView({ onExplore }: KBViewProps) {
       </div>
 
       {/* Indexing Progress Bar */}
-      {(indexProgress?.active || indexProgress?.status === 'paused') && (
+      {(indexProgress?.active || indexProgress?.status === 'paused' || indexProgress?.status === 'completed_with_errors') && (
         <div className={cn(
           "bg-primary/5 border border-primary/20 p-6 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-300",
-          indexProgress?.status === 'paused' && "bg-amber-500/5 border-amber-500/20"
+          indexProgress?.status === 'paused' && "bg-amber-500/5 border-amber-500/20",
+          indexProgress?.status === 'completed_with_errors' && "bg-red-500/5 border-red-500/20"
         )}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {indexProgress?.status === 'paused' ? (
                 <Pause className="text-amber-500" size={20} />
+              ) : indexProgress?.status === 'completed_with_errors' ? (
+                <AlertCircle className="text-red-500" size={20} />
               ) : (
                 <Loader2 className="animate-spin text-primary" size={20} />
               )}
               <div>
                 <h3 className="font-bold text-sm">
-                  {indexProgress?.status === 'paused' ? 'Indexing Paused' : `Indexing "${indexProgress?.projectName}"`}
+                  {indexProgress?.status === 'paused' ? 'Indexing Paused' : 
+                   indexProgress?.status === 'completed_with_errors' ? 'Indexing Finished with Errors' :
+                   `Indexing "${indexProgress?.projectName}"`}
                 </h3>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">
-                  {indexProgress?.status === 'paused' ? 'Queue on hold' : 'Background Task Active'}
+                  {indexProgress?.status === 'paused' ? 'Queue on hold' : 
+                   indexProgress?.status === 'completed_with_errors' ? `${indexProgress?.failedFiles} files failed` :
+                   'Background Task Active'}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <button 
-                onClick={indexProgress?.status === 'paused' ? handleResume : handlePause}
-                className={cn(
-                  "p-2 rounded-xl transition-all shadow-lg active:scale-95",
-                  indexProgress?.status === 'paused' 
-                    ? "bg-amber-500 text-white shadow-amber-500/20" 
-                    : "bg-secondary text-foreground border border-border"
-                )}
-                title={indexProgress?.status === 'paused' ? 'Resume Indexing' : 'Pause Indexing'}
-              >
-                {indexProgress?.status === 'paused' ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
-              </button>
+              {indexProgress?.active && (
+                <button 
+                  onClick={indexProgress?.status === 'paused' ? handleResume : handlePause}
+                  className={cn(
+                    "p-2 rounded-xl transition-all shadow-lg active:scale-95",
+                    indexProgress?.status === 'paused' 
+                      ? "bg-amber-500 text-white shadow-amber-500/20" 
+                      : "bg-secondary text-foreground border border-border"
+                  )}
+                  title={indexProgress?.status === 'paused' ? 'Resume Indexing' : 'Pause Indexing'}
+                >
+                  {indexProgress?.status === 'paused' ? <Play size={16} fill="currentColor" /> : <Pause size={16} fill="currentColor" />}
+                </button>
+              )}
+              {indexProgress?.status === 'completed_with_errors' && (
+                <button 
+                  onClick={() => setIndexProgress(null)}
+                  className="p-2 hover:bg-red-500/10 rounded-xl text-red-500 transition-colors"
+                  title="Dismiss"
+                >
+                  <X size={16} />
+                </button>
+              )}
               <span className="text-sm font-mono font-bold">
                 {indexProgress?.processedFiles} / {indexProgress?.totalFiles} files
               </span>
             </div>
           </div>
+          
+          {indexProgress?.lastError && indexProgress?.status === 'completed_with_errors' && (
+            <p className="text-[10px] font-mono text-red-400/80 bg-red-500/5 p-2 rounded-lg border border-red-500/10 truncate">
+              Last Error: {indexProgress.lastError}
+            </p>
+          )}
+
           <div className="w-full bg-secondary rounded-full h-3 overflow-hidden border border-border/50">
             <div 
               className={cn(
                 "h-full transition-all duration-500 ease-out",
-                indexProgress?.status === 'paused' ? "bg-amber-500" : "bg-primary"
+                indexProgress?.status === 'paused' ? "bg-amber-500" : 
+                indexProgress?.status === 'completed_with_errors' ? "bg-red-500" : "bg-primary"
               )}
               style={{ width: `${((indexProgress?.processedFiles || 0) / (indexProgress?.totalFiles || 1)) * 100}%` }}
             />
