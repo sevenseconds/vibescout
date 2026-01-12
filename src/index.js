@@ -13,6 +13,7 @@ import { server, app } from "./server.js";
 import { initWatcher } from "./watcher.js";
 import { loadConfig, interactiveConfig } from "./config.js";
 import { interactiveSearch } from "./tui.js";
+import pkg from "enquirer";
 import { fileURLToPath } from "url";
 import path from "path";
 
@@ -255,6 +256,30 @@ async function main() {
       console.log(`Compact complete! Pruned ${result.pruned} stale files.`);
       if (result.optimized) console.log("Database storage optimized.");
       await closeDb();
+    });
+
+  program
+    .command("reset")
+    .description("Completely clear the local database and cache")
+    .option("--force", "Skip confirmation prompt")
+    .action(async (options) => {
+      let proceed = !!options.force;
+      
+      if (!proceed) {
+        const prompt = new pkg.Confirm({
+          name: 'question',
+          message: 'Are you sure you want to clear the entire database? This cannot be undone.'
+        });
+        proceed = await prompt.run();
+      }
+
+      if (proceed) {
+        console.log("Clearing database...");
+        await clearDatabase();
+        console.log("Database cleared successfully.");
+      } else {
+        console.log("Reset cancelled.");
+      }
     });
 
   program

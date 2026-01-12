@@ -10,7 +10,8 @@
     "start": "node src/index.js",
     "test": "vitest run --fileParallelism=false",
     "lint": "eslint .",
-    "build:ui": "cd ui && npm run build"
+    "build:ui": "cd ui && npm run build",
+    "reset-db": "node src/index.js reset --force"
   },
   "keywords": [
     "mcp",
