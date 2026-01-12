@@ -568,7 +568,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                         const segments = normalizedPath.split(/[/\\]/);
                         const name = segments.pop() || '';
                         const parent = segments.pop() || '';
-                        
+
                         setNewWatcher(prev => ({
                           ...prev,
                           projectname: prev.projectname || name,
@@ -806,7 +806,7 @@ export default function KBView({ onExplore }: KBViewProps) {
       {/* Test Summarization Modal */}
       {showTestModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-card border border-border w-full max-w-none w-[90vw] h-[85vh] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+          <div className="bg-card border border-border w-full max-w-none w-[80vw] h-[85vh] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="p-6 border-b border-border flex items-center justify-between bg-secondary/30">
               <div className="flex items-center gap-3">
                 <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
@@ -827,7 +827,7 @@ export default function KBView({ onExplore }: KBViewProps) {
 
             <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
               {/* Left Panel: Configuration */}
-              <div className="w-full md:w-1/3 border-r border-border p-6 flex flex-col gap-6 bg-secondary/10 overflow-y-auto">
+              <div className="w-full md:w-1/2 border-r border-border p-6 flex flex-col gap-6 bg-secondary/10 overflow-y-auto">
                 <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Test Target</label>
                   <div className="flex gap-2 p-1 bg-secondary rounded-xl">
