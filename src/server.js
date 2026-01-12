@@ -475,8 +475,13 @@ app.post('/api/test/llm', async (c) => {
 
 app.post('/api/test/summarize-file', async (c) => {
   try {
-    const { folderPath, type = 'code', customPrompt } = await c.req.json();
+    let { folderPath, type = 'code', customPrompt } = await c.req.json();
     if (!folderPath) return c.json({ error: 'Folder path required' }, 400);
+
+    // Expand tilde
+    if (folderPath.startsWith('~/') || folderPath === '~') {
+      folderPath = path.join(os.homedir(), folderPath.slice(1));
+    }
 
     const patterns = type === 'docs' 
       ? ['**/*.md', '**/*.txt', 'README.md'] 
@@ -485,7 +490,7 @@ app.post('/api/test/summarize-file', async (c) => {
     // Find a random file
     const absolutePath = path.resolve(folderPath);
     if (!await fs.pathExists(absolutePath)) {
-      return c.json({ error: 'Folder does not exist' }, 404);
+      return c.json({ error: `Folder does not exist: ${absolutePath}` }, 404);
     }
 
     const files = await glob(patterns, { 

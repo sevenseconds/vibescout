@@ -263,6 +263,24 @@ export default function KBView({ onExplore }: KBViewProps) {
       }
     };
   
+    const openTestModal = async () => {
+      setTesting(true); // Show loading state on button or just wait
+      try {
+        const configRes = await axios.get('/api/config');
+        const activeId = configRes.data.prompts?.activeSummarizeId || 'default';
+        const template = configRes.data.prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
+        setTestPrompt(template?.text || "Summarize this code:\n\n{{code}}");
+        setShowTestModal(true);
+      } catch (err) {
+        console.error('Failed to load prompts for test:', err);
+        // Fallback to default
+        setTestPrompt("Summarize this code:\n\n{{code}}");
+        setShowTestModal(true);
+      } finally {
+        setTesting(false);
+      }
+    };
+  
     const handleTestSummarization = async () => {
       if (!newWatcher.folderpath) {
         alert("Please enter a folder path first.");
@@ -271,14 +289,6 @@ export default function KBView({ onExplore }: KBViewProps) {
       setTesting(true);
       setTestResult(null);
       try {
-        // Load current prompt if empty
-        if (!testPrompt) {
-          const configRes = await axios.get('/api/config');
-          const activeId = configRes.data.prompts?.activeSummarizeId || 'default';
-          const template = configRes.data.prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
-          setTestPrompt(template?.text || "Summarize this code:\n\n{{code}}");
-        }
-  
         const res = await axios.post('/api/test/summarize-file', {
           folderPath: newWatcher.folderpath,
           type: testTarget,
@@ -559,7 +569,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                 </button>
                 {summarize && (
                   <button
-                    onClick={() => setShowTestModal(true)}
+                    onClick={openTestModal}
                     className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-xl font-bold text-xs hover:bg-secondary/80 transition-all text-muted-foreground hover:text-foreground"
                   >
                     <Wand2 size={14} /> Test AI Summarization
