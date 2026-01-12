@@ -34,6 +34,7 @@ interface Config {
   summarize: boolean;
   verbose: boolean;
   offline: boolean;
+  useReranker: boolean;
   watchDirectories: string[] | null;
   fileTypes: Record<string, {
     extensions: string[];
@@ -397,6 +398,38 @@ export default function ConfigView() {
                     )}
                   >
                     {config?.offline ? "Offline" : "Online"}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm text-foreground">AI Reranker</h4>
+                      <Zap size={14} className="text-primary" />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Use a second-pass model to re-sort results for extreme accuracy</p>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      if (!config) return;
+                      const newUseReranker = !config.useReranker;
+                      const newConfig = { ...config, useReranker: newUseReranker };
+                      setConfig(newConfig);
+                      setSaving(true);
+                      try {
+                        await axios.post('/api/config', newConfig);
+                        setSaveStatus('success');
+                        setTimeout(() => setSaveStatus('idle'), 3000);
+                      } finally {
+                        setSaving(false);
+                      }
+                    }} 
+                    className={cn(
+                      "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                      config?.useReranker ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                    )}
+                  >
+                    {config?.useReranker ? "Active" : "Disabled"}
                   </button>
                 </div>
               </div>

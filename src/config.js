@@ -36,6 +36,7 @@ const DEFAULT_CONFIG = {
   summarize: true,
   verbose: false,
   offline: false,
+  useReranker: true,
   // Directories to watch (relative to project root)
   // Set to null or [] to watch the entire project root
   // Set to ["src", "lib", "components"] to watch only specific directories
@@ -324,6 +325,12 @@ export async function interactiveConfig() {
       initial: currentConfig.offline
     });
     const offline = await offlinePrompt.run();
+
+    const rerankerPrompt = new Toggle({
+      message: "Use AI Reranker for higher search accuracy? (Requires local model)",
+      initial: currentConfig.useReranker
+    });
+    const useReranker = await rerankerPrompt.run();
     
     const newConfig = {
       provider,
@@ -343,7 +350,8 @@ export async function interactiveConfig() {
       port: parseInt(answers.port) || 3000,
       summarize,
       verbose,
-      offline
+      offline,
+      useReranker
     };
 
     await saveConfig(newConfig);
