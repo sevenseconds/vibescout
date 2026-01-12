@@ -14,6 +14,7 @@ import { initWatcher } from "./watcher.js";
 import { loadConfig, interactiveConfig } from "./config.js";
 import { interactiveSearch } from "./tui.js";
 import { createRequire } from "module";
+import { getRegistry } from "./plugin-system/registry.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require("../package.json");
@@ -107,7 +108,8 @@ async function main() {
     .option("--port <number>", "Port for sse or http mode", config.port || process.env.PORT || 3000)
     .option("--log-level <level>", "Log level (debug, info, warn, error, none)", "info")
     .option("--verbose", "Enable verbose logging (alias for --log-level debug)", config.verbose || false)
-    .option("--force", "Force full re-index of all watched projects on startup", false);
+    .option("--force", "Force full re-index of all watched projects on startup", false)
+    .option("--no-plugins", "Disable plugin system", false);
 
   program.hook("preAction", async (thisCommand) => {
     const opts = thisCommand.opts();
@@ -125,6 +127,13 @@ async function main() {
       }
     }
     logger.setLevel(level);
+
+    // Initialize plugin system (before other services)
+    if (opts.plugins !== false) {
+      const registry = getRegistry();
+      await registry.loadAll(config.plugin || {});
+      logger.info(`[Plugin System] Loaded ${registry.getPlugins().length} plugin(s)`);
+    }
 
     configureEnvironment(opts.modelsPath, opts.offline);
 
@@ -243,6 +252,175 @@ async function main() {
     .action(async (query) => {
       await interactiveSearch(query);
       await closeDb();
+    });
+
+  // Plugin management commands
+  const pluginCommand = program
+    .command("plugin")
+    .description("Manage plugins");
+
+  pluginCommand
+    .command("list")
+    .description("List all installed plugins")
+    .action(async () => {
+      const registry = getRegistry();
+      const plugins = await registry.getPluginInfo();
+
+      if (plugins.length === 0) {
+        console.log("No plugins found.");
+        console.log("\nInstall plugins with: npm install -g vibescout-plugin-<name>");
+        console.log("Or add local plugins to: ~/.vibescout/plugins/");
+        return;
+      }
+
+      console.log("\nInstalled Plugins:\n");
+      plugins.forEach(p => {
+        const status = p.loaded ? "✓" : "✗";
+        const source = p.source === 'npm' ? 'npm' : 'local';
+        console.log(`  ${status} ${p.name} v${p.version} (${source})`);
+        if (p.error) {
+          console.log(`    Error: ${p.error}`);
+        }
+      });
+    });
+
+  pluginCommand
+    .command("info")
+    .argument("<name>", "Plugin name")
+    .description("Show detailed information about a plugin")
+    .action(async (name) => {
+      const registry = getRegistry();
+      const plugins = await registry.getPluginInfo();
+      const plugin = plugins.find(p => p.name === name);
+
+      if (!plugin) {
+        console.log(`Plugin '${name}' not found.`);
+        return;
+      }
+
+      console.log(`\nPlugin: ${plugin.name}`);
+      console.log(`Version: ${plugin.version}`);
+      console.log(`Source: ${plugin.source}`);
+      console.log(`Path: ${plugin.path}`);
+      console.log(`Status: ${plugin.loaded ? 'Loaded' : 'Failed'}`);
+      if (plugin.manifest.vibescout) {
+        console.log(`API Version: ${plugin.manifest.vibescout.apiVersion}`);
+        if (plugin.manifest.vibescout.capabilities) {
+          console.log(`Capabilities: ${plugin.manifest.vibescout.capabilities.join(', ')}`);
+        }
+      }
+      if (plugin.error) {
+        console.log(`Error: ${plugin.error}`);
+      }
+    });
+
+  pluginCommand
+    .command("install")
+    .argument("<name>", "Plugin name (will be prefixed with vibescout-plugin- if not already)")
+    .description("Install a plugin from npm")
+    .option("-g, --global", "Install globally (default)")
+    .action(async (name, options) => {
+      const { execSync } = await import('child_process');
+      const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
+      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      const globalFlag = options.global !== false ? '-g' : '';
+
+      try {
+        console.log(`Installing ${pluginName}...`);
+        const output = execSync(`${cmd} install ${globalFlag} ${pluginName}`, { encoding: 'utf-8' });
+        console.log(output);
+        console.log(`\n✓ Plugin ${pluginName} installed successfully!`);
+      } catch (error) {
+        console.error(`\n✗ Failed to install ${pluginName}:`);
+        console.error(error.stdout || error.stderr || error.message);
+        process.exit(1);
+      }
+    });
+
+  pluginCommand
+    .command("uninstall")
+    .argument("<name>", "Plugin name")
+    .description("Uninstall a plugin")
+    .option("-g, --global", "Uninstall globally (default)")
+    .action(async (name, options) => {
+      const { execSync } = await import('child_process');
+      const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
+      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      const globalFlag = options.global !== false ? '-g' : '';
+
+      try {
+        console.log(`Uninstalling ${pluginName}...`);
+        const output = execSync(`${cmd} uninstall ${globalFlag} ${pluginName}`, { encoding: 'utf-8' });
+        console.log(output);
+        console.log(`\n✓ Plugin ${pluginName} uninstalled successfully!`);
+      } catch (error) {
+        console.error(`\n✗ Failed to uninstall ${pluginName}:`);
+        console.error(error.stdout || error.stderr || error.message);
+        process.exit(1);
+      }
+    });
+
+  pluginCommand
+    .command("enable")
+    .argument("<name>", "Plugin name")
+    .description("Enable a disabled plugin")
+    .action(async (name) => {
+      const { saveConfig } = await import('./config.js');
+      const config = await loadConfig();
+
+      if (!config.plugin) {
+        config.plugin = {};
+      }
+      if (!config.plugin.disabled) {
+        config.plugin.disabled = [];
+      }
+
+      // Remove from disabled list
+      const index = config.plugin.disabled.indexOf(name);
+      if (index === -1) {
+        console.log(`Plugin '${name}' is already enabled.`);
+        return;
+      }
+
+      config.plugin.disabled.splice(index, 1);
+      await saveConfig(config);
+
+      // Reload plugins
+      const registry = getRegistry();
+      await registry.loadAll(config.plugin);
+
+      console.log(`✓ Plugin '${name}' enabled successfully!`);
+    });
+
+  pluginCommand
+    .command("disable")
+    .argument("<name>", "Plugin name")
+    .description("Disable a plugin")
+    .action(async (name) => {
+      const { saveConfig } = await import('./config.js');
+      const config = await loadConfig();
+
+      if (!config.plugin) {
+        config.plugin = {};
+      }
+      if (!config.plugin.disabled) {
+        config.plugin.disabled = [];
+      }
+
+      // Add to disabled list
+      if (config.plugin.disabled.includes(name)) {
+        console.log(`Plugin '${name}' is already disabled.`);
+        return;
+      }
+
+      config.plugin.disabled.push(name);
+      await saveConfig(config);
+
+      // Unload the plugin
+      const registry = getRegistry();
+      await registry.unloadPlugin(name);
+
+      console.log(`✓ Plugin '${name}' disabled successfully!`);
     });
 
   program.action(async () => {

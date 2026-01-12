@@ -19,8 +19,9 @@ import {
     chatWithCode,
     openFile,
     indexingProgress,
-    pauseIndexing 
-  } from "./core.js";import {
+    pauseIndexing
+  } from "./core.js";
+import {
   listKnowledgeBase,
   clearDatabase,
   getFileDependencies,
@@ -34,10 +35,13 @@ import {
   initDB,
   deleteProject,
   getProjectFiles
-} from "./db.js";import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
+} from "./db.js";
+import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig, saveConfig } from "./config.js";
 import { createRequire } from "module";
+import { getRegistry } from './plugin-system/registry.js';
+import { discoverPlugins, ensurePluginsDir, getPluginsDir } from './plugin-system/loader.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json");
@@ -908,6 +912,220 @@ function resolveRuntimePath(runtimePath, deps) {
 
   return null;
 }
+
+// Plugin Management API
+app.get('/api/plugins', async (c) => {
+  try {
+    const plugins = await discoverPlugins();
+    const registry = getRegistry();
+
+    // Enhance with runtime status
+    const enrichedPlugins = plugins.map(p => {
+      const loadedPlugin = registry.getPlugin(p.name);
+      return {
+        ...p,
+        runtime: loadedPlugin ? {
+          active: true,
+          extractors: loadedPlugin.plugin.extractors?.length || 0,
+          providers: loadedPlugin.plugin.providers?.length || 0,
+          commands: loadedPlugin.plugin.commands?.length || 0
+        } : { active: false }
+      };
+    });
+
+    return c.json(enrichedPlugins);
+  } catch (error) {
+    logger.error('[Plugin API] Error listing plugins:', error.message);
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+app.get('/api/plugins/:name', async (c) => {
+  const name = c.req.param('name');
+
+  try {
+    const plugins = await discoverPlugins();
+    const plugin = plugins.find(p => p.name === name);
+
+    if (!plugin) {
+      return c.json({ error: 'Plugin not found' }, 404);
+    }
+
+    const registry = getRegistry();
+    const loadedPlugin = registry.getPlugin(name);
+
+    return c.json({
+      ...plugin,
+      runtime: loadedPlugin ? {
+        active: true,
+        extractors: loadedPlugin.plugin.extractors?.length || 0,
+        providers: loadedPlugin.plugin.providers?.length || 0,
+        commands: loadedPlugin.plugin.commands?.length || 0
+      } : { active: false }
+    });
+  } catch (error) {
+    logger.error(`[Plugin API] Error getting plugin ${name}:`, error.message);
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+app.post('/api/plugins/:name/enable', async (c) => {
+  const name = c.req.param('name');
+
+  try {
+    const config = await loadConfig();
+    if (!config.plugin) {
+      config.plugin = {};
+    }
+    if (!config.plugin.disabled) {
+      config.plugin.disabled = [];
+    }
+
+    // Remove from disabled list
+    config.plugin.disabled = config.plugin.disabled.filter((p) => p !== name);
+    await saveConfig(config);
+
+    // Reload plugins
+    const registry = getRegistry();
+    await registry.loadAll(config.plugin);
+
+    return c.json({ success: true, message: `Plugin ${name} enabled` });
+  } catch (error) {
+    logger.error(`[Plugin API] Error enabling plugin ${name}:`, error.message);
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+app.post('/api/plugins/:name/disable', async (c) => {
+  const name = c.req.param('name');
+
+  try {
+    const config = await loadConfig();
+    if (!config.plugin) {
+      config.plugin = {};
+    }
+    if (!config.plugin.disabled) {
+      config.plugin.disabled = [];
+    }
+
+    // Add to disabled list
+    if (!config.plugin.disabled.includes(name)) {
+      config.plugin.disabled.push(name);
+    }
+    await saveConfig(config);
+
+    // Unload the plugin
+    const registry = getRegistry();
+    await registry.unloadPlugin(name);
+
+    return c.json({ success: true, message: `Plugin ${name} disabled` });
+  } catch (error) {
+    logger.error(`[Plugin API] Error disabling plugin ${name}:`, error.message);
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+app.post('/api/plugins/install', async (c) => {
+  const { name, source = 'npm' } = await c.req.json();
+
+  if (!name) {
+    return c.json({ error: 'Plugin name required' }, 400);
+  }
+
+  try {
+    const { exec } = await import('child_process');
+    const util = await import('util');
+    const execAsync = util.promisify(exec);
+
+    if (source === 'npm') {
+      // Install from npm
+      const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
+      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      const { stdout, stderr } = await execAsync(`${cmd} install -g ${pluginName}`);
+
+      logger.info(`[Plugin API] Installed ${pluginName}:`, stdout);
+
+      return c.json({
+        success: true,
+        message: `Plugin ${pluginName} installed successfully`,
+        output: stdout
+      });
+    } else {
+      return c.json({ error: 'Only npm installation is currently supported' }, 400);
+    }
+  } catch (error) {
+    logger.error(`[Plugin API] Error installing plugin ${name}:`, error.message);
+    return c.json({
+      error: error.message,
+      output: error.stdout || error.stderr
+    }, 500);
+  }
+});
+
+app.delete('/api/plugins/:name', async (c) => {
+  const name = c.req.param('name');
+
+  try {
+    const { exec } = await import('child_process');
+    const util = await import('util');
+    const execAsync = util.promisify(exec);
+
+    const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
+    const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const { stdout, stderr } = await execAsync(`${cmd} uninstall -g ${pluginName}`);
+
+    logger.info(`[Plugin API] Uninstalled ${pluginName}:`, stdout);
+
+    // Also remove from config if disabled
+    const config = await loadConfig();
+    if (config.plugin?.disabled) {
+      config.plugin.disabled = config.plugin.disabled.filter((p) => p !== name);
+      await saveConfig(config);
+    }
+
+    return c.json({
+      success: true,
+      message: `Plugin ${pluginName} uninstalled successfully`,
+      output: stdout
+    });
+  } catch (error) {
+    logger.error(`[Plugin API] Error uninstalling plugin ${name}:`, error.message);
+    return c.json({
+      error: error.message,
+      output: error.stdout || error.stderr
+    }, 500);
+  }
+});
+
+app.get('/api/plugins/dir/info', async (c) => {
+  try {
+    const pluginsDir = getPluginsDir();
+    const { stat } = await import('fs-extra');
+
+    const dirExists = await stat(pluginsDir).then(() => true).catch(() => false);
+
+    return c.json({
+      path: pluginsDir,
+      exists: dirExists
+    });
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
+
+app.post('/api/plugins/dir/create', async (c) => {
+  try {
+    await ensurePluginsDir();
+    const pluginsDir = getPluginsDir();
+    return c.json({
+      success: true,
+      message: 'Plugins directory created',
+      path: pluginsDir
+    });
+  } catch (error) {
+    return c.json({ error: error.message }, 500);
+  }
+});
 
 app.get('/api/graph', async (c) => {
   const rawDeps = await getAllDependencies();

@@ -19,7 +19,8 @@ import {
   Monitor,
   MessageSquare,
   Menu,
-  X
+  X,
+  Box
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -35,6 +36,7 @@ import ConfigView from './views/ConfigView';
 import ChatView from './views/ChatView';
 import GraphView from './views/GraphView';
 import PromptsView from './views/PromptsView';
+import PluginManagerView from './views/PluginManagerView';
 import LiveLogs from './components/LiveLogs';
 import NotificationTray from './components/NotificationTray';
 
@@ -91,6 +93,7 @@ function AppContent() {
     { path: '/graph', label: 'Graph', icon: Share2 },
     { path: '/kb', label: 'Knowledge Base', icon: Database },
     { path: '/prompts', label: 'Prompts', icon: MessageSquare },
+    { path: '/plugins', label: 'Plugins', icon: Box },
     { path: '/config', label: 'Settings', icon: Settings },
   ];
 
@@ -222,6 +225,7 @@ function AppContent() {
             <Route path="/graph" element={<GraphView />} />
             <Route path="/kb" element={<KBView onExplore={handleExploreProject} />} />
             <Route path="/prompts" element={<PromptsView />} />
+            <Route path="/plugins" element={<PluginManagerView />} />
             <Route path="/config" element={<ConfigView />} />
           </Routes>
         </div>

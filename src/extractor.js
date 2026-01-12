@@ -11,8 +11,8 @@ import { JsonStrategy } from "./extractors/JsonStrategy.js";
 import { TomlStrategy } from "./extractors/TomlStrategy.js";
 import { XmlStrategy } from "./extractors/XmlStrategy.js";
 
-// Strategy Registry
-const strategies = [
+// Built-in strategies (priority 0)
+const builtinStrategies = [
   TypeScriptStrategy,
   MarkdownStrategy,
   PythonStrategy,
@@ -26,14 +26,67 @@ const strategies = [
 ];
 
 /**
+ * Get all strategies (built-in + plugins).
+ * Plugin strategies with higher priority override built-in ones.
+ */
+function getAllStrategies() {
+  const allStrategies = [...builtinStrategies];
+
+  // Add plugin strategies if registry is available
+  try {
+    // Dynamically import to avoid circular dependencies
+    const { getRegistry } = require('./plugin-system/registry.cjs');
+    const registry = getRegistry();
+
+    if (registry) {
+      const pluginExtractors = registry.getExtractors();
+      allStrategies.push(...pluginExtractors);
+    }
+  } catch (error) {
+    // Registry not initialized or plugins not loaded - use built-in only
+    // This is expected during early initialization
+  }
+
+  return allStrategies;
+}
+
+/**
+ * Find the best strategy for a file extension.
+ * Strategies with higher priority are preferred.
+ */
+function findStrategyForExtension(ext) {
+  const strategies = getAllStrategies();
+
+  // Filter strategies that handle this extension
+  const matching = strategies.filter(s => s.extensions.includes(ext));
+
+  if (matching.length === 0) {
+    return null;
+  }
+
+  // Sort by priority (descending), then by name (for consistency)
+  matching.sort((a, b) => {
+    const priorityA = a.priority || 0;
+    const priorityB = b.priority || 0;
+    if (priorityA !== priorityB) {
+      return priorityB - priorityA; // Higher priority first
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return matching[0];
+}
+
+/**
  * Strategy Context: Decides which extractor to use based on file extension.
+ * Supports built-in strategies and plugin strategies.
  */
 export async function extractCodeBlocks(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const code = await fs.readFile(filePath, "utf-8");
 
-  // Find the matching strategy
-  const strategy = strategies.find(s => s.extensions.includes(ext));
+  // Find the matching strategy (plugins can override built-in)
+  const strategy = findStrategyForExtension(ext);
 
   if (strategy) {
     return strategy.extract(code, filePath);

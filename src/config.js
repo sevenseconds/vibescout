@@ -97,6 +97,18 @@ const DEFAULT_CONFIG = {
   },
 
   throttlingErrors: ["并发数过高", "1214", "1302", "1301", "429", "Rate limit", "too many requests"],
+
+  // Plugin configuration
+  plugin: {
+    enabled: true,           // Enable/disable plugin system
+    sandboxed: true,         // Run plugins in sandboxed environment
+    pluginPaths: [],         // Additional plugin search paths (default: ~/.vibescout/plugins)
+    disabled: [],            // Disabled plugin names
+    timeout: 30000,          // Plugin execution timeout (ms)
+    maxMemory: "512MB",      // Plugin memory limit
+    allowedModules: ["fs", "path", "crypto", "os", "util"]  // Whitelisted Node.js modules
+  },
+
   prompts: {
     summarizeTemplates: [
       { id: 'default', name: 'Architect Summary', text: "Act as a Senior Software Architect. Analyze the following code and provide: 1. A high-level overview of the purpose. 2. Key logic flow. 3. Potential edge cases or security risks. \n\nFile: {{fileName}}\nProject: {{projectName}}\n\nHere is the code:\n{{code}}" },

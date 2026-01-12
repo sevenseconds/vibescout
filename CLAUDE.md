@@ -83,7 +83,20 @@ npm run lint     # Lint UI code
 - Strategy pattern with language-specific extractors using tree-sitter parsers
 - Each extractor implements: extract functions, classes, imports/exports, symbols
 - Supported: TypeScript, Python, Go, Dart, Java, Kotlin, Markdown, JSON, TOML, XML
-- `extractor.js` - Main orchestration
+- `extractor.js` - Main orchestration with plugin support
+
+**Plugin System** (`src/plugin-system/`)
+- Extensible architecture for custom extractors, providers, and commands
+- Plugin discovery from npm packages (`vibescout-plugin-*`) and local files (`~/.vibescout/plugins/`)
+- Sandboxed execution with timeout and memory limits
+- Plugin types:
+  - `types.ts` - TypeScript type definitions
+  - `loader.ts` - Plugin discovery and loading
+  - `sandbox.ts` - Sandboxed execution wrapper
+  - `registry.ts` - Plugin lifecycle and capability management
+  - `builtin-extractors/` - Built-in framework plugins (NextJS, ReactRouter)
+- Plugin management: `vibescout plugin list|info`
+- Documentation: `docs/plugin-*.md` series
 
 **Indexing Pipeline** (`src/core.js`)
 - `handleIndexFolder()` - Main entry point for folder indexing
@@ -308,3 +321,43 @@ return results.map(r => ({
 - `src/db.ts` - Database operations with correct column names
 - `src/database/base.ts` - TypeScript type definitions
 - `src/server.js` - API endpoints that query the database (check casing!)
+
+## Documentation File Naming Convention
+
+**ALL documentation files in `docs/` MUST use kabab-case (lowercase-with-hyphens).**
+
+### Examples
+
+#### ✅ CORRECT - Kabab-case
+```
+docs/plugin-guide.md
+docs/plugin-api.md
+docs/plugin-architecture.md
+docs/plugin-example.md
+docs/plugin-prompt-template.md
+docs/plugin-quickref.md
+```
+
+#### ❌ WRONG - PascalCase, camelCase, or snake_case
+```
+docs/PLUGIN_GUIDE.md      # ❌ Don't use PascalCase
+docs/pluginGuide.md       # ❌ Don't use camelCase
+docs/plugin_guide.md      # ❌ Don't use snake_case
+```
+
+### Why This Matters
+
+- **Web-friendly**: Kabab-case URLs are SEO-friendly and consistent with web standards
+- **Case-insensitive systems**: Some file systems are case-insensitive, causing conflicts
+- **Git compatibility**: Avoids issues on Windows (case-insensitive) vs Linux (case-sensitive)
+- **Consistency**: Matches npm package naming conventions
+
+### Quick Reference
+
+| File Type | Naming Convention | Example |
+|-----------|-------------------|---------|
+| Documentation | `kabab-case.md` | `plugin-guide.md` |
+| TypeScript source | `PascalCase.ts` | `TypeScriptStrategy.ts` |
+| JavaScript source | `PascalCase.js` | `VueExtractor.js` |
+| Test files | `PascalCase.test.js` | `VueExtractor.test.js` |
+| Config files | `kebab-case.json` | `tsconfig.json` |
