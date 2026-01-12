@@ -67,7 +67,7 @@ const DEFAULT_CONFIG = {
     },
     // Web files - summarize with code prompts
     web: {
-      extensions: [".html", ".htm", ".css", ".scss", ".sass", ".less", ".svg", ".xml"],
+      extensions: [".html", ".htm", ".css", ".scss", ".sass", ".less", ".xml"],
       summarize: true,
       promptTemplate: "summarize",
       description: "Web files"
@@ -116,11 +116,19 @@ export async function loadConfig() {
         ...DEFAULT_CONFIG.prompts,
         ...(userConfig.prompts || {})
       };
-      return { 
+      
+      const config = { 
         ...DEFAULT_CONFIG, 
         ...userConfig,
         prompts: mergedPrompts
       };
+
+      // Sanitize: Ensure .svg is not in web extensions (fix for legacy configs)
+      if (config.fileTypes?.web?.extensions) {
+        config.fileTypes.web.extensions = config.fileTypes.web.extensions.filter(ext => ext !== '.svg');
+      }
+
+      return config;
     } catch (err) {
       console.error(`Error reading config file: ${err.message}`);
     }

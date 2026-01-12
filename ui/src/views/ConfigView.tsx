@@ -595,10 +595,64 @@ export default function ConfigView() {
                           {typeId}
                           <span className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full font-medium">{typeConfig.description}</span>
                         </h4>
-                        <div className="flex flex-wrap gap-2 mt-2">
+                        <div className="flex flex-wrap gap-2 mt-2 items-center">
                           {typeConfig.extensions.map(ext => (
-                            <span key={ext} className="text-[10px] font-mono px-2 py-1 bg-background border border-border rounded-md text-muted-foreground">{ext}</span>
+                            <span key={ext} className="group/tag relative text-[10px] font-mono px-2 py-1 bg-background border border-border rounded-md text-muted-foreground hover:border-red-400 hover:text-red-400 transition-colors cursor-default pr-5">
+                              {ext}
+                              <button
+                                onClick={() => {
+                                  const newFileTypes = { ...config.fileTypes };
+                                  newFileTypes[typeId] = {
+                                    ...typeConfig,
+                                    extensions: typeConfig.extensions.filter(e => e !== ext)
+                                  };
+                                  updateConfig('fileTypes', newFileTypes);
+                                }}
+                                className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/tag:opacity-100 p-0.5 hover:bg-red-400/10 rounded transition-all"
+                              >
+                                <X size={10} />
+                              </button>
+                            </span>
                           ))}
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              placeholder=".ext"
+                              className="w-16 bg-background border border-border rounded-md px-2 py-1 text-[10px] font-mono focus:outline-none focus:border-primary transition-all"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const val = e.currentTarget.value.trim();
+                                  if (val && !typeConfig.extensions.includes(val)) {
+                                    const newFileTypes = { ...config.fileTypes };
+                                    newFileTypes[typeId] = {
+                                      ...typeConfig,
+                                      extensions: [...typeConfig.extensions, val.startsWith('.') ? val : `.${val}`]
+                                    };
+                                    updateConfig('fileTypes', newFileTypes);
+                                    e.currentTarget.value = '';
+                                  }
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={(e) => {
+                                const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                const val = input.value.trim();
+                                if (val && !typeConfig.extensions.includes(val)) {
+                                  const newFileTypes = { ...config.fileTypes };
+                                  newFileTypes[typeId] = {
+                                    ...typeConfig,
+                                    extensions: [...typeConfig.extensions, val.startsWith('.') ? val : `.${val}`]
+                                  };
+                                  updateConfig('fileTypes', newFileTypes);
+                                  input.value = '';
+                                }
+                              }}
+                              className="p-1 bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-all"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
