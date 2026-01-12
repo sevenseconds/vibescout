@@ -49,7 +49,7 @@ async function startServer(mode, port, isUI = false) {
     });
 
     if (isUI) {
-      const distPath = path.resolve(__dirname, "../ui/dist");
+      const distPath = path.resolve(__dirname, "ui-dist");
       if (!fs.existsSync(distPath)) {
         logger.warn(`[UI] Warning: UI assets not found at ${distPath}. Web UI will not be available.`);
         logger.warn(`[UI] If you are developing, run 'npm run build:ui' to generate the assets.`);

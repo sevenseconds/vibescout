@@ -4,6 +4,9 @@
 .geminiignore
 .editorconfig
 
+# Source code for UI (built assets are in src/ui-dist)
+ui/
+
 # Tests and Coverage
 tests/
 coverage/
@@ -28,3 +31,6 @@ data/
 *.log
 .gemini-clipboard/
 .claude/
+
+# Ensure built UI is included
+!src/ui-dist/

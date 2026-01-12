@@ -2,3 +2,4 @@ node_modules
 .lancedb
 .DS_Store
 *.log
+src/ui-dist
