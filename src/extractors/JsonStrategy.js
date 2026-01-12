@@ -28,14 +28,29 @@ export const JsonStrategy = {
     }
 
     // Only extract top-level pairs to avoid over-chunking
-    const root = tree.rootNode.child(0); // usually object or array
-    if (root && root.type === "object") {
-      for (let i = 0; i < root.childCount; i++) {
-        const child = root.child(i);
-        if (child.type === "pair") processPair(child);
+    // Check if the tree is valid and has children
+    if (tree && tree.rootNode && tree.rootNode.childCount > 0) {
+      const root = tree.rootNode.child(0); // usually object or array
+      if (root && root.type === "object") {
+        for (let i = 0; i < root.childCount; i++) {
+          const child = root.child(i);
+          if (child && child.type === "pair") processPair(child);
+        }
+      } else if (code.trim().length > 0) {
+        // Fallback: entire file for non-object roots (arrays, primitives)
+        blocks.push({
+          name: "json_content",
+          type: "file",
+          category: "documentation",
+          startLine: 1,
+          endLine: lines.length,
+          comments: "",
+          content: code,
+          filePath
+        });
       }
-    } else {
-      // Fallback: entire file
+    } else if (code.trim().length > 0) {
+      // Fallback for cases where tree-sitter fails but content exists
       blocks.push({
         name: "json_root",
         type: "file",

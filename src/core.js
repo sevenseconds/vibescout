@@ -255,7 +255,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       const queue = [...filesOnDisk];
       const hashUpdates = [];
       
-      const processFile = async (file) => {
+      const processFile = async (file, attempt = 1) => {
         if (isShuttingDown) return;
 
         // Wait if paused
@@ -390,7 +390,16 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           if (indexingProgress.completedFiles.length > 20) indexingProgress.completedFiles.pop();
 
         } catch (err) {
-          logger.error(`Error processing ${file}: ${err.message}`);
+          if (attempt < 3 && !isShuttingDown) {
+            logger.warn(`[Retry] Processing ${file} failed (attempt ${attempt}/3): ${err.message}. Retrying...`);
+            // Clean up currentFiles before retrying to avoid duplicates in display
+            indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
+            // Exponential backoff
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+            return processFile(file, attempt + 1);
+          }
+
+          logger.error(`Error processing ${file} after 3 attempts: ${err.message}`);
           indexingProgress.failedFiles++;
           indexingProgress.processedFiles++;
           indexingProgress.failedPaths.push(filePath);
