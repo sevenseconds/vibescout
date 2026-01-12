@@ -1,0 +1,13 @@
+{
+  "name": "vibescout-plugin-react-router",
+  "version": "1.0.0",
+  "description": "React Router framework extractor plugin for VibeScout",
+  "main": "index.js",
+  "vibescout": {
+    "apiVersion": "1.0.0",
+    "capabilities": ["extractors"],
+    "builtin": true
+  },
+  "author": "VibeScout",
+  "license": "MIT"
+}

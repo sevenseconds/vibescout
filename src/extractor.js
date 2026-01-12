@@ -35,7 +35,7 @@ function getAllStrategies() {
   // Add plugin strategies if registry is available
   try {
     // Dynamically import to avoid circular dependencies
-    const { getRegistry } = require('./plugin-system/registry.cjs');
+    const { getRegistry } = require('./plugins/registry.cjs');
     const registry = getRegistry();
 
     if (registry) {

@@ -75,24 +75,29 @@ function AppContent() {
   }, [theme]);
 
   const [searchFilters, setSearchFilters] = useState<{ projectName?: string; collection?: string }>({});
-  const [chatPreFill, setChatPreFill] = useState<{ query?: string; projectName?: string; collection?: string; fileTypes?: string[] }>({});
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [chatPreFill, setChatPreFill] = useState<{ query?: string; projectName?: string; collection?: string; fileTypes?: string[]; category?: 'all' | 'code' | 'documentation' }>({});
 
   const handleExploreProject = (filters: { projectName?: string; collection?: string }) => {
     setSearchFilters(filters);
     navigate('/search');
   };
 
-  const handleAskChat = (data: { query?: string; projectName?: string; collection?: string; fileTypes?: string[] }) => {
+  const handleAskChat = (data: { query?: string; projectName?: string; collection?: string; fileTypes?: string[]; category?: 'all' | 'code' | 'documentation' }) => {
     setChatPreFill(data);
     navigate('/chat');
   };
 
-  const navItems = [
+  const mainNavItems = [
     { path: '/search', label: 'Search', icon: Search },
     { path: '/chat', label: 'Chat', icon: Sparkles },
     { path: '/graph', label: 'Graph', icon: Share2 },
     { path: '/kb', label: 'Knowledge Base', icon: Database },
     { path: '/prompts', label: 'Prompts', icon: MessageSquare },
+  ];
+
+  const secondaryNavItems = [
     { path: '/plugins', label: 'Plugins', icon: Box },
     { path: '/config', label: 'Settings', icon: Settings },
   ];
@@ -132,27 +137,60 @@ function AppContent() {
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => setIsSidebarOpen(false)}
-              className={({ isActive }) => cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 group text-sm font-bold",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-            >
-              {({ isActive }) => (
-                <>
-                  <item.icon size={20} className={cn(isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />
-                  {item.label}
-                </>
-              )}
-            </NavLink>
-          ))}
+        <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
+          {/* Main Navigation */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-2">
+              Core
+            </p>
+            {mainNavItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={() => setIsSidebarOpen(false)}
+                className={({ isActive }) => cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 group text-sm font-bold",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                {({ isActive }) => (
+                  <>
+                    <item.icon size={20} className={cn(isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />
+                    {item.label}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
+
+          {/* Secondary Navigation */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-2">
+              System
+            </p>
+            {secondaryNavItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={() => setIsSidebarOpen(false)}
+                className={({ isActive }) => cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 group text-sm font-bold",
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                {({ isActive }) => (
+                  <>
+                    <item.icon size={20} className={cn(isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />
+                    {item.label}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
         </nav>
 
         <div className="p-4 mt-auto space-y-4 border-t border-border bg-secondary/30">
@@ -214,6 +252,10 @@ function AppContent() {
                 initialFilters={searchFilters}
                 onFiltersClear={() => setSearchFilters({})}
                 onAskChat={handleAskChat}
+                initialResults={searchResults}
+                initialQuery={searchQuery}
+                onResultsChange={setSearchResults}
+                onQueryChange={setSearchQuery}
               />
             } />
             <Route path="/chat" element={

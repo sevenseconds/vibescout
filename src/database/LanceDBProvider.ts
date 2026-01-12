@@ -71,44 +71,52 @@ export class LanceDBProvider implements VectorDBProvider {
     const table = await this.getTable();
     if (!table) return [];
 
-    let query = table.vectorSearch(embedding).limit(options.limit ? options.limit * 5 : 50);
-    const results = await query.toArray();
+    // Build WHERE clause for pre-filtering (more efficient than post-filter)
+    const whereConditions: string[] = [];
 
-    let filtered = results as unknown as VectorResult[];
-
-    // Existing filters
-    if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
-    if (options.projectName) filtered = filtered.filter(r => r.projectname === options.projectName);
-    if (options.categories && options.categories.length > 0) {
-      filtered = filtered.filter(r => options.categories!.includes(r.category));
+    if (options.collection) {
+      whereConditions.push(`collection = '${options.collection}'`);
     }
+    if (options.projectName) {
+      whereConditions.push(`projectname = '${options.projectName}'`);
+    }
+    if (options.categories && options.categories.length > 0) {
+      const categoryFilter = options.categories.map(c => `category = '${c}'`).join(' OR ');
+      whereConditions.push(`(${categoryFilter})`);
+    }
+    if (options.authors && options.authors.length > 0) {
+      const authorFilter = options.authors.map(a => `last_commit_author = '${a}'`).join(' OR ');
+      whereConditions.push(`(${authorFilter})`);
+    }
+    if (options.dateFrom) {
+      whereConditions.push(`last_commit_date >= '${options.dateFrom}'`);
+    }
+    if (options.dateTo) {
+      whereConditions.push(`last_commit_date <= '${options.dateTo}'`);
+    }
+    if (options.churnLevels && options.churnLevels.length > 0) {
+      const churnFilter = options.churnLevels.map(c => `churn_level = '${c}'`).join(' OR ');
+      whereConditions.push(`(${churnFilter})`);
+    }
+
+    const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : undefined;
+
+    let query = table.vectorSearch(embedding)
+      .limit(options.limit ? options.limit * 5 : 50);
+
+    if (whereClause) {
+      query = query.where(whereClause);
+    }
+
+    const results = await query.toArray() as unknown as VectorResult[];
+
+    // File type filtering (must be post-filter since it's a pattern match on filepath)
+    let filtered = results;
     if (options.fileTypes && options.fileTypes.length > 0) {
       filtered = filtered.filter(r => {
         const path = r.filepath.toLowerCase();
         return options.fileTypes!.some(ext => path.endsWith(ext.toLowerCase()));
       });
-    }
-
-    // NEW: Git filters
-    if (options.authors && options.authors.length > 0) {
-      filtered = filtered.filter(r =>
-        r.lastCommitAuthor && options.authors!.includes(r.lastCommitAuthor)
-      );
-    }
-    if (options.dateFrom) {
-      filtered = filtered.filter(r =>
-        r.lastCommitDate && r.lastCommitDate >= options.dateFrom!
-      );
-    }
-    if (options.dateTo) {
-      filtered = filtered.filter(r =>
-        r.lastCommitDate && r.lastCommitDate <= options.dateTo!
-      );
-    }
-    if (options.churnLevels && options.churnLevels.length > 0) {
-      filtered = filtered.filter(r =>
-        r.churnLevel && options.churnLevels!.includes(r.churnLevel)
-      );
     }
 
     return filtered.slice(0, options.limit || 10);
@@ -119,8 +127,49 @@ export class LanceDBProvider implements VectorDBProvider {
     const table = await this.getTable();
     if (!table) return [];
 
-    const vectorResults = await table.vectorSearch(embedding).limit(options.limit ? options.limit * 2 : 20).toArray();
-    const ftsResults = await table.search(queryText).limit(options.limit ? options.limit * 2 : 20).toArray();
+    // Build WHERE clause for pre-filtering (more efficient than post-filter)
+    const whereConditions: string[] = [];
+
+    if (options.collection) {
+      whereConditions.push(`collection = '${options.collection}'`);
+    }
+    if (options.projectName) {
+      whereConditions.push(`projectname = '${options.projectName}'`);
+    }
+    if (options.categories && options.categories.length > 0) {
+      const categoryFilter = options.categories.map(c => `category = '${c}'`).join(' OR ');
+      whereConditions.push(`(${categoryFilter})`);
+    }
+    if (options.authors && options.authors.length > 0) {
+      const authorFilter = options.authors.map(a => `last_commit_author = '${a}'`).join(' OR ');
+      whereConditions.push(`(${authorFilter})`);
+    }
+    if (options.dateFrom) {
+      whereConditions.push(`last_commit_date >= '${options.dateFrom}'`);
+    }
+    if (options.dateTo) {
+      whereConditions.push(`last_commit_date <= '${options.dateTo}'`);
+    }
+    if (options.churnLevels && options.churnLevels.length > 0) {
+      const churnFilter = options.churnLevels.map(c => `churn_level = '${c}'`).join(' OR ');
+      whereConditions.push(`(${churnFilter})`);
+    }
+
+    const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : undefined;
+
+    // Execute vector search with pre-filter
+    let vectorQuery = table.vectorSearch(embedding).limit(options.limit ? options.limit * 2 : 20);
+    if (whereClause) {
+      vectorQuery = vectorQuery.where(whereClause);
+    }
+    const vectorResults = await vectorQuery.toArray();
+
+    // Execute FTS search with pre-filter
+    let ftsQuery = table.search(queryText).limit(options.limit ? options.limit * 2 : 20);
+    if (whereClause) {
+      ftsQuery = ftsQuery.where(whereClause);
+    }
+    const ftsResults = await ftsQuery.toArray();
 
     const seen = new Set();
     const combined = [...ftsResults, ...vectorResults].filter(item => {
@@ -130,41 +179,13 @@ export class LanceDBProvider implements VectorDBProvider {
       return true;
     }) as unknown as VectorResult[];
 
+    // File type filtering (must be post-filter since it's a pattern match on filepath)
     let filtered = combined;
-
-    // Existing filters
-    if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
-    if (options.projectName) filtered = filtered.filter(r => r.projectname === options.projectName);
-    if (options.categories && options.categories.length > 0) {
-      filtered = filtered.filter(r => options.categories!.includes(r.category));
-    }
     if (options.fileTypes && options.fileTypes.length > 0) {
       filtered = filtered.filter(r => {
         const path = r.filepath.toLowerCase();
         return options.fileTypes!.some(ext => path.endsWith(ext.toLowerCase()));
       });
-    }
-
-    // NEW: Git filters
-    if (options.authors && options.authors.length > 0) {
-      filtered = filtered.filter(r =>
-        r.lastCommitAuthor && options.authors!.includes(r.lastCommitAuthor)
-      );
-    }
-    if (options.dateFrom) {
-      filtered = filtered.filter(r =>
-        r.lastCommitDate && r.lastCommitDate >= options.dateFrom!
-      );
-    }
-    if (options.dateTo) {
-      filtered = filtered.filter(r =>
-        r.lastCommitDate && r.lastCommitDate <= options.dateTo!
-      );
-    }
-    if (options.churnLevels && options.churnLevels.length > 0) {
-      filtered = filtered.filter(r =>
-        r.churnLevel && options.churnLevels!.includes(r.churnLevel)
-      );
     }
 
     return filtered.slice(0, options.limit || 10);

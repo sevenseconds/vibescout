@@ -11,14 +11,14 @@ function cn(...inputs: ClassValue[]) {
 }
 
 interface SearchResult {
-  projectName: string;
+  projectname: string;
   collection: string;
-  filePath: string;
+  filepath: string;
   name: string;
   type: string;
   category: 'code' | 'documentation';
-  startLine: number;
-  endLine: number;
+  startline: number;
+  endline: number;
   summary?: string;
   content: string;
   rerankScore: number;
@@ -36,12 +36,22 @@ interface SearchResult {
 interface SearchViewProps {
   initialFilters?: { projectName?: string; collection?: string };
   onFiltersClear?: () => void;
-  onAskChat?: (data: { query?: string; projectName?: string; collection?: string; fileTypes?: string[] }) => void;
+  onAskChat?: (data: { query?: string; projectName?: string; collection?: string; fileTypes?: string[]; category?: 'all' | 'code' | 'documentation' }) => void;
+  initialResults?: SearchResult[];
+  initialQuery?: string;
+  onResultsChange?: (results: SearchResult[]) => void;
+  onQueryChange?: (query: string) => void;
 }
 
-export default function SearchView({ initialFilters, onFiltersClear, onAskChat }: SearchViewProps) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+export default function SearchView({ initialFilters, onFiltersClear, onAskChat, initialResults, initialQuery, onResultsChange, onQueryChange }: SearchViewProps) {
+  const [query, setQuery] = useState(initialQuery || '');
+  const [results, setResults] = useState<SearchResult[]>(initialResults || []);
+
+  // Wrapper to update both local and parent query state
+  const updateQuery = (newQuery: string) => {
+    setQuery(newQuery);
+    onQueryChange?.(newQuery);
+  };
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(!!initialFilters?.projectName || !!initialFilters?.collection);
   const [summarizing, setSummarizing] = useState(false);
@@ -61,13 +71,25 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
   const [projectName, setProjectName] = useState(initialFilters?.projectName || '');
   const [collection, setCollection] = useState(initialFilters?.collection || '');
   const [fileType, setFileType] = useState('');
-  const [filterCategory, setFilterCategory] = useState<'all' | 'code' | 'documentation'>('all');
+  const [filterCategory, setFilterCategory] = useState<'all' | 'code' | 'documentation'>('code');
 
   // Git filters
   const [authorFilter, setAuthorFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [churnLevels, setChurnLevels] = useState<string[]>([]);
+
+  // Dependencies data
+  const [dependenciesMap, setDependenciesMap] = useState<Record<string, { imports: string[], exports: string[] } | null>>({});
+
+  // Sync with parent state when it changes
+  useEffect(() => {
+    if (initialQuery !== undefined) setQuery(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => {
+    if (initialResults !== undefined) setResults(initialResults);
+  }, [initialResults]);
 
   useEffect(() => {
     const fetchKb = async () => {
@@ -113,6 +135,22 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
         churnLevels: churnLevels.length > 0 ? churnLevels : undefined
       });
       setResults(response.data);
+      onResultsChange?.(response.data);
+      onQueryChange?.(query);
+
+      // Fetch dependencies for all results
+      if (response.data.length > 0) {
+        const filePaths = response.data.map((r: SearchResult) => r.filepath);
+        try {
+          const depsResponse = await axios.post('/api/dependencies/batch', { filePaths });
+          setDependenciesMap(depsResponse.data);
+        } catch (depsError) {
+          console.error('Failed to fetch dependencies:', depsError);
+          setDependenciesMap({});
+        }
+      } else {
+        setDependenciesMap({});
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -151,7 +189,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
   };
 
   const handleAskChat = (textOverride?: string) => {
-    const parsedFileTypes = fileType 
+    const parsedFileTypes = fileType
       ? fileType.split(',').map(t => t.trim()).filter(t => t.length > 0)
       : undefined;
 
@@ -159,7 +197,8 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
       query: textOverride || query,
       projectName: projectName || undefined,
       collection: collection || undefined,
-      fileTypes: parsedFileTypes
+      fileTypes: parsedFileTypes,
+      category: filterCategory
     });
   };
 
@@ -167,14 +206,14 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
     setProjectName('');
     setCollection('');
     setFileType('');
-    setFilterCategory('all');
+    setFilterCategory('code');
     onFiltersClear?.();
   };
 
   return (
     <div className="flex h-full w-full overflow-hidden">
       <div className="flex-1 overflow-y-auto">
-        <div className="p-8 max-w-6xl mx-auto space-y-8 pb-20">
+        <div className="p-8 max-w-5xl mx-auto space-y-8 pb-20">
           <div className="flex justify-end gap-2 pt-4">
             <button 
               onClick={() => setShowDebug(!showDebug)}
@@ -204,7 +243,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
               <input
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => updateQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="How do I handle user authentication?"
                 className="w-full bg-card border-2 border-border rounded-2xl py-6 pl-14 pr-32 text-xl focus:outline-none focus:border-primary transition-all shadow-xl shadow-black/20 font-medium"
@@ -228,6 +267,40 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                   className="bg-primary text-primary-foreground p-2.5 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 shadow-lg shadow-primary/20"
                 >
                   {loading ? <Loader2 className="animate-spin" size={20} /> : <ArrowRight size={20} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Category Filter Bar - Always Visible */}
+            <div className="flex items-center gap-3 px-2">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Category:</span>
+              <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl border border-border/50">
+                <button
+                  onClick={() => setFilterCategory('all')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    filterCategory === 'all' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Layers size={14} /> All
+                </button>
+                <button
+                  onClick={() => setFilterCategory('code')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    filterCategory === 'code' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Code size={14} /> Code
+                </button>
+                <button
+                  onClick={() => setFilterCategory('documentation')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    filterCategory === 'documentation' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <FileText size={14} /> Docs
                 </button>
               </div>
             </div>
@@ -395,38 +468,12 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
             {results.length > 0 ? (
               <div className="space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-2">
-                  <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-xl border border-border/50 self-start">
-                    <button 
-                      onClick={() => setFilterCategory('all')}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                        filterCategory === 'all' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Layers size={14} /> All
-                    </button>
-                    <button 
-                      onClick={() => setFilterCategory('code')}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                        filterCategory === 'code' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Code size={14} /> Code
-                    </button>
-                    <button 
-                      onClick={() => setFilterCategory('documentation')}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-                        filterCategory === 'documentation' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <FileText size={14} /> Docs
-                    </button>
+                  <div className="text-sm font-bold text-muted-foreground">
+                    {results.length} result{results.length !== 1 ? 's' : ''} found
                   </div>
 
                   <div className="flex gap-2">
-                    <button 
+                    <button
                       onClick={handleSummarize}
                       disabled={summarizing}
                       className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-xl font-bold text-xs hover:bg-secondary/80 transition-all text-muted-foreground disabled:opacity-50"
@@ -434,7 +481,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                       {summarizing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                       Generate Best Question
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleAskChat()}
                       className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-xs hover:bg-primary/20 transition-all shadow-lg shadow-primary/5"
                     >
@@ -464,9 +511,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                 )}
 
                 <div className="grid grid-cols-1 gap-4">
-                  {results
-                    .filter(r => filterCategory === 'all' || r.category === filterCategory)
-                    .map((result, i) => (
+                  {results.map((result, i) => (
                     <div key={i} className="bg-card border border-border p-6 rounded-3xl space-y-4 shadow-sm hover:border-primary/50 transition-all group relative overflow-hidden">
                       <div className="flex items-center justify-between relative z-10">
                         <div className="flex items-center gap-3">
@@ -484,7 +529,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                               </span>
                               <span className="w-1 h-1 rounded-full bg-border" />
                               <span className="text-[10px] text-primary/70 font-black uppercase tracking-widest">
-                                {result.collection}/{result.projectName}
+                                {result.collection}/{result.projectname}
                               </span>
 
                               {/* Git Info */}
@@ -524,14 +569,19 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                         </div>
                                           <div className="flex items-center gap-2 shrink-0">
                                             <button 
-                                              onClick={() => handlePreview(result.filePath)}
+                                              onClick={() => handlePreview(result.filepath)}
                                               className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
                                               title="View Full File"
                                             >
                                               <Maximize2 size={18} />
                                             </button>
-                                            <button 
-                                              onClick={() => onAskChat?.({ query: `Tell me about ${result.name} in ${result.filePath}`, projectName: result.projectName })}
+                                            <button
+                                              onClick={() => onAskChat?.({
+                                                query: `Tell me about ${result.name} in ${result.filepath}`,
+                                                projectName: result.projectname,
+                                                collection: result.collection,
+                                                category: filterCategory
+                                              })}
                                               className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
                                               title="Ask about this specifically"
                                             >
@@ -543,13 +593,75 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                           {result.summary}
                         </p>
                       )}
-                      
+
+                      {/* Dependencies Section */}
+                      {dependenciesMap[result.filepath] && (
+                        <div className="bg-secondary/20 rounded-2xl p-4 border border-border/50 relative z-10">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Database size={16} className="text-primary" />
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Dependencies</h4>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {/* Imports */}
+                            {dependenciesMap[result.filepath]!.imports && dependenciesMap[result.filepath]!.imports.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400">Imports</span>
+                                  <span className="text-[9px] text-muted-foreground">({dependenciesMap[result.filepath]!.imports.length})</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {dependenciesMap[result.filepath]!.imports.slice(0, 10).map((imp: any, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      className="text-[10px] font-mono bg-blue-500/10 text-blue-400 px-2 py-1 rounded-md border border-blue-500/20 truncate max-w-[150px]"
+                                      title={typeof imp === 'string' ? imp : `${imp.source} (${imp.symbols?.join(', ') || 'no symbols'})`}
+                                    >
+                                      {typeof imp === 'string' ? imp : imp.source}
+                                    </span>
+                                  ))}
+                                  {dependenciesMap[result.filepath]!.imports.length > 10 && (
+                                    <span className="text-[9px] text-muted-foreground px-2 py-1">
+                                      +{dependenciesMap[result.filepath]!.imports.length - 10} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {/* Exports */}
+                            {dependenciesMap[result.filepath]!.exports && dependenciesMap[result.filepath]!.exports.length > 0 && (
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-purple-400">Exports</span>
+                                  <span className="text-[9px] text-muted-foreground">({dependenciesMap[result.filepath]!.exports.length})</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {dependenciesMap[result.filepath]!.exports.slice(0, 10).map((exp: any, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      className="text-[10px] font-mono bg-purple-500/10 text-purple-400 px-2 py-1 rounded-md border border-purple-500/20 truncate max-w-[150px]"
+                                      title={typeof exp === 'string' ? exp : `${exp.name || exp.symbol || JSON.stringify(exp)}`}
+                                    >
+                                      {typeof exp === 'string' ? exp : (exp.name || exp.symbol || JSON.stringify(exp))}
+                                    </span>
+                                  ))}
+                                  {dependenciesMap[result.filepath]!.exports.length > 10 && (
+                                    <span className="text-[9px] text-muted-foreground px-2 py-1">
+                                      +{dependenciesMap[result.filepath]!.exports.length - 10} more
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="relative z-10">
-                        <CodeBlock 
-                          code={result.content} 
-                          filePath={result.filePath} 
-                          line={result.startLine}
-                          showOpenInEditor 
+                        <CodeBlock
+                          code={result.content}
+                          filePath={result.filepath}
+                          line={result.startline}
+                          showOpenInEditor
                         />
                       </div>
                     </div>

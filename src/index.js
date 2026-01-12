@@ -8,13 +8,13 @@ import fs from "fs-extra";
 import { logger, LogLevel } from "./logger.js";
 import { configureEnvironment, embeddingManager, summarizerManager, rerankerManager } from "./embeddings.js";
 import { closeDb, compactDatabase, initDB, clearDatabase } from "./db.js";
-import { handleIndexFolder, stopIndexing } from "./core.js";
+import { handleIndexFolder, stopIndexing, resetIndexingProgress } from "./core.js";
 import { server, app } from "./server.js";
 import { initWatcher } from "./watcher.js";
 import { loadConfig, interactiveConfig } from "./config.js";
 import { interactiveSearch } from "./tui.js";
 import { createRequire } from "module";
-import { getRegistry } from "./plugin-system/registry.js";
+import { getRegistry } from "./plugins/registry.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require("../package.json");
@@ -128,11 +128,29 @@ async function main() {
     }
     logger.setLevel(level);
 
-    // Initialize plugin system (before other services)
+    // Determine which command is being run
+    // Check process.argv to see what command was invoked (skip options starting with --)
+    const args = process.argv.slice(2);
+    const firstCommand = args.find(arg => !arg.startsWith('--'));
+
+    // Commands that don't need any initialization
+    const noInitCommands = ['config', 'plugin'];
+    const needsNoInit = noInitCommands.includes(firstCommand);
+
+    // Commands that need database/providers but NOT file watcher
+    const noWatcherCommands = ['compact', 'reset', 'index', 'search'];
+    const needsWatcher = !noWatcherCommands.includes(firstCommand) && !needsNoInit;
+
+    // Initialize plugin system (needed for plugin commands)
     if (opts.plugins !== false) {
       const registry = getRegistry();
       await registry.loadAll(config.plugin || {});
       logger.info(`[Plugin System] Loaded ${registry.getPlugins().length} plugin(s)`);
+    }
+
+    // Skip all heavy initialization for config and plugin commands
+    if (needsNoInit) {
+      return;
     }
 
     configureEnvironment(opts.modelsPath, opts.offline);
@@ -176,7 +194,10 @@ async function main() {
       indexName: config.cloudflareVectorizeIndex
     });
 
-    await initWatcher(!!opts.force);
+    // Only initialize file watcher for server/UI commands
+    if (needsWatcher) {
+      await initWatcher(!!opts.force);
+    }
   });
 
   program
@@ -212,8 +233,9 @@ async function main() {
     .command("reset")
     .description("Completely clear the local database and cache")
     .option("--force", "Skip confirmation prompt")
-    .action(async (options) => {
-      let proceed = !!options.force;
+    .action(async (options, cmd) => {
+      const globalOpts = cmd.parent.opts();
+      let proceed = !!options.force || !!globalOpts.force;
 
       if (!proceed) {
         const prompt = new pkg.Confirm({
@@ -226,6 +248,7 @@ async function main() {
       if (proceed) {
         console.log("Clearing database...");
         await clearDatabase();
+        resetIndexingProgress();
         console.log("Database cleared successfully.");
       } else {
         console.log("Reset cancelled.");

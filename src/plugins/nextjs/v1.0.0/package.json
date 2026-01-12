@@ -1,0 +1,13 @@
+{
+  "name": "vibescout-plugin-nextjs",
+  "version": "1.0.0",
+  "description": "Next.js framework extractor plugin for VibeScout",
+  "main": "index.js",
+  "vibescout": {
+    "apiVersion": "1.0.0",
+    "capabilities": ["extractors"],
+    "builtin": true
+  },
+  "author": "VibeScout",
+  "license": "MIT"
+}

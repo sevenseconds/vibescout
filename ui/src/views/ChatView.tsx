@@ -1,13 +1,23 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles, Trash2, Filter, X, Bug } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, Trash2, Bug, Info, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import DebugPanel from '../components/DebugPanel';
+import { notify } from '../utils/events';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+interface ConfirmModalState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText?: string;
+  variant?: 'primary' | 'danger';
+  onConfirm: () => void;
 }
 
 interface Message {
@@ -25,14 +35,21 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
-  
-  // Filters
+
+  // Filters (hidden from UI, still sent to API)
   const [projectName, setProjectName] = useState('');
   const [collection, setCollection] = useState('');
   const [fileType, setFileType] = useState('');
   const [filterCategory, setFilterCategory] = useState<'all' | 'code' | 'documentation'>('all');
+
+  // Confirm Modal
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { }
+  });
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -43,11 +60,7 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
       if (preFill.collection) setCollection(preFill.collection);
       if (preFill.fileTypes) setFileType(preFill.fileTypes.join(', '));
       if (preFill.category) setFilterCategory(preFill.category);
-      
-      if (preFill.projectName || preFill.collection || preFill.fileTypes || preFill.category) {
-        setShowFilters(true);
-      }
-      
+
       onPreFillClear?.();
     }
   }, [preFill]);
@@ -105,21 +118,25 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
   };
 
   const handleClear = async () => {
-    if (!confirm('Are you sure you want to clear the conversation history?')) return;
-    try {
-      await axios.delete('/api/chat');
-      setMessages([]);
-    } catch (err) {
-      console.error('Failed to clear chat:', err);
-    }
-  };
-
-  const clearFilters = () => {
-    setProjectName('');
-    setCollection('');
-    setFileType('');
-    setFilterCategory('all');
-    onPreFillClear?.();
+    setConfirmModal({
+      isOpen: true,
+      title: 'Clear Chat History',
+      message: 'Are you sure you want to clear the entire conversation history? This cannot be undone.',
+      confirmText: 'Clear History',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await axios.delete('/api/chat');
+          setMessages([]);
+          notify('success', 'Chat history cleared successfully.');
+        } catch (err) {
+          console.error('Failed to clear chat:', err);
+          notify('error', 'Failed to clear chat history.');
+        } finally {
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
   if (initialLoading) {
@@ -157,20 +174,6 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
               >
                 <Bug size={18} />
               </button>
-              {messages.length > 0 && (
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={cn(
-                    "p-2.5 rounded-2xl border transition-all flex items-center gap-2 px-4",
-                    showFilters || projectName || collection || fileType || filterCategory !== 'all'
-                      ? "bg-primary/10 border-primary/30 text-primary"
-                      : "bg-secondary border-border text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Filter size={16} />
-                  <span className="text-xs font-bold">Filters</span>
-                </button>
-              )}
               {messages.length > 0 && (
                 <button
                   onClick={handleClear}
@@ -237,78 +240,6 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
 
           {/* Input Area */}
           <div className="pt-2 space-y-4">
-            {showFilters && (
-              <div className="bg-card border border-border p-4 rounded-2xl shadow-lg animate-in slide-in-from-bottom-2 duration-200">
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Scope Filters</h3>
-                  {(projectName || collection || fileType || filterCategory !== 'all') && (
-                    <button 
-                      onClick={clearFilters}
-                      className="text-[10px] font-bold uppercase tracking-wider text-primary hover:underline flex items-center gap-1"
-                    >
-                      <X size={10} /> Clear All
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div className="flex items-center gap-1 bg-secondary border border-border rounded-lg p-1">
-                    <button 
-                      onClick={() => setFilterCategory('all')}
-                      className={cn(
-                        "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
-                        filterCategory === 'all' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      All
-                    </button>
-                    <button 
-                      onClick={() => setFilterCategory('code')}
-                      className={cn(
-                        "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
-                        filterCategory === 'code' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Code
-                    </button>
-                    <button 
-                      onClick={() => setFilterCategory('documentation')}
-                      className={cn(
-                        "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
-                        filterCategory === 'documentation' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Docs
-                    </button>
-                  </div>
-                  <input 
-                    type="text" 
-                    placeholder="Project Name"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary transition-all"
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="Collection"
-                    value={collection}
-                    onChange={(e) => setCollection(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary transition-all"
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="Extensions"
-                    value={fileType}
-                    onChange={(e) => setFileType(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary font-mono transition-all"
-                  />
-                </div>
-                <div className="mt-3 px-1">
-                  <p className="text-[9px] text-muted-foreground font-medium">
-                    Try a <strong>Force Re-index</strong> if Code/Docs filtering is not returning expected results.
-                  </p>
-                </div>
-              </div>
-            )}
             <div className="relative group">
               <input
                 type="text"
@@ -333,6 +264,45 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
         </div>
       </div>
       {showDebug && <DebugPanel />}
+
+      {/* Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-card border border-border p-8 rounded-[2rem] shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className={cn(
+                "p-4 rounded-2xl",
+                confirmModal.variant === 'danger' ? "bg-red-500/10 text-red-500" : "bg-primary/10 text-primary"
+              )}>
+                {confirmModal.variant === 'danger' ? <AlertCircle size={32} /> : <Info size={32} />}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold tracking-tight text-foreground">{confirmModal.title}</h3>
+                <p className="text-sm text-muted-foreground mt-2 px-2">{confirmModal.message}</p>
+              </div>
+              <div className="flex gap-3 w-full mt-2">
+                <button
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                  className="flex-1 px-4 py-3 rounded-xl text-sm font-bold bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmModal.onConfirm}
+                  className={cn(
+                    "flex-1 px-4 py-3 rounded-xl text-sm font-bold text-white transition-all shadow-lg",
+                    confirmModal.variant === 'danger'
+                      ? "bg-red-500 hover:bg-red-600 shadow-red-500/20"
+                      : "bg-primary hover:bg-primary/90 shadow-primary/20"
+                  )}
+                >
+                  {confirmModal.confirmText || 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

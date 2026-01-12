@@ -71,13 +71,22 @@ export async function getFileGitInfo(
 
   try {
     // Get last commit info
-    const logCommand = `git -C "${repoPath}" log -1 --format="%an|%ae|%aI|%h|%s" --follow -- "${filePath}"`;
-    const { stdout: logOutput } = await execAsync(logCommand, {
-      maxBuffer: 1024 * 1024
-    });
+    let logOutput: string;
+    try {
+      const logCommand = `git -C "${repoPath}" log -1 --format="%an|%ae|%aI|%h|%s" --follow -- "${filePath}"`;
+      const result = await execAsync(logCommand, {
+        maxBuffer: 1024 * 1024,
+        stderr: 'ignore'
+      });
+      logOutput = result.stdout;
+    } catch (gitError: any) {
+      // File might not exist in git history (new/uncommitted file)
+      logger.debug(`[Git] File not in git history (uncommitted or new): ${filePath}`);
+      return null;
+    }
 
     if (!logOutput.trim()) {
-      logger.debug(`[Git] File not in git: ${filePath}`);
+      logger.debug(`[Git] No git history for file: ${filePath}`);
       return null;
     }
 
@@ -91,12 +100,19 @@ export async function getFileGitInfo(
     const message = messageParts.join('|'); // Rejoin in case message contains |
 
     // Get commit count in the specified time window
-    const countCommand = `git -C "${repoPath}" log --since="${churnWindow} months ago" --oneline --follow -- "${filePath}" | wc -l`;
-    const { stdout: countOutput } = await execAsync(countCommand, {
-      maxBuffer: 1024 * 1024
-    });
+    let commitCount6m = 0;
+    try {
+      const countCommand = `git -C "${repoPath}" log --since="${churnWindow} months ago" --oneline --follow -- "${filePath}" | wc -l`;
+      const countResult = await execAsync(countCommand, {
+        maxBuffer: 1024 * 1024,
+        stderr: 'ignore'
+      });
+      commitCount6m = parseInt(countResult.stdout.trim()) || 0;
+    } catch (countError) {
+      // If count fails, just use 0
+      logger.debug(`[Git] Could not get commit count for ${filePath}`);
+    }
 
-    const commitCount6m = parseInt(countOutput.trim()) || 0;
     const churnLevel = calculateChurnLevel(commitCount6m);
 
     const gitInfo: GitFileInfo = {

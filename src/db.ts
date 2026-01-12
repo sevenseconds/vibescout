@@ -180,6 +180,36 @@ export async function getFileDependencies(filePath: string) {
   };
 }
 
+export async function getBatchDependencies(filePaths: string[]): Promise<Record<string, { imports: string[], exports: string[] } | null>> {
+  const db = await getMetaDb();
+  const tables = await db.tableNames();
+  if (!tables.includes("dependencies")) {
+    return Object.fromEntries(filePaths.map(p => [p, null]));
+  }
+
+  const table = await db.openTable("dependencies");
+  const results = await table.query().toArray();
+
+  const dependencyMap: Record<string, { imports: string[], exports: string[] } | null> = {};
+
+  // Initialize with null for all requested files
+  for (const filePath of filePaths) {
+    dependencyMap[filePath] = null;
+  }
+
+  // Populate with found dependencies
+  for (const result of results) {
+    if (dependencyMap.hasOwnProperty(result.filepath)) {
+      dependencyMap[result.filepath] = {
+        imports: JSON.parse(result.imports || '[]'),
+        exports: JSON.parse(result.exports || '[]')
+      };
+    }
+  }
+
+  return dependencyMap;
+}
+
 export async function getAllDependencies() {
   const db = await getMetaDb();
   const tables = await db.tableNames();

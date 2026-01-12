@@ -19,7 +19,8 @@ import {
     chatWithCode,
     openFile,
     indexingProgress,
-    pauseIndexing
+    pauseIndexing,
+    resetIndexingProgress
   } from "./core.js";
 import {
   listKnowledgeBase,
@@ -40,8 +41,8 @@ import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig, saveConfig } from "./config.js";
 import { createRequire } from "module";
-import { getRegistry } from './plugin-system/registry.js';
-import { discoverPlugins, ensurePluginsDir, getPluginsDir } from './plugin-system/loader.js';
+import { getRegistry } from './plugins/registry.js';
+import { discoverPlugins, ensurePluginsDir, getPluginsDir } from './plugins/loader.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json");
@@ -327,6 +328,39 @@ app.get('/api/projects/root', async (c) => {
   return c.json({ rootPath });
 });
 
+app.get('/api/projects/framework', async (c) => {
+  const projectName = c.req.query('projectName');
+  const collection = c.req.query('collection') || 'default';
+
+  if (!projectName) return c.json({ error: 'projectName required' }, 400);
+
+  try {
+    const { getProjectFiles } = await import('./db.js');
+    const files = await getProjectFiles();
+
+    // Find a file belonging to this project and collection
+    const sampleFile = files.find(f => {
+      const parts = f.split('/');
+      const idx = parts.indexOf(collection);
+      const nameIdx = parts.indexOf(projectName);
+      return idx !== -1 && nameIdx !== -1 && idx < nameIdx;
+    });
+
+    if (!sampleFile) return c.json({ error: 'Project files not found' }, 404);
+
+    const projectPath = path.dirname(sampleFile);
+
+    // Detect framework
+    const { detectFramework } = await import('./framework-detection.js');
+    const detection = await detectFramework(projectPath);
+
+    return c.json(detection);
+  } catch (error) {
+    logger.error('[API] Error detecting framework:', error.message);
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 app.post('/api/index', async (c) => {
   const { folderPath, projectName, collection, summarize, force } = await c.req.json();
   // Read from config if summarize not explicitly provided in request
@@ -391,6 +425,11 @@ app.post('/api/index/retry', async (c) => {
   })();
 
   return c.json({ success: true, message: "Retry started in background" });
+});
+
+app.post('/api/index/reset', (c) => {
+  resetIndexingProgress();
+  return c.json({ success: true, message: "Indexing progress reset" });
 });
 
 app.get('/api/logs', (c) => c.json(logger.getRecentLogs()));
@@ -689,12 +728,26 @@ app.get('/api/stats', async (c) => {
 app.get('/api/files/read', async (c) => {
   const filePath = c.req.query('path');
   if (!filePath) return c.json({ error: 'path required' }, 400);
-  
+
   try {
     const content = await fs.readFile(path.resolve(filePath), 'utf-8');
     return c.json({ content });
   } catch (err) {
     return c.json({ error: 'Failed to read file' }, 500);
+  }
+});
+
+app.post('/api/dependencies/batch', async (c) => {
+  const { filePaths } = await c.req.json();
+  if (!Array.isArray(filePaths)) return c.json({ error: 'filePaths must be an array' }, 400);
+
+  try {
+    const { getBatchDependencies } = await import('./db.js');
+    const dependencies = await getBatchDependencies(filePaths);
+    return c.json(dependencies);
+  } catch (error) {
+    logger.error('[API] Error fetching batch dependencies:', error.message);
+    return c.json({ error: error.message }, 500);
   }
 });
 
@@ -815,6 +868,39 @@ app.post('/api/watchers', async (c) => {
   return c.json({ success: true });
 });
 
+app.put('/api/watchers/update', async (c) => {
+  const { folderpath, newPath, collection } = await c.req.json();
+
+  try {
+    const config = await loadConfig();
+    const watchersList = config.watchDirectories || [];
+
+    const watcherIndex = watchersList.findIndex(w => w.folderPath === folderpath);
+
+    if (watcherIndex === -1) {
+      return c.json({ error: 'Watcher not found' }, 404);
+    }
+
+    const watcher = watchersList[watcherIndex];
+
+    // If path is changing, need to unwatch old and watch new
+    if (newPath && newPath !== folderpath) {
+      await unwatchProject(folderpath, watcher.projectName);
+      await watchProject(newPath, watcher.projectname, collection || watcher.collection);
+    } else if (collection && collection !== watcher.collection) {
+      // Only collection is changing
+      watcher.collection = collection;
+      config.watchDirectories = watchersList;
+      await saveConfig(config);
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error('[API] Error updating watcher:', error.message);
+    return c.json({ error: error.message }, 500);
+  }
+});
+
 app.delete('/api/watchers/all', async (c) => {
   const watchersList = await getWatchList();
   for (const w of watchersList) {
@@ -918,12 +1004,17 @@ app.get('/api/plugins', async (c) => {
   try {
     const plugins = await discoverPlugins();
     const registry = getRegistry();
+    const config = await loadConfig();
 
-    // Enhance with runtime status
+    // Get disabled plugins from config
+    const disabledPlugins = new Set(config.plugin?.disabled || []);
+
+    // Enhance with runtime status and enabled flag
     const enrichedPlugins = plugins.map(p => {
       const loadedPlugin = registry.getPlugin(p.name);
       return {
         ...p,
+        enabled: !disabledPlugins.has(p.name), // Check if plugin is disabled
         runtime: loadedPlugin ? {
           active: true,
           extractors: loadedPlugin.plugin.extractors?.length || 0,
@@ -1026,35 +1117,108 @@ app.post('/api/plugins/:name/disable', async (c) => {
 });
 
 app.post('/api/plugins/install', async (c) => {
-  const { name, source = 'npm' } = await c.req.json();
+  const contentType = c.req.header('content-type');
 
-  if (!name) {
-    return c.json({ error: 'Plugin name required' }, 400);
+  // Handle file upload (ZIP)
+  if (contentType?.includes('multipart/form-data')) {
+    try {
+      const formData = await c.req.formData();
+      const file = formData.get('file');
+
+      if (!file) {
+        return c.json({ error: 'No file uploaded' }, 400);
+      }
+
+      const { getPluginsDir, ensurePluginsDir } = await import('./plugins/loader.js');
+      await ensurePluginsDir();
+      const pluginsDir = getPluginsDir();
+
+      // Extract ZIP
+      const AdmZip = (await import('adm-zip')).default;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const zip = new AdmZip(buffer);
+
+      // Create plugin directory from file name
+      const pluginName = file.name.replace('.zip', '');
+      const pluginPath = path.join(pluginsDir, pluginName);
+
+      await fs.ensureDir(pluginPath);
+      zip.extractAllTo(pluginPath, true);
+
+      logger.info(`[Plugin API] Installed plugin from ZIP: ${pluginName}`);
+
+      return c.json({
+        success: true,
+        message: `Plugin ${pluginName} installed successfully from ZIP`
+      });
+    } catch (error) {
+      logger.error('[Plugin API] Error installing plugin from ZIP:', error.message);
+      return c.json({ error: error.message }, 500);
+    }
+  }
+
+  // Handle JSON payload (npm or GitHub)
+  const { name, version = 'latest', url, source = 'npm' } = await c.req.json();
+
+  if (source === 'npm' && !name) {
+    return c.json({ error: 'Plugin name required for npm installation' }, 400);
+  }
+  if (source === 'github' && !url) {
+    return c.json({ error: 'GitHub URL required for GitHub installation' }, 400);
   }
 
   try {
     const { exec } = await import('child_process');
     const util = await import('util');
     const execAsync = util.promisify(exec);
+    const { getPluginsDir, ensurePluginsDir } = await import('./plugins/loader.js');
+
+    await ensurePluginsDir();
+    const pluginsDir = getPluginsDir();
 
     if (source === 'npm') {
       // Install from npm
       const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
       const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-      const { stdout, stderr } = await execAsync(`${cmd} install -g ${pluginName}`);
 
-      logger.info(`[Plugin API] Installed ${pluginName}:`, stdout);
+      // Build install command with version
+      const versionSuffix = version && version !== 'latest' ? `@${version}` : '';
+      const { stdout, stderr } = await execAsync(`${cmd} install -g ${pluginName}${versionSuffix}`);
+
+      logger.info(`[Plugin API] Installed ${pluginName}${versionSuffix} from npm:`, stdout);
 
       return c.json({
         success: true,
-        message: `Plugin ${pluginName} installed successfully`,
+        message: `Plugin ${pluginName}${versionSuffix} installed successfully`,
         output: stdout
       });
+    } else if (source === 'github') {
+      // Parse GitHub URL
+      const urlMatch = url.match(/github\.com\/([^\/]+)\/([^\/\.]+)/);
+      if (!urlMatch) {
+        return c.json({ error: 'Invalid GitHub URL. Expected: https://github.com/user/repo' }, 400);
+      }
+
+      const [, owner, repo] = urlMatch;
+      const pluginName = repo.startsWith('vibescout-plugin-') ? repo : `vibescout-plugin-${repo}`;
+      const cloneUrl = `https://github.com/${owner}/${repo}.git`;
+      const pluginPath = path.join(pluginsDir, pluginName);
+
+      // Clone repository
+      const { stdout } = await execAsync(`git clone --depth 1 ${cloneUrl} "${pluginPath}"`);
+
+      logger.info(`[Plugin API] Installed ${pluginName} from GitHub:`, stdout);
+
+      return c.json({
+        success: true,
+        message: `Plugin ${pluginName} installed successfully from GitHub`,
+        path: pluginPath
+      });
     } else {
-      return c.json({ error: 'Only npm installation is currently supported' }, 400);
+      return c.json({ error: `Unknown installation source: ${source}` }, 400);
     }
   } catch (error) {
-    logger.error(`[Plugin API] Error installing plugin ${name}:`, error.message);
+    logger.error(`[Plugin API] Error installing plugin:`, error.message);
     return c.json({
       error: error.message,
       output: error.stdout || error.stderr

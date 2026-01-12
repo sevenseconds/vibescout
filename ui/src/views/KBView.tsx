@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X, ChevronDown, Check, XCircle, Clock, Bug, Zap, Wand2, Save } from 'lucide-react';
+import { FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X, ChevronDown, Check, XCircle, Clock, Bug, Zap, Wand2, Save, Edit2 } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -21,6 +21,13 @@ interface Watcher {
   folderpath: string;
   projectname: string;
   collection: string;
+}
+
+interface FrameworkDetection {
+  framework: string | null;
+  version?: string;
+  confidence: 'high' | 'medium' | 'low';
+  evidence: string[];
 }
 
 interface ConfirmModalState {
@@ -85,6 +92,9 @@ export default function KBView({ onExplore }: KBViewProps) {
     onConfirm: () => { }
   });
 
+  const [projectFrameworks, setProjectFrameworks] = useState<Map<string, FrameworkDetection>>(new Map());
+  const [loadingFrameworks, setLoadingFrameworks] = useState<Set<string>>(new Set());
+
   const fetchData = async () => {
     try {
       // Use individual try-catch or Promise.allSettled to be more resilient
@@ -144,6 +154,61 @@ export default function KBView({ onExplore }: KBViewProps) {
     return () => clearInterval(interval);
   }, []); // Empty dependency array - only run once on mount
 
+  // Fetch framework data for each project
+  useEffect(() => {
+    const fetchFrameworks = async () => {
+      const allProjectNames = new Set([
+        ...Object.values(kb).flat(),
+        ...watchers.map(w => w.projectname)
+      ]);
+
+      // Fetch framework for each project
+      for (const projectName of allProjectNames) {
+        // Skip if already loaded
+        if (projectFrameworks.has(projectName)) {
+          continue;
+        }
+
+        // Skip if already loading
+        if (loadingFrameworks.has(projectName)) {
+          continue;
+        }
+
+        // Mark as loading
+        setLoadingFrameworks(prev => new Set(prev).add(projectName));
+
+        try {
+          // Find collection for this project
+          let collection = 'default';
+          for (const [col, projs] of Object.entries(kb)) {
+            if (projs.includes(projectName)) {
+              collection = col;
+              break;
+            }
+          }
+          const watcher = watchers.find(w => w.projectname === projectName);
+          if (watcher) collection = watcher.collection;
+
+          const response = await axios.get('/api/projects/framework', {
+            params: { projectName, collection }
+          });
+
+          setProjectFrameworks(prev => new Map(prev).set(projectName, response.data));
+        } catch (error) {
+          console.error(`Failed to fetch framework for ${projectName}:`, error);
+        } finally {
+          setLoadingFrameworks(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(projectName);
+            return newSet;
+          });
+        }
+      }
+    };
+
+    fetchFrameworks();
+  }, [kb, watchers]); // Re-run when kb or watchers change
+
   const handleAddWatcher = async () => {
     if (!newWatcher.folderpath || !newWatcher.projectname) return;
     try {
@@ -195,6 +260,11 @@ export default function KBView({ onExplore }: KBViewProps) {
 
   const handleRetry = async () => {
     await axios.post('/api/index/retry');
+    fetchData();
+  };
+
+  const handleResetProgress = async () => {
+    await axios.post('/api/index/reset');
     fetchData();
   };
 
@@ -264,6 +334,21 @@ export default function KBView({ onExplore }: KBViewProps) {
     } catch (err) {
       console.error('Failed to enable watch:', err);
       notify('error', "Could not automatically detect project path. Please use 'Add Project' manually.");
+    }
+  };
+
+  const handlePathChange = async (watcher: Watcher, newPath: string) => {
+    try {
+      // Update the watcher path
+      await axios.put('/api/watchers/update', {
+        folderpath: watcher.folderpath,
+        newPath: newPath
+      });
+      notify('success', 'Path updated. Re-indexing will start automatically.');
+      fetchData();
+    } catch (error) {
+      console.error('Failed to update path:', error);
+      notify('error', 'Failed to update path');
     }
   };
 
@@ -345,7 +430,7 @@ export default function KBView({ onExplore }: KBViewProps) {
   return (
     <div className="flex h-full w-full overflow-hidden">
       <div className="flex-1 overflow-y-auto">
-        <div className="p-8 space-y-8 flex flex-col max-w-7xl mx-auto w-full pb-20">
+        <div className="p-8 space-y-8 max-w-5xl mx-auto w-full pb-20">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <h2 className="text-3xl font-bold tracking-tight text-foreground">Knowledge Base</h2>
@@ -385,7 +470,7 @@ export default function KBView({ onExplore }: KBViewProps) {
           {/* Indexing Progress Bar */}
           {(indexProgress?.active || indexProgress?.status === 'paused' || indexProgress?.status === 'completed_with_errors') && (
             <div className={cn(
-              "bg-primary/5 border border-primary/20 p-6 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-300",
+              "bg-primary/5 border border-primary/20 p-4 rounded-2xl space-y-3 animate-in slide-in-from-top-4 duration-300",
               indexProgress?.status === 'paused' && "bg-amber-500/5 border-amber-500/20",
               indexProgress?.status === 'completed_with_errors' && "bg-red-500/5 border-red-500/20"
             )}>
@@ -436,9 +521,9 @@ export default function KBView({ onExplore }: KBViewProps) {
                         <RefreshCw size={14} /> Retry
                       </button>
                       <button
-                        onClick={() => setIndexProgress(null)}
+                        onClick={handleResetProgress}
                         className="p-2 hover:bg-red-500/10 rounded-xl text-red-500 transition-colors"
-                        title="Dismiss"
+                        title="Clear Status"
                       >
                         <X size={16} />
                       </button>
@@ -549,32 +634,32 @@ export default function KBView({ onExplore }: KBViewProps) {
           )}
 
           {showAddForm && (
-            <div className="bg-card border-2 border-primary/20 p-8 rounded-3xl space-y-6 animate-in zoom-in-95 duration-200 shadow-xl shadow-primary/5">
+            <div className="bg-card border-2 border-primary/20 p-6 rounded-2xl space-y-5 animate-in zoom-in-95 duration-200 shadow-xl shadow-primary/5">
               <div className="flex items-center gap-3">
                 <FolderGit2 className="text-primary" size={24} />
                 <h3 className="font-bold text-xl tracking-tight">Add Local Project</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Absolute Folder Path</label>
                   <input
                     type="text"
                     placeholder="/Users/name/workspaces/my-app"
                     value={newWatcher.folderpath}
-                    onChange={(e) => setNewWatcher({ ...newWatcher, folderpath: e.target.value })}
-                    onBlur={() => {
-                      if (newWatcher.folderpath) {
-                        const normalizedPath = newWatcher.folderpath.replace(/[/\\]$/, '');
-                        const segments = normalizedPath.split(/[/\\]/);
-                        const name = segments.pop() || '';
-                        const parent = segments.pop() || '';
+                    onChange={(e) => {
+                      const newPath = e.target.value;
 
-                        setNewWatcher(prev => ({
-                          ...prev,
-                          projectname: prev.projectname || name,
-                          collection: (!prev.collection || prev.collection === 'default') ? (parent || 'default') : prev.collection
-                        }));
-                      }
+                      // Auto-fill project name and collection when path changes
+                      const normalizedPath = newPath.replace(/[/\\]$/, '');
+                      const segments = normalizedPath.split(/[/\\]/);
+                      const name = segments.pop() || '';
+                      const parent = segments.pop() || '';
+
+                      setNewWatcher({
+                        folderpath: newPath,
+                        projectname: name,
+                        collection: parent || 'default'
+                      });
                     }}
                     className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
                   />
@@ -710,62 +795,128 @@ export default function KBView({ onExplore }: KBViewProps) {
 
                     return (
                       <div key={project} className={cn(
-                        "bg-card border border-border p-4 md:p-6 rounded-3xl flex flex-col gap-4 group hover:border-primary/30 transition-all shadow-sm",
+                        "bg-card border border-border rounded-2xl overflow-hidden group hover:border-primary/30 transition-all shadow-sm",
                         removingWatcher === watcher?.folderpath && "opacity-50 grayscale pointer-events-none"
                       )}>
-                        {/* Project Header Info */}
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-start gap-4 flex-1 min-w-0">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <h4 className="font-bold text-lg leading-tight text-foreground truncate max-w-full">{project}</h4>
-                                {isWatched ? (
-                                  <span className="flex-shrink-0 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                        {/* Header */}
+                        <div className="bg-secondary/30 px-4 py-3 border-b border-border">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <h4 className="font-bold text-base text-foreground truncate">{project}</h4>
+                              {isWatched ? (
+                                <span className="flex-shrink-0 flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                  <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" /> Live
+                                </span>
+                              ) : (
+                                <span className="flex-shrink-0 text-[9px] font-bold uppercase tracking-wider text-muted-foreground bg-secondary px-2 py-0.5 rounded-full border border-border">
+                                  Static
+                                </span>
+                              )}
+                              {/* Framework Badge */}
+                              {(() => {
+                                const framework = projectFrameworks.get(project);
+                                if (!framework?.framework) return null;
+                                return (
+                                  <span className="flex-shrink-0 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20" title={`Version: ${framework.version || 'unknown'} • Confidence: ${framework.confidence}`}>
+                                    {framework.framework}
+                                    {framework.version && <span className="text-[8px] opacity-70">{framework.version}</span>}
                                   </span>
-                                ) : (
-                                  <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-secondary px-2 py-0.5 rounded-full border border-border">
-                                    Static
-                                  </span>
-                                )}
-                                <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.1em] bg-secondary/50 px-2 py-0.5 rounded-full border border-border/50">{collection}</span>
-                              </div>
-                              <div className="flex flex-col gap-1">
-                                {watcher && (
-                                  <div className="flex items-center gap-1.5 text-muted-foreground group/path">
-                                    <FolderGit2 size={12} className="shrink-0" />
-                                    <p className="text-[11px] font-mono truncate hover:text-foreground transition-colors" title={watcher.folderpath}>{watcher.folderpath}</p>
-                                  </div>
-                                )}
-                              </div>
+                                );
+                              })()}
                             </div>
                           </div>
-
-                          <button
-                            onClick={() => onExplore?.({ projectName: project, collection })}
-                            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all shrink-0"
-                            title="Explore in Search"
-                          >
-                            <ExternalLink size={18} />
-                          </button>
                         </div>
 
-                        {/* Action Buttons Bar */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border/10">
-                          <div className="flex flex-wrap items-center gap-2">
+                        {/* Body */}
+                        <div className="px-4 py-3 space-y-2">
+                          {/* Path Editor */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Path</span>
+                              {isWatched && (
+                                <button
+                                  onClick={() => {
+                                    const currentPath = watcher?.folderpath || '';
+                                    const newPath = prompt('Enter new folder path:', currentPath);
+                                    if (newPath && newPath !== currentPath) {
+                                      if (confirm('WARNING: Changing the path will reset the index and re-index all files. Continue?')) {
+                                        handlePathChange(watcher, newPath);
+                                      }
+                                    }
+                                  }}
+                                  className="text-[9px] text-primary hover:text-primary/80 font-bold uppercase tracking-wider flex items-center gap-1"
+                                >
+                                  <Edit2 size={10} /> Change
+                                </button>
+                              )}
+                            </div>
+                            {watcher ? (
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <FolderGit2 size={11} className="shrink-0" />
+                                <p className="text-[10px] font-mono truncate hover:text-foreground transition-colors" title={watcher.folderpath}>{watcher.folderpath}</p>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <FolderGit2 size={11} className="shrink-0" />
+                                <p className="text-[10px] font-mono truncate">Not currently watched</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Collection Selector */}
+                          <div className="flex items-center justify-between gap-2 pt-1">
+                            <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Collection</span>
+                            <select
+                              value={collection}
+                              onChange={async (e) => {
+                                const newCollection = e.target.value;
+                                try {
+                                  if (isWatched && watcher) {
+                                    // Update watcher collection
+                                    await axios.put('/api/watchers/update', {
+                                      folderpath: watcher.folderpath,
+                                      collection: newCollection
+                                    });
+                                  } else {
+                                    // Move project to new collection
+                                    await axios.post('/api/move', {
+                                      projectName: project,
+                                      oldCollection: collection,
+                                      newCollection
+                                    });
+                                  }
+                                  notify('success', `Moved to "${newCollection}"`);
+                                  fetchData();
+                                } catch (error) {
+                                  notify('error', 'Failed to move project');
+                                }
+                              }}
+                              className="text-[10px] font-mono bg-secondary border border-border rounded-lg px-2 py-1 text-foreground focus:outline-none focus:border-primary transition-all"
+                            >
+                              {Object.keys(kb).map(col => (
+                                <option key={col} value={col}>{col}</option>
+                              ))}
+                              <option value="default">default</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="px-4 pb-3 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
                             {isWatched ? (
                               <button
                                 onClick={() => handleRemoveWatcher(watcher.folderpath, watcher.projectname)}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 rounded-xl transition-all border border-amber-500/20 text-[10px] font-black uppercase tracking-widest"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 rounded-lg transition-all border border-amber-500/20 text-[9px] font-bold uppercase tracking-wider"
                               >
-                                <EyeOff size={14} /> Stop Sync
+                                <EyeOff size={12} /> Stop
                               </button>
                             ) : (
                               <button
                                 onClick={() => handleEnableWatch(project, collection)}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 rounded-xl transition-all border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 rounded-lg transition-all border border-emerald-500/20 text-[9px] font-bold uppercase tracking-wider"
                               >
-                                <Eye size={14} /> Start Sync
+                                <Eye size={12} /> Sync
                               </button>
                             )}
 
@@ -778,18 +929,27 @@ export default function KBView({ onExplore }: KBViewProps) {
                                 }
                               }}
                               disabled={!isWatched}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary-600 hover:bg-primary/20 rounded-xl transition-all border border-primary/20 disabled:opacity-30 text-[10px] font-black uppercase tracking-widest"
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-primary/10 text-primary-600 hover:bg-primary/20 rounded-lg transition-all border border-primary/20 disabled:opacity-30 text-[9px] font-bold uppercase tracking-wider"
                             >
-                              <RefreshCw size={14} /> Re-index
+                              <RefreshCw size={12} /> Re-index
                             </button>
                           </div>
 
-                          <button
-                            onClick={() => handleDeleteProject(project)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 text-red-600 hover:text-red-600 border border-red-500/20 rounded-xl transition-all text-[10px] font-black uppercase tracking-widest"
-                          >
-                            <Trash2 size={14} /> Delete Index
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => onExplore?.({ projectName: project, collection })}
+                              className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                              title="Explore in Search"
+                            >
+                              <ExternalLink size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProject(project)}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-500/10 text-red-500 hover:bg-red-500 text-red-600 hover:text-red-600 border border-red-500/20 rounded-lg transition-all text-[9px] font-bold uppercase tracking-wider"
+                            >
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );

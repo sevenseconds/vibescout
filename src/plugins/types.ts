@@ -280,6 +280,15 @@ export interface PluginManifest {
     /** Plugin capabilities */
     capabilities?: ('extractors' | 'providers' | 'commands')[];
 
+    /** Version compatibility requirements */
+    compatibility?: {
+      /** Minimum VibeScout version (inclusive) */
+      vibescoutMin?: string;
+
+      /** Maximum VibeScout version (inclusive) */
+      vibescoutMax?: string;
+    };
+
     /** Sandbox configuration */
     sandbox?: {
       /** Required Node.js modules (whitelist) */
@@ -291,7 +300,25 @@ export interface PluginManifest {
       /** Maximum memory usage */
       maxMemory?: string;
     };
+
+    /** Built-in plugin flag */
+    builtin?: boolean;
   };
+
+  /** Description */
+  description?: string;
+
+  /** Author */
+  author?: string;
+
+  /** Homepage */
+  homepage?: string;
+
+  /** Keywords */
+  keywords?: string[];
+
+  /** License */
+  license?: string;
 }
 
 /**
@@ -304,8 +331,8 @@ export interface PluginInfo {
   /** Plugin version */
   version: string;
 
-  /** Plugin source (npm or local) */
-  source: 'npm' | 'local';
+  /** Plugin source (builtin, npm, or local) */
+  source: 'builtin' | 'npm' | 'local';
 
   /** Absolute path to plugin directory */
   path: string;
@@ -321,6 +348,12 @@ export interface PluginInfo {
 
   /** Load error (if loading failed) */
   error?: string;
+
+  /** Path to overridden plugin (if this plugin overrides another) */
+  overridden?: string;
+
+  /** Incompatibility reason (if plugin is incompatible) */
+  incompatible?: string;
 }
 
 /**

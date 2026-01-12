@@ -138,6 +138,23 @@ export let indexingProgress = {
 let isShuttingDown = false;
 let isPaused = false;
 
+export function resetIndexingProgress() {
+  indexingProgress = {
+    active: false,
+    projectName: "",
+    totalFiles: 0,
+    processedFiles: 0,
+    failedFiles: 0,
+    failedPaths: [],
+    lastError: null,
+    status: "idle",
+    currentFiles: [],
+    completedFiles: [],
+    skippedFiles: 0
+  };
+  logger.info("[Indexing] Progress state reset");
+}
+
 export function stopIndexing() {
   if (indexingProgress.active) {
     isShuttingDown = true;
@@ -268,12 +285,18 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
       // 2. Batch collect git info for all files (performance optimization)
       const filesToIndex = filesOnDisk.map(file => path.join(absolutePath, file));
-      const gitInfoMap = gitRepoPath && gitConfig.enabled
-        ? await batchCollectGitInfo(gitRepoPath, filesToIndex, gitConfig.churnWindow || 6)
-        : new Map();
-
-      if (gitInfoMap.size > 0) {
-        logger.info(`[Git] Collected metadata for ${gitInfoMap.size}/${filesToIndex.length} files`);
+      let gitInfoMap = new Map();
+      if (gitRepoPath && gitConfig.enabled) {
+        try {
+          gitInfoMap = await batchCollectGitInfo(gitRepoPath, filesToIndex, gitConfig.churnWindow || 6);
+          if (gitInfoMap.size > 0) {
+            logger.info(`[Git] Collected metadata for ${gitInfoMap.size}/${filesToIndex.length} files`);
+          }
+        } catch (gitError) {
+          logger.warn(`[Git] Failed to collect git metadata, continuing without git info: ${gitError.message}`);
+          // Continue indexing without git info
+          gitInfoMap = new Map();
+        }
       }
 
       const queue = [...filesOnDisk];
@@ -632,9 +655,16 @@ export async function indexSingleFile(filePath, projectName, collection, summari
     const gitRepoPath = gitConfig.enabled ? await initGitRepo(projectPath) : null;
 
     // Collect git info for this file
-    const gitInfoMap = gitRepoPath && gitConfig.enabled
-      ? await batchCollectGitInfo(gitRepoPath, [filePath], gitConfig.churnWindow || 6)
-      : new Map();
+    let gitInfoMap = new Map();
+    if (gitRepoPath && gitConfig.enabled) {
+      try {
+        gitInfoMap = await batchCollectGitInfo(gitRepoPath, [filePath], gitConfig.churnWindow || 6);
+      } catch (gitError) {
+        logger.warn(`[Git] Failed to collect git metadata for single file, continuing without git info: ${gitError.message}`);
+        // Continue indexing without git info
+        gitInfoMap = new Map();
+      }
+    }
 
     // Get git info (lookup by absolute path)
     const gitInfo = gitInfoMap.get(filePath);

@@ -2,6 +2,7 @@
  * VibeScout Plugin Loader
  *
  * Discovers and loads plugins from:
+ * - Built-in plugins (src/plugins/<name>/<version>/)
  * - npm packages (vibescout-plugin-*)
  * - Local files (~/.vibescout/plugins/)
  */
@@ -11,6 +12,7 @@ import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import { logger } from '../logger.js';
 import type {
   VibeScoutPlugin,
   PluginInfo,
@@ -23,22 +25,190 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Plugin API version (increment when breaking changes are made) */
 export const PLUGIN_API_VERSION = '1.0.0';
 
+/** VibeScout package version */
+const VIBESCOUT_VERSION = getVibeScoutVersion();
+
 /** Plugin naming pattern for npm packages */
 const PLUGIN_NAME_PATTERN = /^vibescout-plugin-/;
 
 /**
- * Discover all available plugins from npm and local directories.
+ * Get VibeScout version from package.json
+ */
+function getVibeScoutVersion(): string {
+  try {
+    const packagePath = path.join(__dirname, '..', '..', 'package.json');
+    const pkg = require(packagePath);
+    return pkg.version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+/**
+ * Check if plugin is compatible with current VibeScout version
+ */
+export function checkCompatibility(manifest: any): { compatible: boolean; reason?: string } {
+  const vibescoutConfig = manifest.vibescout || {};
+
+  // No version constraints - compatible
+  if (!vibescoutConfig.compatibility) {
+    return { compatible: true };
+  }
+
+  const { vibescoutMin, vibescoutMax } = vibescoutConfig.compatibility;
+
+  // Check minimum version
+  if (vibescoutMin) {
+    const minOk = compareVersions(VIBESCOUT_VERSION, vibescoutMin) >= 0;
+    if (!minOk) {
+      return {
+        compatible: false,
+        reason: `Requires VibeScout >= ${vibescoutMin} (current: ${VIBESCOUT_VERSION})`
+      };
+    }
+  }
+
+  // Check maximum version
+  if (vibescoutMax) {
+    const maxOk = compareVersions(VIBESCOUT_VERSION, vibescoutMax) <= 0;
+    if (!maxOk) {
+      return {
+        compatible: false,
+        reason: `Requires VibeScout <= ${vibescoutMax} (current: ${VIBESCOUT_VERSION})`
+      };
+    }
+  }
+
+  return { compatible: true };
+}
+
+/**
+ * Simple version comparison (returns positive if v1 > v2, negative if v1 < v2, 0 if equal)
+ */
+function compareVersions(v1: string, v2: string): number {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+
+  for (let i = 0; i < 3; i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 !== p2) {
+      return p1 - p2;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Discover all available plugins from built-in, npm, and local directories.
  */
 export async function discoverPlugins(): Promise<PluginInfo[]> {
   const plugins: PluginInfo[] = [];
+  const pluginMap = new Map<string, PluginInfo>();
 
-  // Discover local plugins
+  // 1. Discover built-in plugins
+  const builtinPlugins = await discoverBuiltinPlugins();
+  for (const plugin of builtinPlugins) {
+    pluginMap.set(plugin.name, { ...plugin, source: 'builtin' as any });
+  }
+
+  // 2. Discover local plugins
   const localPlugins = await discoverLocalPlugins();
-  plugins.push(...localPlugins);
+  for (const plugin of localPlugins) {
+    const existing = pluginMap.get(plugin.name);
 
-  // Discover npm plugins
+    if (existing) {
+      // Override detected - warn user
+      logger.warn(
+        `[Plugin Loader] ⚠️  Override detected: User plugin "${plugin.name}" is overriding built-in plugin. ` +
+        `Built-in: ${existing.path}, User: ${plugin.path}`
+      );
+      plugin.overridden = existing.path;
+    }
+
+    pluginMap.set(plugin.name, plugin);
+  }
+
+  // 3. Discover npm plugins
   const npmPlugins = await discoverNpmPlugins();
-  plugins.push(...npmPlugins);
+  for (const plugin of npmPlugins) {
+    const existing = pluginMap.get(plugin.name);
+
+    if (existing) {
+      logger.warn(
+        `[Plugin Loader] ⚠️  Override detected: NPM plugin "${plugin.name}" is overriding ${existing.source} plugin. ` +
+        `Existing: ${existing.path}, NPM: ${plugin.path}`
+      );
+      plugin.overridden = existing.path;
+    }
+
+    pluginMap.set(plugin.name, plugin);
+  }
+
+  // 4. Check compatibility and auto-disable incompatible plugins
+  for (const [name, plugin] of pluginMap) {
+    const compatibility = checkCompatibility(plugin.manifest);
+
+    if (!compatibility.compatible) {
+      logger.warn(
+        `[Plugin Loader] Plugin "${name}" is incompatible and will be disabled: ${compatibility.reason}`
+      );
+      plugin.enabled = false;
+      plugin.incompatible = compatibility.reason;
+    }
+
+    plugins.push(plugin);
+  }
+
+  return plugins;
+}
+
+/**
+ * Discover built-in plugins from src/plugins/<name>/<version>/
+ */
+async function discoverBuiltinPlugins(): Promise<PluginInfo[]> {
+  const plugins: PluginInfo[] = [];
+  const pluginsDir = path.join(__dirname);
+
+  // Check if plugins directory exists
+  if (!(await fs.pathExists(pluginsDir))) {
+    return plugins;
+  }
+
+  const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    // Each entry is a plugin directory (e.g., nextjs, react-router)
+    if (entry.isDirectory()) {
+      const pluginDir = path.join(pluginsDir, entry.name);
+
+      // Look for version subdirectories
+      const versionEntries = await fs.readdir(pluginDir, { withFileTypes: true }).catch(() => []);
+
+      for (const versionEntry of versionEntries) {
+        if (versionEntry.isDirectory()) {
+          const versionPath = path.join(pluginDir, versionEntry.name);
+          const manifestPath = path.join(versionPath, 'package.json');
+
+          // Check if package.json exists
+          if (await fs.pathExists(manifestPath)) {
+            try {
+              const manifest = await fs.readJson(manifestPath);
+
+              // Only load if marked as built-in
+              if (manifest.vibescout?.builtin) {
+                const pluginInfo = createPluginInfo(manifest, versionPath, 'local');
+                pluginInfo.manifest.builtin = true;
+                plugins.push(pluginInfo);
+              }
+            } catch (error) {
+              logger.warn(`[Plugin Loader] Invalid built-in plugin in ${versionPath}:`, error.message);
+            }
+          }
+        }
+      }
+    }
+  }
 
   return plugins;
 }
