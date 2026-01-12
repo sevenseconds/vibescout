@@ -22,6 +22,15 @@ interface SearchResult {
   summary?: string;
   content: string;
   rerankScore: number;
+
+  // Git metadata
+  lastCommitAuthor?: string;
+  lastCommitEmail?: string;
+  lastCommitDate?: string;
+  lastCommitHash?: string;
+  lastCommitMessage?: string;
+  commitCount6m?: number;
+  churnLevel?: 'low' | 'medium' | 'high';
 }
 
 interface SearchViewProps {
@@ -54,6 +63,12 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
   const [fileType, setFileType] = useState('');
   const [filterCategory, setFilterCategory] = useState<'all' | 'code' | 'documentation'>('all');
 
+  // Git filters
+  const [authorFilter, setAuthorFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [churnLevels, setChurnLevels] = useState<string[]>([]);
+
   useEffect(() => {
     const fetchKb = async () => {
       try {
@@ -78,18 +93,26 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
     setLoading(true);
     setDraftSummary(''); // Clear old summary
     try {
-      const parsedFileTypes = fileType 
+      const parsedFileTypes = fileType
         ? fileType.split(',').map(t => t.trim()).filter(t => t.length > 0)
         : undefined;
 
-      const response = await axios.post('/api/search', { 
+      const parsedAuthors = authorFilter
+        ? authorFilter.split(',').map(a => a.trim()).filter(a => a.length > 0)
+        : undefined;
+
+      const response = await axios.post('/api/search', {
         query,
         projectName: projectName || undefined,
         collection: collection || undefined,
         fileTypes: parsedFileTypes,
-        categories: filterCategory === 'all' ? undefined : [filterCategory]
+        categories: filterCategory === 'all' ? undefined : [filterCategory],
+        authors: parsedAuthors,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        churnLevels: churnLevels.length > 0 ? churnLevels : undefined
       });
-      setResults(response.data); 
+      setResults(response.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -278,6 +301,87 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                     </div>
                   </div>
                 </div>
+
+                {/* Git Filters */}
+                <div className="mt-6 pt-6 border-t border-border">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Git Filters</h4>
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Authors (comma-separated)</label>
+                      <input
+                        type="text"
+                        value={authorFilter}
+                        onChange={(e) => setAuthorFilter(e.target.value)}
+                        placeholder="Alice, Bob"
+                        className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">From Date</label>
+                        <input
+                          type="date"
+                          value={dateFrom}
+                          onChange={(e) => setDateFrom(e.target.value)}
+                          className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">To Date</label>
+                        <input
+                          type="date"
+                          value={dateTo}
+                          onChange={(e) => setDateTo(e.target.value)}
+                          className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Code Stability (Churn Level)</label>
+                      <div className="flex gap-3">
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={churnLevels.includes('low')}
+                            onChange={(e) => {
+                              if (e.target.checked) setChurnLevels([...churnLevels, 'low']);
+                              else setChurnLevels(churnLevels.filter(c => c !== 'low'));
+                            }}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span className="text-green-400">Low (Stable)</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={churnLevels.includes('medium')}
+                            onChange={(e) => {
+                              if (e.target.checked) setChurnLevels([...churnLevels, 'medium']);
+                              else setChurnLevels(churnLevels.filter(c => c !== 'medium'));
+                            }}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span className="text-yellow-400">Medium</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={churnLevels.includes('high')}
+                            onChange={(e) => {
+                              if (e.target.checked) setChurnLevels([...churnLevels, 'high']);
+                              else setChurnLevels(churnLevels.filter(c => c !== 'high'));
+                            }}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span className="text-red-400">High (Frequent)</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="mt-4 p-3 bg-primary/5 rounded-xl border border-primary/10">
                   <p className="text-[10px] text-primary/70 font-medium">
                     <strong>Pro Tip:</strong> If category filtering (Code/Docs) doesn't seem to work, try a <strong>Force Re-index</strong> in the Knowledge Base view to update your database schema.
@@ -374,7 +478,7 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                           </div>
                           <div>
                             <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{result.name}</h3>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">
                                 {result.type}
                               </span>
@@ -382,6 +486,39 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                               <span className="text-[10px] text-primary/70 font-black uppercase tracking-widest">
                                 {result.collection}/{result.projectName}
                               </span>
+
+                              {/* Git Info */}
+                              {result.lastCommitAuthor && (
+                                <>
+                                  <span className="w-1 h-1 rounded-full bg-border" />
+                                  <span className="text-[10px] text-muted-foreground font-medium" title={`Author: ${result.lastCommitAuthor}`}>
+                                    👤 {result.lastCommitAuthor}
+                                  </span>
+                                </>
+                              )}
+                              {result.lastCommitDate && (
+                                <>
+                                  <span className="w-1 h-1 rounded-full bg-border" />
+                                  <span className="text-[10px] text-muted-foreground font-medium" title={`Last modified: ${new Date(result.lastCommitDate).toLocaleDateString()}`}>
+                                    📅 {new Date(result.lastCommitDate).toLocaleDateString()}
+                                  </span>
+                                </>
+                              )}
+                              {result.churnLevel && (
+                                <>
+                                  <span className="w-1 h-1 rounded-full bg-border" />
+                                  <span className={cn(
+                                    "text-[10px] font-bold px-2 py-0.5 rounded",
+                                    result.churnLevel === 'low' ? 'bg-green-500/20 text-green-400' :
+                                    result.churnLevel === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                    'bg-red-500/20 text-red-400'
+                                  )}
+                                  title={`Churn: ${result.churnLevel} (${result.commitCount6m || 0} commits in 6 months)`}
+                                  >
+                                    {result.churnLevel} churn
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>

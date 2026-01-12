@@ -86,22 +86,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "search_code",
-        description: "Search across knowledge base with Reranking. Excludes documentation by default.",
+        description: "Search across knowledge base with reranking. Supports git-based filtering.",
         inputSchema: {
           type: "object",
           properties: {
             query: { type: "string", description: "The search query" },
             collection: { type: "string", description: "Optional collection filter" },
             projectName: { type: "string", description: "Optional project filter" },
-            category: { 
-              type: "string", 
+            category: {
+              type: "string",
               description: "Filter by category: 'code' (default) or 'documentation'",
-              enum: ["code", "documentation"] 
+              enum: ["code", "documentation"]
             },
             categories: {
               type: "array",
               items: { type: "string", enum: ["code", "documentation"] },
               description: "Filter by multiple categories (e.g. ['code', 'documentation'] to include both)"
+            },
+            authors: {
+              type: "array",
+              items: { type: "string" },
+              description: "Filter by commit authors (e.g. ['Alice', 'Bob'])"
+            },
+            dateFrom: {
+              type: "string",
+              description: "Filter by minimum commit date (ISO format: '2024-01-01')"
+            },
+            dateTo: {
+              type: "string",
+              description: "Filter by maximum commit date (ISO format: '2024-12-31')"
+            },
+            churnLevels: {
+              type: "array",
+              items: { type: "string", enum: ["low", "medium", "high"] },
+              description: "Filter by code stability (low=stable, high=frequently changed)"
             }
           },
           required: ["query"],
@@ -212,7 +230,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     if (name === "search_code") {
       const searchCategories = args.categories || (args.category ? [args.category] : undefined);
-      return await handleSearchCode(args.query, args.collection, args.projectName, searchCategories);
+      return await handleSearchCode(
+        args.query,
+        args.collection,
+        args.projectName,
+        searchCategories,
+        undefined, // fileTypes
+        args.authors,
+        args.dateFrom,
+        args.dateTo,
+        args.churnLevels
+      );
     }
     if (name === "move_project") {
       await moveProjectToCollection(args.projectName, args.newCollection);
@@ -560,8 +588,30 @@ app.get('/api/deps', async (c) => {
 });
 
 app.post('/api/search', async (c) => {
-  const { query, collection, projectName, fileTypes, categories } = await c.req.json();
-  const results = await searchCode(query, collection, projectName, fileTypes, categories);
+  const {
+    query,
+    collection,
+    projectName,
+    fileTypes,
+    categories,
+    authors,
+    dateFrom,
+    dateTo,
+    churnLevels
+  } = await c.req.json();
+
+  const results = await searchCode(
+    query,
+    collection,
+    projectName,
+    fileTypes,
+    categories,
+    authors,
+    dateFrom,
+    dateTo,
+    churnLevels
+  );
+
   return c.json(results);
 });
 
@@ -868,6 +918,7 @@ app.get('/api/graph', async (c) => {
   // Merge dependencies by filePath - a file may have been indexed multiple times
   const depsMap = new Map();
   for (const d of rawDeps) {
+    if (!d.filePath) continue; // Skip records with undefined filePath
     if (!depsMap.has(d.filePath)) {
       depsMap.set(d.filePath, { ...d, imports: d.imports });
     } else {
@@ -894,6 +945,7 @@ app.get('/api/graph', async (c) => {
 
   const nodeMap = new Map();
   for (const d of deps) {
+    if (!d.filePath) continue; // Skip records with undefined filePath
     if (!nodeMap.has(d.filePath)) {
       const node = { id: d.filePath, label: path.basename(d.filePath), group: d.projectName, collection: d.collection };
       nodes.push(node);
@@ -905,6 +957,7 @@ app.get('/api/graph', async (c) => {
   const seenLinks = new Set();
 
   for (const d of deps) {
+    if (!d.filePath) continue; // Skip records with undefined filePath
     const imports = JSON.parse(d.imports);
 
     for (const imp of imports) {

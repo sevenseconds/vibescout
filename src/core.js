@@ -7,6 +7,7 @@ import { extractCodeBlocks } from "./extractor.js";
 import { embeddingManager, rerankerManager, summarizerManager } from "./embeddings.js";
 import { logger } from "./logger.js";
 import { loadConfig } from "./config.js";
+import { initGitRepo, batchCollectGitInfo } from "./git-info.js";
 import {
   createOrUpdateTable,
   hybridSearch,
@@ -240,6 +241,16 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
     skippedFiles: 0
   };
 
+  // Initialize git repo for metadata collection
+  const gitConfig = config.gitIntegration || { enabled: true, embedInVector: true };
+  const gitRepoPath = gitConfig.enabled ? await initGitRepo(absolutePath) : null;
+
+  if (gitRepoPath) {
+    logger.info(`[Git] Repository detected at ${gitRepoPath}`);
+  } else if (gitConfig.enabled) {
+    logger.warn(`[Git] Not a git repository: ${absolutePath}. Git metadata will not be collected.`);
+  }
+
   const runIndexing = async () => {
     try {
       let totalIndexed = 0;
@@ -253,6 +264,16 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           await deleteFileData(knownFile);
           pruned++;
         }
+      }
+
+      // 2. Batch collect git info for all files (performance optimization)
+      const filesToIndex = filesOnDisk.map(file => path.join(absolutePath, file));
+      const gitInfoMap = gitRepoPath && gitConfig.enabled
+        ? await batchCollectGitInfo(gitRepoPath, filesToIndex, gitConfig.churnWindow || 6)
+        : new Map();
+
+      if (gitInfoMap.size > 0) {
+        logger.info(`[Git] Collected metadata for ${gitInfoMap.size}/${filesToIndex.length} files`);
       }
 
       const queue = [...filesOnDisk];
@@ -366,7 +387,22 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
               const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
               const fileNameForEmbed = (config.embedFilePath === 'name') ? path.basename(file) : file;
-              const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${derivedProjectName}\nFile: ${fileNameForEmbed}\nType: ${block.type}\nName: ${block.name}\nComments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
+
+              // Get git info for this file (using relative path from repo root)
+              const relativeFilePath = gitRepoPath ? path.relative(gitRepoPath, filePath) : file;
+              const gitInfo = gitInfoMap.get(relativeFilePath);
+
+              // Build git context for embedding (if enabled)
+              let gitContext = '';
+              if (gitInfo && gitConfig.embedInVector) {
+                const dateText = new Date(gitInfo.date).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short'
+                });
+                gitContext = `Last Modified: ${dateText} by ${gitInfo.author}\nChurn: ${gitInfo.churnLevel}\n`;
+              }
+
+              const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${derivedProjectName}\nFile: ${fileNameForEmbed}\nType: ${block.type}\nName: ${block.name}\n${gitContext}Comments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
 
               textsToEmbed.push(textToEmbed);
               blockData.push({
@@ -380,7 +416,16 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 endline: block.endLine,
                 comments: block.comments,
                 content: block.content,
-                summary
+                summary,
+
+                // Add git metadata (always store if available)
+                lastCommitAuthor: gitInfo?.author,
+                lastCommitEmail: gitInfo?.email,
+                lastCommitDate: gitInfo?.date,
+                lastCommitHash: gitInfo?.hash,
+                lastCommitMessage: gitInfo?.message,
+                commitCount6m: gitInfo?.commitCount6m,
+                churnLevel: gitInfo?.churnLevel
               });
             }
 
@@ -484,7 +529,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 /**
  * Shared search logic that returns raw result objects
  */
-export async function searchCode(query, collection, projectName, fileTypes, categories) {
+export async function searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels) {
   const currentModel = embeddingManager.getModel();
   const storedModel = await getStoredModel();
 
@@ -494,15 +539,25 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
   }
 
   const queryVector = await embeddingManager.generateEmbedding(query);
-  const rawResults = await hybridSearch(query, queryVector, { collection, projectName, fileTypes, categories, limit: 15 });
+  const rawResults = await hybridSearch(query, queryVector, {
+    collection,
+    projectName,
+    fileTypes,
+    categories,
+    limit: 15,
+    authors,
+    dateFrom,
+    dateTo,
+    churnLevels
+  });
   return await rerankerManager.rerank(query, rawResults, 10);
 }
 
 /**
  * Tool: search_code (MCP Wrapper)
  */
-export async function handleSearchCode(query, collection, projectName, categories = ['code']) {
-  const results = await searchCode(query, collection, projectName, undefined, categories);
+export async function handleSearchCode(query, collection, projectName, categories = ['code'], fileTypes, authors, dateFrom, dateTo, churnLevels) {
+  const results = await searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels);
 
   const formattedResults = results.map(r =>
     `[Score: ${r.rerankScore.toFixed(4)}] [Project: ${r.projectname}] [Category: ${r.category}]
@@ -572,6 +627,19 @@ export async function indexSingleFile(filePath, projectName, collection, summari
     if (existingHash === hash) return;
     if (existingHash) await deleteFileData(filePath);
 
+    // Git integration for single file
+    const gitConfig = config.gitIntegration || { enabled: true, embedInVector: true };
+    const projectPath = path.dirname(filePath);
+    const gitRepoPath = gitConfig.enabled ? await initGitRepo(projectPath) : null;
+
+    // Collect git info for this file
+    const gitInfoMap = gitRepoPath && gitConfig.enabled
+      ? await batchCollectGitInfo(gitRepoPath, [filePath], gitConfig.churnWindow || 6)
+      : new Map();
+
+    const relativeFilePath = gitRepoPath ? path.relative(gitRepoPath, filePath) : filePath;
+    const gitInfo = gitInfoMap.get(relativeFilePath);
+
     const { blocks, metadata } = await extractCodeBlocks(filePath);
     await updateDependencies(filePath, projectName, collection, metadata);
 
@@ -598,7 +666,18 @@ export async function indexSingleFile(filePath, projectName, collection, summari
 
         const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
         const fileNameForEmbed = path.basename(filePath);
-        const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${projectName}\nFile: ${fileNameForEmbed}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
+
+        // Build git context for embedding (if enabled)
+        let gitContext = '';
+        if (gitInfo && gitConfig.embedInVector) {
+          const dateText = new Date(gitInfo.date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short'
+          });
+          gitContext = `Last Modified: ${dateText} by ${gitInfo.author}\nChurn: ${gitInfo.churnLevel}\n`;
+        }
+
+        const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${projectName}\nFile: ${fileNameForEmbed}\n${gitContext}Summary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
         dataToInsert.push({
           vector: null,
           textToEmbed,
@@ -612,7 +691,16 @@ export async function indexSingleFile(filePath, projectName, collection, summari
           endline: block.endLine,
           comments: block.comments,
           content: block.content,
-          summary
+          summary,
+
+          // Add git metadata (always store if available)
+          lastCommitAuthor: gitInfo?.author,
+          lastCommitEmail: gitInfo?.email,
+          lastCommitDate: gitInfo?.date,
+          lastCommitHash: gitInfo?.hash,
+          lastCommitMessage: gitInfo?.message,
+          commitCount6m: gitInfo?.commitCount6m,
+          churnLevel: gitInfo?.churnLevel
         });
       }
 

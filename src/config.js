@@ -38,6 +38,15 @@ const DEFAULT_CONFIG = {
   offline: false,
   useReranker: true,
   embedFilePath: "full", // "full" (relative path) or "name" (filename only)
+
+  // Git integration configuration
+  gitIntegration: {
+    enabled: true,           // Collect git data during indexing
+    embedInVector: true,     // Include in embedding text (affects semantic search)
+    storeAsMetadata: true,   // Store for filtering (always true when enabled)
+    churnWindow: 6           // Months to calculate churn (default: 6)
+  },
+
   // Directories to watch (relative to project root)
   // Set to null or [] to watch the entire project root
   // Set to ["src", "lib", "components"] to watch only specific directories
@@ -350,7 +359,23 @@ export async function interactiveConfig() {
       initial: currentConfig.embedFilePath === "name" ? 1 : 0
     });
     const embedFilePath = await embedPathPrompt.run();
-    
+
+    // 5. Git Integration Settings
+    const gitEnabledPrompt = new Toggle({
+      message: "Enable Git Integration? (Collect commit metadata)",
+      initial: currentConfig.gitIntegration?.enabled ?? true
+    });
+    const gitEnabled = await gitEnabledPrompt.run();
+
+    let embedInVector = true;
+    if (gitEnabled) {
+      const embedPrompt = new Toggle({
+        message: "Include git info in embeddings? (Affects semantic search)\n  • YES: Semantic search understands 'recent changes by Alice'\n  • NO: Git filters work, embeddings unchanged",
+        initial: currentConfig.gitIntegration?.embedInVector ?? true
+      });
+      embedInVector = await embedPrompt.run();
+    }
+
     const newConfig = {
       provider,
       dbProvider,
@@ -371,7 +396,13 @@ export async function interactiveConfig() {
       verbose,
       offline,
       useReranker,
-      embedFilePath
+      embedFilePath,
+      gitIntegration: {
+        enabled: gitEnabled,
+        embedInVector: embedInVector,
+        storeAsMetadata: true,
+        churnWindow: currentConfig.gitIntegration?.churnWindow ?? 6
+      }
     };
 
     await saveConfig(newConfig);

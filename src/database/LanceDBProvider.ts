@@ -1,6 +1,6 @@
 import * as lancedb from "@lancedb/lancedb";
 import fs from "fs-extra";
-import { VectorDBProvider, VectorResult } from "./base.js";
+import { VectorDBProvider, VectorResult, SearchOptions } from "./base.js";
 import { logger } from "../logger.js";
 
 export class LanceDBProvider implements VectorDBProvider {
@@ -67,7 +67,7 @@ export class LanceDBProvider implements VectorDBProvider {
     }
   }
 
-  async search(embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; categories?: string[]; limit?: number }): Promise<VectorResult[]> {
+  async search(embedding: number[], options: SearchOptions): Promise<VectorResult[]> {
     const table = await this.getTable();
     if (!table) return [];
 
@@ -75,6 +75,8 @@ export class LanceDBProvider implements VectorDBProvider {
     const results = await query.toArray();
 
     let filtered = results as unknown as VectorResult[];
+
+    // Existing filters
     if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
     if (options.projectName) filtered = filtered.filter(r => r.projectname === options.projectName);
     if (options.categories && options.categories.length > 0) {
@@ -87,11 +89,33 @@ export class LanceDBProvider implements VectorDBProvider {
       });
     }
 
+    // NEW: Git filters
+    if (options.authors && options.authors.length > 0) {
+      filtered = filtered.filter(r =>
+        r.lastCommitAuthor && options.authors!.includes(r.lastCommitAuthor)
+      );
+    }
+    if (options.dateFrom) {
+      filtered = filtered.filter(r =>
+        r.lastCommitDate && r.lastCommitDate >= options.dateFrom!
+      );
+    }
+    if (options.dateTo) {
+      filtered = filtered.filter(r =>
+        r.lastCommitDate && r.lastCommitDate <= options.dateTo!
+      );
+    }
+    if (options.churnLevels && options.churnLevels.length > 0) {
+      filtered = filtered.filter(r =>
+        r.churnLevel && options.churnLevels!.includes(r.churnLevel)
+      );
+    }
+
     return filtered.slice(0, options.limit || 10);
   }
 
   // FTS Search (Unique to LanceDB)
-  async hybridSearch(queryText: string, embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; categories?: string[]; limit?: number }): Promise<VectorResult[]> {
+  async hybridSearch(queryText: string, embedding: number[], options: SearchOptions): Promise<VectorResult[]> {
     const table = await this.getTable();
     if (!table) return [];
 
@@ -107,6 +131,8 @@ export class LanceDBProvider implements VectorDBProvider {
     }) as unknown as VectorResult[];
 
     let filtered = combined;
+
+    // Existing filters
     if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
     if (options.projectName) filtered = filtered.filter(r => r.projectname === options.projectName);
     if (options.categories && options.categories.length > 0) {
@@ -117,6 +143,28 @@ export class LanceDBProvider implements VectorDBProvider {
         const path = r.filepath.toLowerCase();
         return options.fileTypes!.some(ext => path.endsWith(ext.toLowerCase()));
       });
+    }
+
+    // NEW: Git filters
+    if (options.authors && options.authors.length > 0) {
+      filtered = filtered.filter(r =>
+        r.lastCommitAuthor && options.authors!.includes(r.lastCommitAuthor)
+      );
+    }
+    if (options.dateFrom) {
+      filtered = filtered.filter(r =>
+        r.lastCommitDate && r.lastCommitDate >= options.dateFrom!
+      );
+    }
+    if (options.dateTo) {
+      filtered = filtered.filter(r =>
+        r.lastCommitDate && r.lastCommitDate <= options.dateTo!
+      );
+    }
+    if (options.churnLevels && options.churnLevels.length > 0) {
+      filtered = filtered.filter(r =>
+        r.churnLevel && options.churnLevels!.includes(r.churnLevel)
+      );
     }
 
     return filtered.slice(0, options.limit || 10);

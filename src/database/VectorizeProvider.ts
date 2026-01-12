@@ -1,4 +1,4 @@
-import { VectorDBProvider, VectorResult } from "./base.js";
+import { VectorDBProvider, VectorResult, SearchOptions } from "./base.js";
 import { logger } from "../logger.js";
 import crypto from "crypto";
 
@@ -69,7 +69,7 @@ export class VectorizeProvider implements VectorDBProvider {
     }
   }
 
-  async search(embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; categories?: string[]; limit?: number }): Promise<VectorResult[]> {
+  async search(embedding: number[], options: SearchOptions): Promise<VectorResult[]> {
     try {
       const response = await fetch(`${this.getBaseUrl()}/query`, {
         method: "POST",
@@ -95,7 +95,7 @@ export class VectorizeProvider implements VectorDBProvider {
         score: m.score
       } as VectorResult));
 
-      // Post-filtering
+      // Existing filters
       if (options.collection) results = results.filter(r => r.collection === options.collection);
       if (options.projectName) results = results.filter(r => r.projectname === options.projectName);
       if (options.categories && options.categories.length > 0) {
@@ -108,6 +108,28 @@ export class VectorizeProvider implements VectorDBProvider {
         });
       }
 
+      // NEW: Git filters
+      if (options.authors && options.authors.length > 0) {
+        results = results.filter(r =>
+          r.lastCommitAuthor && options.authors!.includes(r.lastCommitAuthor)
+        );
+      }
+      if (options.dateFrom) {
+        results = results.filter(r =>
+          r.lastCommitDate && r.lastCommitDate >= options.dateFrom!
+        );
+      }
+      if (options.dateTo) {
+        results = results.filter(r =>
+          r.lastCommitDate && r.lastCommitDate <= options.dateTo!
+        );
+      }
+      if (options.churnLevels && options.churnLevels.length > 0) {
+        results = results.filter(r =>
+          r.churnLevel && options.churnLevels!.includes(r.churnLevel)
+        );
+      }
+
       return results;
     } catch (err: any) {
       logger.error(`Vectorize search error: ${err.message}`);
@@ -115,7 +137,7 @@ export class VectorizeProvider implements VectorDBProvider {
     }
   }
 
-  async hybridSearch(queryText: string, embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; categories?: string[]; limit?: number }): Promise<VectorResult[]> {
+  async hybridSearch(queryText: string, embedding: number[], options: SearchOptions): Promise<VectorResult[]> {
     // Vectorize doesn't natively support hybrid FTS search via REST yet.
     // Fall back to vector search.
     return this.search(embedding, options);

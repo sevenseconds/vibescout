@@ -46,6 +46,12 @@ interface Config {
     description: string;
   }>;
   throttlingErrors: string[];
+  gitIntegration?: {
+    enabled: boolean;
+    embedInVector: boolean;
+    storeAsMetadata: boolean;
+    churnWindow: number;
+  };
 }
 
 export default function ConfigView() {
@@ -774,6 +780,145 @@ export default function ConfigView() {
                     <strong className="text-primary">Tip:</strong> For large documentation files (.md, .txt), the content is automatically truncated before summarization to prevent timeouts. You can adjust the max length for each file type above.
                   </p>
                 </div>
+              </div>
+            </section>
+
+            <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <FileCode size={20} className="text-primary" />
+                  <h3 className="font-bold tracking-tight text-lg text-foreground">Git Integration</h3>
+                </div>
+              </div>
+              <div className="p-8 space-y-6">
+                {/* Enable/Disable Git Integration */}
+                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-sm text-foreground">Git Metadata Collection</h4>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
+                      Collect commit author, date, and churn information during indexing
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!config) return;
+                      const newEnabled = !config.gitIntegration?.enabled;
+                      const newConfig = {
+                        ...config,
+                        gitIntegration: {
+                          enabled: newEnabled,
+                          embedInVector: config.gitIntegration?.embedInVector ?? true,
+                          storeAsMetadata: true,
+                          churnWindow: config.gitIntegration?.churnWindow ?? 6
+                        }
+                      };
+                      setConfig(newConfig);
+                      setSaving(true);
+                      try {
+                        await axios.post('/api/config', newConfig);
+                        setSaveStatus('success');
+                        setTimeout(() => setSaveStatus('idle'), 3000);
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    className={cn(
+                      "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                      config?.gitIntegration?.enabled
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-secondary border-border text-muted-foreground"
+                    )}
+                  >
+                    {config?.gitIntegration?.enabled ? "Enabled" : "Disabled"}
+                  </button>
+                </div>
+
+                {/* Embed in Vector (only shown if git integration enabled) */}
+                {config?.gitIntegration?.enabled && (
+                  <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-sm text-foreground">Include in Embeddings</h4>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
+                        Add git info to embedding text (enables semantic search like "recent changes by Alice")
+                      </p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!config) return;
+                        const newEmbedInVector = !config.gitIntegration?.embedInVector;
+                        const newConfig = {
+                          ...config,
+                          gitIntegration: {
+                            enabled: true,
+                            embedInVector: newEmbedInVector,
+                            storeAsMetadata: true,
+                            churnWindow: config.gitIntegration?.churnWindow ?? 6
+                          }
+                        };
+                        setConfig(newConfig);
+                        setSaving(true);
+                        try {
+                          await axios.post('/api/config', newConfig);
+                          setSaveStatus('success');
+                          setTimeout(() => setSaveStatus('idle'), 3000);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      className={cn(
+                        "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                        config?.gitIntegration?.embedInVector
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-secondary border-border text-muted-foreground"
+                      )}
+                    >
+                      {config?.gitIntegration?.embedInVector ? "Enabled" : "Disabled"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Churn Window Setting */}
+                {config?.gitIntegration?.enabled && (
+                  <div className="p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-sm text-foreground">Churn Calculation Window</h4>
+                        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
+                          Number of months to analyze for commit frequency (default: 6 months)
+                        </p>
+                      </div>
+                      <input
+                        type="number"
+                        min="1"
+                        max="24"
+                        value={config?.gitIntegration?.churnWindow ?? 6}
+                        onChange={(e) => {
+                          if (!config) return;
+                          const value = parseInt(e.target.value) || 6;
+                          setConfig({
+                            ...config,
+                            gitIntegration: {
+                              enabled: true,
+                              embedInVector: config.gitIntegration?.embedInVector ?? true,
+                              storeAsMetadata: true,
+                              churnWindow: value
+                            }
+                          });
+                        }}
+                        className="w-32 px-4 py-2 bg-background border border-border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Info message about re-indexing */}
+                {config?.gitIntegration?.enabled && (
+                  <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl">
+                    <p className="text-xs text-blue-400 font-medium">
+                      💡 Note: Git metadata is collected during indexing. Re-index projects to apply these settings to existing code.
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
