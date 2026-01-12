@@ -148,11 +148,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "read_code_range",
-        description: "Read lines from a file",
+        description: "Read a specific range of lines from a file. Useful for analyzing specific functions or blocks identified in search results.",
         inputSchema: {
           type: "object",
           properties: { filePath: { type: "string" }, startLine: { type: "number" }, endLine: { type: "number" } },
           required: ["filePath", "startLine", "endLine"],
+        },
+      },
+      {
+        name: "read_file",
+        description: "Read the full content of a file.",
+        inputSchema: {
+          type: "object",
+          properties: { filePath: { type: "string" } },
+          required: ["filePath"],
         },
       },
       {
@@ -228,9 +237,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return await watchProject(args.folderPath, args.projectName, args.collection);
     }
     if (name === "read_code_range") {
-      const content = await fs.readFile(args.filePath, "utf-8");
+      const fullPath = path.resolve(args.filePath);
+      const content = await fs.readFile(fullPath, "utf-8");
       const lines = content.split("\n");
       return { content: [{ type: "text", text: lines.slice(args.startLine - 1, args.endLine).join("\n") }] };
+    }
+    if (name === "read_file") {
+      const fullPath = path.resolve(args.filePath);
+      const content = await fs.readFile(fullPath, "utf-8");
+      return { content: [{ type: "text", text: content }] };
     }
     if (name === "clear_index") { await clearDatabase(); return { content: [{ type: "text", text: "Cleared." }] }; }
     throw new Error(`Unknown tool: ${name}`);
