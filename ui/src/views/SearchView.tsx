@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, ArrowRight, FileCode2, Loader2, Filter, X, Sparkles, Maximize2, Code, FileText, Layers, Bug } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, ArrowRight, FileCode2, Loader2, Filter, X, Sparkles, Maximize2, Code, FileText, Layers, Bug, Database, FolderGit2 } from 'lucide-react';
 import axios from 'axios';
 import CodeBlock from '../components/CodeBlock';
 import { clsx, type ClassValue } from 'clsx';
@@ -43,11 +43,35 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
   const [previewContent, setPreviewContent] = useState('');
   const [loadingPreview, setLoadingPreview] = useState(false);
 
+  // KB Data for dropdowns
+  const [kbData, setKbData] = useState<Record<string, string[]>>({});
+  const [availableProjects, setAvailableProjects] = useState<string[]>([]);
+  const [availableCollections, setAvailableCollections] = useState<string[]>([]);
+
   // Filters
   const [projectName, setProjectName] = useState(initialFilters?.projectName || '');
   const [collection, setCollection] = useState(initialFilters?.collection || '');
   const [fileType, setFileType] = useState('');
   const [filterCategory, setFilterCategory] = useState<'all' | 'code' | 'documentation'>('all');
+
+  useEffect(() => {
+    const fetchKb = async () => {
+      try {
+        const res = await axios.get('/api/kb');
+        setKbData(res.data);
+        const cols = Object.keys(res.data);
+        setAvailableCollections(cols);
+        
+        // Flatten projects
+        const projs = new Set<string>();
+        Object.values(res.data).forEach((pList: any) => pList.forEach((p: string) => projs.add(p)));
+        setAvailableProjects(Array.from(projs));
+      } catch (err) {
+        console.error('Failed to fetch KB data', err);
+      }
+    };
+    fetchKb();
+  }, []);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -200,7 +224,59 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                   )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* ... existing filter inputs ... */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Collection</label>
+                    <div className="relative">
+                      <select 
+                        value={collection} 
+                        onChange={(e) => {
+                          const newCol = e.target.value;
+                          setCollection(newCol);
+                          // Clear project if it's not in the new collection
+                          if (projectName && newCol && kbData[newCol] && !kbData[newCol].includes(projectName)) {
+                            setProjectName('');
+                          }
+                        }}
+                        className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-primary appearance-none"
+                      >
+                        <option value="">All Collections</option>
+                        {availableCollections.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <Database size={14} className="absolute right-4 top-3 text-muted-foreground pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Project</label>
+                    <div className="relative">
+                      <select 
+                        value={projectName} 
+                        onChange={(e) => setProjectName(e.target.value)}
+                        className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-primary appearance-none"
+                      >
+                        <option value="">All Projects</option>
+                        {collection 
+                          ? kbData[collection]?.map(p => <option key={p} value={p}>{p}</option>)
+                          : availableProjects.map(p => <option key={p} value={p}>{p}</option>)
+                        }
+                      </select>
+                      <FolderGit2 size={14} className="absolute right-4 top-3 text-muted-foreground pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">File Extensions</label>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={fileType}
+                        onChange={(e) => setFileType(e.target.value)}
+                        placeholder=".ts, .md (optional)"
+                        className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:border-primary"
+                      />
+                      <FileCode2 size={14} className="absolute right-4 top-3 text-muted-foreground pointer-events-none" />
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-4 p-3 bg-primary/5 rounded-xl border border-primary/10">
                   <p className="text-[10px] text-primary/70 font-medium">
