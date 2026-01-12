@@ -16,7 +16,8 @@ import {
   updateFileHash,
   deleteFileData,
   getProjectFiles,
-  updateDependencies
+  updateDependencies,
+  deleteProject
 } from "./db.js";
 import { exec } from "child_process";
 import { promisify } from "util";
