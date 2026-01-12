@@ -74,6 +74,7 @@ export default function KBView({ onExplore }: KBViewProps) {
   const [testTarget, setTestTarget] = useState<'code' | 'docs'>('code');
   const [testResult, setTestResult] = useState<{ file: string; summary: string; content: string } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [configPrompts, setConfigPrompts] = useState<any>(null);
 
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
     isOpen: false,
@@ -268,8 +269,11 @@ export default function KBView({ onExplore }: KBViewProps) {
       setTesting(true); // Show loading state on button or just wait
       try {
         const configRes = await axios.get('/api/config');
-        const activeId = configRes.data.prompts?.activeSummarizeId || 'default';
-        const template = configRes.data.prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
+        const prompts = configRes.data.prompts;
+        setConfigPrompts(prompts);
+        
+        const activeId = prompts?.activeSummarizeId || 'default';
+        const template = prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
         setTestPrompt(template?.text || "Summarize this code:\n\n{{code}}");
         setShowTestModal(true);
       } catch (err) {
@@ -800,7 +804,25 @@ export default function KBView({ onExplore }: KBViewProps) {
                 </div>
 
                 <div className="space-y-3 flex-1 flex flex-col">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Prompt Template</label>
+                  <div className="flex justify-between items-end">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Prompt Template</label>
+                    {configPrompts && (
+                      <select 
+                        className="bg-secondary border border-border rounded-lg px-2 py-1 text-[10px] font-medium focus:outline-none focus:border-primary max-w-[150px]"
+                        onChange={(e) => {
+                          const templates = testTarget === 'code' ? configPrompts.summarizeTemplates : configPrompts.docSummarizeTemplates;
+                          const selected = templates?.find((t: any) => t.id === e.target.value);
+                          if (selected) setTestPrompt(selected.text);
+                        }}
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Load from Library...</option>
+                        {(testTarget === 'code' ? configPrompts.summarizeTemplates : configPrompts.docSummarizeTemplates)?.map((t: any) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                   <div className="flex-1 min-h-[200px]">
                     <PromptEditor 
                       title="Edit Template" 
