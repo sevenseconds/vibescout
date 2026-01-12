@@ -33,6 +33,7 @@ interface Config {
   port: number;
   summarize: boolean;
   verbose: boolean;
+  offline: boolean;
   watchDirectories: string[] | null;
   fileTypes: Record<string, {
     extensions: string[];
@@ -364,6 +365,38 @@ export default function ConfigView() {
                     )}
                   >
                     {config?.summarize ? "Enabled" : "Disabled"}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm text-foreground">Offline Mode</h4>
+                      <Shield size={14} className="text-primary" />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Disable remote model downloads (Local Provider only)</p>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      if (!config) return;
+                      const newOffline = !config.offline;
+                      const newConfig = { ...config, offline: newOffline };
+                      setConfig(newConfig);
+                      setSaving(true);
+                      try {
+                        await axios.post('/api/config', newConfig);
+                        setSaveStatus('success');
+                        setTimeout(() => setSaveStatus('idle'), 3000);
+                      } finally {
+                        setSaving(false);
+                      }
+                    }} 
+                    className={cn(
+                      "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                      config?.offline ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                    )}
+                  >
+                    {config?.offline ? "Offline" : "Online"}
                   </button>
                 </div>
               </div>

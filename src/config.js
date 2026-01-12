@@ -35,6 +35,7 @@ const DEFAULT_CONFIG = {
   port: 3000,
   summarize: true,
   verbose: false,
+  offline: false,
   // Directories to watch (relative to project root)
   // Set to null or [] to watch the entire project root
   // Set to ["src", "lib", "components"] to watch only specific directories
@@ -317,6 +318,12 @@ export async function interactiveConfig() {
       initial: currentConfig.verbose
     });
     const verbose = await verbosePrompt.run();
+
+    const offlinePrompt = new Toggle({
+      message: "Enable Offline Mode? (Disable remote model downloads)",
+      initial: currentConfig.offline
+    });
+    const offline = await offlinePrompt.run();
     
     const newConfig = {
       provider,
@@ -335,7 +342,8 @@ export async function interactiveConfig() {
       modelsPath: answers.modelsPath,
       port: parseInt(answers.port) || 3000,
       summarize,
-      verbose
+      verbose,
+      offline
     };
 
     await saveConfig(newConfig);

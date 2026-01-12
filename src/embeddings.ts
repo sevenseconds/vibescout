@@ -13,9 +13,14 @@ import { getThrottler } from "./throttler.js";
 export function configureEnvironment(modelsPath: string, offlineMode: boolean = false) {
   if (modelsPath) {
     env.localModelPath = modelsPath;
-    if (offlineMode) {
-      env.allowRemoteModels = false;
-    }
+    env.allowLocalModels = true;
+  }
+  
+  if (offlineMode) {
+    env.allowRemoteModels = false;
+    // When offline, we should NOT try to fetch from any remote Hub
+    env.remoteHost = "";
+    env.remotePathTemplate = "";
   }
 }
 

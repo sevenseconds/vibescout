@@ -97,7 +97,7 @@ async function main() {
     .description("Local Code Search MCP Server")
     .version("0.2.0")
     .option("--models-path <path>", "Path to local models directory", config.modelsPath || process.env.MODELS_PATH)
-    .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
+    .option("--offline", "Force offline mode (disable remote model downloads)", config.offline || process.env.OFFLINE_MODE === "true")
     .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", "stdio")
     .option("--port <number>", "Port for sse or http mode", config.port || process.env.PORT || 3000)
     .option("--log-level <level>", "Log level (debug, info, warn, error, none)", "info")
@@ -121,9 +121,7 @@ async function main() {
     }
     logger.setLevel(level);
 
-    if (opts.modelsPath) {
-      configureEnvironment(opts.modelsPath, opts.offline);
-    }
+    configureEnvironment(opts.modelsPath, opts.offline);
 
     const providerConfig = {
       type: (config.provider === "lmstudio" ? "openai" : config.provider) || "local",
