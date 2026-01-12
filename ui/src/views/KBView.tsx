@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X, ChevronDown, Check, XCircle, Clock, Bug, Zap, Wand2 } from 'lucide-react';
+import { FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X, ChevronDown, Check, XCircle, Clock, Bug, Zap, Wand2, Save } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -73,6 +73,8 @@ export default function KBView({ onExplore }: KBViewProps) {
   const [testPrompt, setTestPrompt] = useState('');
   const [testTarget, setTestTarget] = useState<'code' | 'docs'>('code');
   const [testResult, setTestResult] = useState<{ file: string; summary: string; content: string } | null>(null);
+  const [originalPrompt, setOriginalPrompt] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [testing, setTesting] = useState(false);
   const [configPrompts, setConfigPrompts] = useState<any>(null);
 
@@ -80,7 +82,7 @@ export default function KBView({ onExplore }: KBViewProps) {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {}
+    onConfirm: () => { }
   });
 
   const fetchData = async () => {
@@ -248,68 +250,98 @@ export default function KBView({ onExplore }: KBViewProps) {
     });
   };
 
-    const handleEnableWatch = async (projectName: string, collection: string) => {
-      try {
-        // 1. Get the likely root path from the server
-        const pathRes = await axios.get(`/api/projects/root?projectName=${encodeURIComponent(projectName)}`);
-        const folderPath = pathRes.data.rootPath;
-        
-        // 2. Pre-fill the form and scroll to top, or just do it directly
-        if (confirm(`Detected root path: ${folderPath}\n\nDo you want to start a real-time watcher for this project?`)) {
-          await axios.post('/api/watchers', { folderPath, projectName, collection });
-          fetchData();
-        }
-      } catch (err) {
-        console.error('Failed to enable watch:', err);
-        notify('error', "Could not automatically detect project path. Please use 'Add Project' manually.");
+  const handleEnableWatch = async (projectName: string, collection: string) => {
+    try {
+      // 1. Get the likely root path from the server
+      const pathRes = await axios.get(`/api/projects/root?projectName=${encodeURIComponent(projectName)}`);
+      const folderPath = pathRes.data.rootPath;
+
+      // 2. Pre-fill the form and scroll to top, or just do it directly
+      if (confirm(`Detected root path: ${folderPath}\n\nDo you want to start a real-time watcher for this project?`)) {
+        await axios.post('/api/watchers', { folderPath, projectName, collection });
+        fetchData();
       }
-    };
-  
-    const openTestModal = async () => {
-      setTesting(true); // Show loading state on button or just wait
-      try {
-        const configRes = await axios.get('/api/config');
-        const prompts = configRes.data.prompts;
-        setConfigPrompts(prompts);
-        
-        const activeId = prompts?.activeSummarizeId || 'default';
-        const template = prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
-        setTestPrompt(template?.text || "Summarize this code:\n\n{{code}}");
-        setShowTestModal(true);
-      } catch (err) {
-        console.error('Failed to load prompts for test:', err);
-        // Fallback to default
-        setTestPrompt("Summarize this code:\n\n{{code}}");
-        setShowTestModal(true);
-      } finally {
-        setTesting(false);
+    } catch (err) {
+      console.error('Failed to enable watch:', err);
+      notify('error', "Could not automatically detect project path. Please use 'Add Project' manually.");
+    }
+  };
+
+  const openTestModal = async () => {
+    setTesting(true);
+    try {
+      const configRes = await axios.get('/api/config');
+      const prompts = configRes.data.prompts;
+      setConfigPrompts(prompts);
+
+      const activeId = prompts?.activeSummarizeId || 'default';
+      setSelectedTemplateId(activeId);
+
+      const template = prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
+      const text = template?.text || "Summarize this code:\n\n{{code}}";
+      setTestPrompt(text);
+      setOriginalPrompt(text);
+      setShowTestModal(true);
+    } catch (err) {
+      console.error('Failed to load prompts for test:', err);
+      // Fallback to default
+      const text = "Summarize this code:\n\n{{code}}";
+      setTestPrompt(text);
+      setOriginalPrompt(text);
+      setShowTestModal(true);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSavePrompt = async () => {
+    if (!configPrompts || !selectedTemplateId) return;
+
+    try {
+      // Deep clone to avoid mutating state directly
+      const newConfigPrompts = JSON.parse(JSON.stringify(configPrompts));
+      const templates = testTarget === 'code' ? newConfigPrompts.summarizeTemplates : newConfigPrompts.docSummarizeTemplates;
+      const index = templates.findIndex((t: any) => t.id === selectedTemplateId);
+
+      if (index !== -1) {
+        templates[index].text = testPrompt;
+
+        await axios.post('/api/config', { ...config, prompts: newConfigPrompts });
+
+        setConfigPrompts(newConfigPrompts);
+        setOriginalPrompt(testPrompt);
+        notify('success', 'Prompt template saved successfully.');
       }
-    };
-  
-    const handleTestSummarization = async () => {
-      console.log('handleTestSummarization called', newWatcher);
-      if (!newWatcher.folderpath) {
-        notify('error', "Please enter a folder path first.");
-        return;
-      }
-      setTesting(true);
-      setTestResult(null);
-      try {
-        console.log('Sending request to /api/test/summarize-file');
-        const res = await axios.post('/api/test/summarize-file', {
-          folderPath: newWatcher.folderpath,
-          type: testTarget,
-          customPrompt: testPrompt || undefined
-        });
-        console.log('Response:', res.data);
-        setTestResult(res.data);
-      } catch (err: any) {
-        console.error('Test error:', err);
-        notify('error', err.response?.data?.error || "Test failed. Check if folder path is correct.");
-      } finally {
-        setTesting(false);
-      }
-    };
+    } catch (err: any) {
+      console.error('Failed to save prompt:', err);
+      notify('error', 'Failed to save prompt template.');
+    }
+  };
+
+  const handleTestSummarization = async () => {
+    console.log('handleTestSummarization called', newWatcher);
+    if (!newWatcher.folderpath) {
+      notify('error', "Please enter a folder path first.");
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      console.log('Sending request to /api/test/summarize-file');
+      const res = await axios.post('/api/test/summarize-file', {
+        folderPath: newWatcher.folderpath,
+        type: testTarget,
+        customPrompt: testPrompt || undefined
+      });
+      console.log('Response:', res.data);
+      setTestResult(res.data);
+    } catch (err: any) {
+      console.error('Test error:', err);
+      notify('error', err.response?.data?.error || "Test failed. Check if folder path is correct.");
+    } finally {
+      setTesting(false);
+    }
+  };
   return (
     <div className="flex h-full w-full overflow-hidden">
       <div className="flex-1 overflow-y-auto">
@@ -530,6 +562,20 @@ export default function KBView({ onExplore }: KBViewProps) {
                     placeholder="/Users/name/workspaces/my-app"
                     value={newWatcher.folderpath}
                     onChange={(e) => setNewWatcher({ ...newWatcher, folderpath: e.target.value })}
+                    onBlur={() => {
+                      if (newWatcher.folderpath) {
+                        const normalizedPath = newWatcher.folderpath.replace(/[/\\]$/, '');
+                        const segments = normalizedPath.split(/[/\\]/);
+                        const name = segments.pop() || '';
+                        const parent = segments.pop() || '';
+                        
+                        setNewWatcher(prev => ({
+                          ...prev,
+                          projectname: prev.projectname || name,
+                          collection: (!prev.collection || prev.collection === 'default') ? (parent || 'default') : prev.collection
+                        }));
+                      }
+                    }}
                     className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-medium text-sm transition-all"
                   />
                 </div>
@@ -759,8 +805,8 @@ export default function KBView({ onExplore }: KBViewProps) {
 
       {/* Test Summarization Modal */}
       {showTestModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-card border border-border w-full max-w-4xl h-[85vh] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-card border border-border w-full max-w-none w-[90vw] h-[85vh] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="p-6 border-b border-border flex items-center justify-between bg-secondary/30">
               <div className="flex items-center gap-3">
                 <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
@@ -771,7 +817,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                   <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Preview & Tune Prompt</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowTestModal(false)}
                 className="p-3 hover:bg-secondary rounded-2xl transition-colors text-muted-foreground"
               >
@@ -785,7 +831,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                 <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Test Target</label>
                   <div className="flex gap-2 p-1 bg-secondary rounded-xl">
-                    <button 
+                    <button
                       onClick={() => setTestTarget('code')}
                       className={cn(
                         "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
@@ -794,7 +840,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                     >
                       Source Code
                     </button>
-                    <button 
+                    <button
                       onClick={() => setTestTarget('docs')}
                       className={cn(
                         "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
@@ -807,38 +853,58 @@ export default function KBView({ onExplore }: KBViewProps) {
                 </div>
 
                 <div className="space-y-3 flex-1 flex flex-col">
-                  <div className="flex justify-between items-end">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Prompt Template</label>
-                    {configPrompts && (
-                      <select 
-                        className="bg-secondary border border-border rounded-lg px-2 py-1 text-[10px] font-medium focus:outline-none focus:border-primary max-w-[150px]"
-                        onChange={(e) => {
-                          const templates = testTarget === 'code' ? configPrompts.summarizeTemplates : configPrompts.docSummarizeTemplates;
-                          const selected = templates?.find((t: any) => t.id === e.target.value);
-                          if (selected) setTestPrompt(selected.text);
-                        }}
-                        defaultValue=""
-                      >
-                        <option value="" disabled>Load from Library...</option>
-                        {(testTarget === 'code' ? configPrompts.summarizeTemplates : configPrompts.docSummarizeTemplates)?.map((t: any) => (
-                          <option key={t.id} value={t.id}>{t.name}</option>
-                        ))}
-                      </select>
-                    )}
+                  <div className="flex justify-between items-end gap-2">
+                    <div className="flex flex-col gap-1 flex-1">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Prompt Template</label>
+                      {configPrompts && (
+                        <select
+                          className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-[10px] font-medium focus:outline-none focus:border-primary w-full"
+                          value={selectedTemplateId}
+                          onChange={(e) => {
+                            const newId = e.target.value;
+                            setSelectedTemplateId(newId);
+                            const templates = testTarget === 'code' ? configPrompts.summarizeTemplates : configPrompts.docSummarizeTemplates;
+                            const selected = templates?.find((t: any) => t.id === newId);
+                            if (selected) {
+                              setTestPrompt(selected.text);
+                              setOriginalPrompt(selected.text);
+                            }
+                          }}
+                        >
+                          <option value="" disabled>Select Template...</option>
+                          {(testTarget === 'code' ? configPrompts.summarizeTemplates : configPrompts.docSummarizeTemplates)?.map((t: any) => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleSavePrompt}
+                      disabled={testPrompt === originalPrompt}
+                      className={cn(
+                        "px-3 py-1.5 border rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 mb-[1px]",
+                        testPrompt === originalPrompt
+                          ? "bg-secondary text-muted-foreground border-border opacity-50 cursor-not-allowed"
+                          : "bg-primary text-primary-foreground border-primary hover:bg-primary/90 shadow-sm"
+                      )}
+                      title={testPrompt === originalPrompt ? "No changes to save" : "Save changes to template"}
+                    >
+                      <Save size={14} /> Save
+                    </button>
                   </div>
                   <div className="flex-1 min-h-[200px]">
-                    <PromptEditor 
-                      title="Edit Template" 
-                      description="Modify strictly for this test. To save permanently, update in Prompts view." 
-                      value={testPrompt} 
-                      onChange={setTestPrompt} 
+                    <PromptEditor
+                      title="Edit Template"
+                      description="Modify strictly for this test. To save permanently, update in Prompts view."
+                      value={testPrompt}
+                      onChange={setTestPrompt}
                       height="h-full"
                       placeholder="Enter prompt template..."
                     />
                   </div>
                 </div>
 
-                <button 
+                <button
                   onClick={handleTestSummarization}
                   disabled={testing}
                   className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-bold uppercase tracking-widest text-xs hover:opacity-90 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
