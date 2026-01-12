@@ -6,7 +6,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Command } from "commander";
 import fs from "fs-extra";
 import { logger, LogLevel } from "./logger.js";
-import { configureEnvironment, embeddingManager, summarizerManager } from "./embeddings.js";
+import { configureEnvironment, embeddingManager, summarizerManager, rerankerManager } from "./embeddings.js";
 import { closeDb, compactDatabase, initDB } from "./db.js";
 import { handleIndexFolder, stopIndexing } from "./core.js";
 import { server, app } from "./server.js";
@@ -121,66 +121,7 @@ async function main() {
     }
     logger.setLevel(level);
 
-    await embeddingManager.setProvider(providerConfig, config.throttlingErrors);
-    await summarizerManager.setProvider(llmConfig, config.throttlingErrors);
-    await rerankerManager.setProvider({ useReranker: config.useReranker, offline: opts.offline });
-
-    await initDB({
-      type: config.dbProvider || "local",
-      accountId: config.cloudflareAccountId,
-      apiToken: config.cloudflareToken,
-      indexName: config.cloudflareVectorizeIndex
-    });
-
-    await initWatcher(!!opts.force);
-  });
-
-  program
-    .command("config")
-    .description("Interactive configuration TUI")
-    .action(async () => {
-      await interactiveConfig();
-    });
-
-  program
-    .command("ui")
-    .description("Start the Web UI")
-    .option("--force", "Force full re-index of all watched projects on startup", false)
-    .action(async (options) => {
-      const opts = program.opts();
-      const force = !!options.force || !!opts.force;
-      
-      await initDB({
-        type: config.dbProvider || "local",
-        accountId: config.cloudflareAccountId,
-        apiToken: config.cloudflareToken,
-        indexName: config.cloudflareVectorizeIndex
-      });
-      await initWatcher(force);
-      const port = parseInt(opts.port);
-      await startServer("http", port, true);
-    });
-
-  program.hook("preAction", async (thisCommand) => {
-    const opts = thisCommand.opts();
-    
-    let level = LogLevel.INFO;
-    if (opts.verbose) {
-      level = LogLevel.DEBUG;
-    } else {
-      switch (opts.logLevel?.toLowerCase()) {
-        case 'debug': level = LogLevel.DEBUG; break;
-        case 'info': level = LogLevel.INFO; break;
-        case 'warn': level = LogLevel.WARN; break;
-        case 'error': level = LogLevel.ERROR; break;
-        case 'none': level = LogLevel.NONE; break;
-      }
-    }
-    logger.setLevel(level);
-
-    if (opts.modelsPath) {
-      configureEnvironment(opts.modelsPath, opts.offline);
-    }
+    configureEnvironment(opts.modelsPath, opts.offline);
 
     const providerConfig = {
       type: (config.provider === "lmstudio" ? "openai" : config.provider) || "local",
@@ -212,6 +153,7 @@ async function main() {
 
     await embeddingManager.setProvider(providerConfig, config.throttlingErrors);
     await summarizerManager.setProvider(llmConfig, config.throttlingErrors);
+    await rerankerManager.setProvider({ useReranker: config.useReranker, offline: opts.offline });
 
     await initDB({
       type: config.dbProvider || "local",
@@ -222,6 +164,24 @@ async function main() {
 
     await initWatcher(!!opts.force);
   });
+
+  program
+    .command("config")
+    .description("Interactive configuration TUI")
+    .action(async () => {
+      await interactiveConfig();
+    });
+
+  program
+    .command("ui")
+    .description("Start the Web UI")
+    .option("--force", "Force full re-index of all watched projects on startup", false)
+    .action(async (options) => {
+      const opts = program.opts();
+      const force = !!options.force || !!opts.force;
+      const port = parseInt(opts.port);
+      await startServer("http", port, true);
+    });
 
   program
     .command("compact")
