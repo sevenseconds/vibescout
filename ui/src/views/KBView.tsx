@@ -287,6 +287,7 @@ export default function KBView({ onExplore }: KBViewProps) {
     };
   
     const handleTestSummarization = async () => {
+      console.log('handleTestSummarization called', newWatcher);
       if (!newWatcher.folderpath) {
         notify('error', "Please enter a folder path first.");
         return;
@@ -294,14 +295,16 @@ export default function KBView({ onExplore }: KBViewProps) {
       setTesting(true);
       setTestResult(null);
       try {
+        console.log('Sending request to /api/test/summarize-file');
         const res = await axios.post('/api/test/summarize-file', {
           folderPath: newWatcher.folderpath,
           type: testTarget,
           customPrompt: testPrompt || undefined
         });
+        console.log('Response:', res.data);
         setTestResult(res.data);
       } catch (err: any) {
-        console.error(err);
+        console.error('Test error:', err);
         notify('error', err.response?.data?.error || "Test failed. Check if folder path is correct.");
       } finally {
         setTesting(false);
