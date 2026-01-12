@@ -45,6 +45,9 @@ vibescout search "how does auth work?"
 
 # Compact database (remove stale files)
 vibescout compact
+
+# Reset database (clear all data)
+vibescout reset
 ```
 
 ### UI Development
@@ -102,6 +105,8 @@ Core tools exposed to AI assistants:
 - `get_file_dependencies` - Import/export analysis
 - `find_symbol_usages` - Find where symbols are used
 - `chat_with_code` - RAG-powered chat with context
+- `read_file` - Read full content of a file
+- `read_code_range` - Read specific line range for analysis
 - `move_project`, `clear_database`, `compact_database` - Management operations
 
 ### Web UI (`ui/`)

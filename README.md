@@ -14,6 +14,8 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 - **IDE Integration**: "Open in Editor" support with precise **line-level navigation** for VS Code and Cursor.
 - **Multi-Language Support**: TypeScript/JS, Python, Go, Java, Kotlin, Dart, Markdown, JSON, TOML, and XML.
 - **Hybrid Storage**: Use local **LanceDB** for speed or **Cloudflare Vectorize** for cloud-synchronized embeddings.
+- **Category-Aware Search**: Automatically prioritizes source code over documentation for a better "vibe coding" experience.
+- **AI Reranker**: Optional second-pass re-sorting of results using local models for extreme technical accuracy.
 - **Fully Offline Mode**: Strict local-only operation. Disables all remote model downloads and hub connections.
 
 ## 🤖 Supported Providers
@@ -61,6 +63,11 @@ vibescout index ./my-app "My Project"
 
 # Semantic search via terminal
 vibescout search "how does the auth flow work?"
+
+# Reset the database (clear all data)
+vibescout reset
+# Or via npm
+npm run reset-db
 ```
 
 ## 🔒 Offline Mode
