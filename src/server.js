@@ -36,12 +36,16 @@ import {
 } from "./db.js";import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig, saveConfig } from "./config.js";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../package.json");
 
 // MCP Server Setup
 export const server = new Server(
   {
     name: "vibescout",
-    version: "0.2.7",
+    version: pkg.version,
   },
   {
     capabilities: {

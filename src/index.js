@@ -13,6 +13,10 @@ import { server, app } from "./server.js";
 import { initWatcher } from "./watcher.js";
 import { loadConfig, interactiveConfig } from "./config.js";
 import { interactiveSearch } from "./tui.js";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../package.json");
 import pkg from "enquirer";
 import { fileURLToPath } from "url";
 import path from "path";
@@ -95,7 +99,7 @@ async function main() {
   program
     .name("vibescout")
     .description("Local Code Search MCP Server")
-    .version("0.2.0")
+    .version(pkg.version)
     .option("--models-path <path>", "Path to local models directory", config.modelsPath || process.env.MODELS_PATH)
     .option("--offline", "Force offline mode (disable remote model downloads)", config.offline || process.env.OFFLINE_MODE === "true")
     .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", "stdio")

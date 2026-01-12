@@ -1,6 +1,6 @@
 {
   "name": "@sevenseconds/vibescout",
-  "version": "0.2.5",
+  "version": "0.2.9",
   "description": "A high-performance local MCP server for semantic code search, summarization, and RAG.",
   "main": "src/index.js",
   "bin": {
@@ -18,7 +18,9 @@
     "lint": "eslint .",
     "build:ui": "cd ui && npm run build && rm -rf ../src/ui-dist && cp -r dist ../src/ui-dist",
     "reset-db": "node src/index.js reset --force",
-    "prepublishOnly": "npm run build:ui"
+    "prepublishOnly": "npm run build:ui",
+    "version": "npm run build:ui && git add src/ui-dist",
+    "release": "npm version patch && npm publish"
   },
   "keywords": [
     "mcp",
