@@ -87,7 +87,7 @@ async function main() {
   program
     .name("vibescout")
     .description("Local Code Search MCP Server")
-    .version("0.5.0")
+    .version("0.2.0")
     .option("--models-path <path>", "Path to local models directory", config.modelsPath || process.env.MODELS_PATH)
     .option("--offline", "Force offline mode", process.env.OFFLINE_MODE === "true")
     .option("--mcp [mode]", "MCP transport mode (stdio, sse, http)", "stdio")
