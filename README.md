@@ -14,6 +14,7 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 - **IDE Integration**: "Open in Editor" support with precise **line-level navigation** for VS Code and Cursor.
 - **Multi-Language Support**: TypeScript/JS, Python, Go, Java, Kotlin, Dart, Markdown, JSON, TOML, and XML.
 - **Hybrid Storage**: Use local **LanceDB** for speed or **Cloudflare Vectorize** for cloud-synchronized embeddings.
+- **Fully Offline Mode**: Strict local-only operation. Disables all remote model downloads and hub connections.
 
 ## 🤖 Supported Providers
 
@@ -61,6 +62,16 @@ vibescout index ./my-app "My Project"
 # Semantic search via terminal
 vibescout search "how does the auth flow work?"
 ```
+
+## 🔒 Offline Mode
+
+To use VibeScout in a restricted environment without internet access:
+
+1. **Download Models**: In an online environment, let VibeScout download the models first, or download them manually from Hugging Face.
+2. **Enable Offline Mode**: Toggle **Offline Mode** in **Settings** or run with the `--offline` flag.
+3. **Local Path**: Use `--models-path <path>` if your models are stored in a non-standard directory.
+
+When enabled, VibeScout sets `allowRemoteModels: false` and disables all attempts to connect to the Hugging Face Hub.
 
 ## 🔌 Client Integration
 
