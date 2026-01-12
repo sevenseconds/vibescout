@@ -79,4 +79,4 @@ Add VibeScout to your configuration:
 ```
 
 ## 📄 License
-ISC License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.

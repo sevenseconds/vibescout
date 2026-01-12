@@ -24,7 +24,7 @@
     "transformers"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "module",
   "publishConfig": {
     "access": "public"
