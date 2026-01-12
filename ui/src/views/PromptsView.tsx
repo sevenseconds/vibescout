@@ -4,6 +4,7 @@ import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import DebugPanel from '../components/DebugPanel';
+import PromptEditor from '../components/PromptEditor';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -543,29 +544,5 @@ function Variable({ badge, desc }: { badge: string, desc: string }) {
       <code className="text-[10px] font-black text-primary bg-primary/10 px-1.5 py-0.5 rounded-md">{badge}</code>
       <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-tighter">{desc}</p>
     </div>
-  );
-}
-
-function PromptEditor({ title, description, value, onChange }: { title: string, description: string, value: string, onChange: (val: string) => void }) {
-  return (
-    <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
-      <div className="p-6 bg-secondary/50 border-b border-border flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-xl text-primary">
-          <MessageSquare size={18} />
-        </div>
-        <div>
-          <h3 className="font-bold tracking-tight text-base text-foreground">{title}</h3>
-          <p className="text-[10px] text-muted-foreground font-medium">{description}</p>
-        </div>
-      </div>
-      <div className="p-6">
-        <textarea 
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full h-40 bg-secondary/30 border border-border rounded-2xl p-4 font-mono text-xs focus:outline-none focus:border-primary transition-all resize-none leading-relaxed"
-          placeholder="Enter your prompt template here..."
-        />
-      </div>
-    </section>
   );
 }

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X, ChevronDown, Check, XCircle, Clock, Bug } from 'lucide-react';
+import { FolderGit2, Layers, Plus, ExternalLink, Trash2, Eye, EyeOff, RefreshCw, Loader2, Info, Pause, Play, AlertCircle, X, ChevronDown, Check, XCircle, Clock, Bug, Zap, Wand2 } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import DebugPanel from '../components/DebugPanel';
+import PromptEditor from '../components/PromptEditor';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -19,6 +20,15 @@ interface Watcher {
   folderpath: string;
   projectname: string;
   collection: string;
+}
+
+interface ConfirmModalState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText?: string;
+  variant?: 'primary' | 'danger';
+  onConfirm: () => void;
 }
 
 interface Config {
@@ -56,18 +66,19 @@ export default function KBView({ onExplore }: KBViewProps) {
   const [summarize, setSummarize] = useState(true);
   const [showIndexDetails, setShowIndexDetails] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-    confirmText?: string;
-    variant?: 'danger' | 'primary';
-  }>({
+
+  // Test Modal State
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testPrompt, setTestPrompt] = useState('');
+  const [testTarget, setTestTarget] = useState<'code' | 'docs'>('code');
+  const [testResult, setTestResult] = useState<{ file: string; summary: string; content: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => { }
+    onConfirm: () => {}
   });
 
   const fetchData = async () => {
@@ -235,23 +246,52 @@ export default function KBView({ onExplore }: KBViewProps) {
     });
   };
 
-  const handleEnableWatch = async (projectName: string, collection: string) => {
-    try {
-      // 1. Get the likely root path from the server
-      const pathRes = await axios.get(`/api/projects/root?projectName=${encodeURIComponent(projectName)}`);
-      const folderPath = pathRes.data.rootPath;
-
-      // 2. Pre-fill the form and scroll to top, or just do it directly
-      if (confirm(`Detected root path: ${folderPath}\n\nDo you want to start a real-time watcher for this project?`)) {
-        await axios.post('/api/watchers', { folderPath, projectName, collection });
-        fetchData();
+    const handleEnableWatch = async (projectName: string, collection: string) => {
+      try {
+        // 1. Get the likely root path from the server
+        const pathRes = await axios.get(`/api/projects/root?projectName=${encodeURIComponent(projectName)}`);
+        const folderPath = pathRes.data.rootPath;
+        
+        // 2. Pre-fill the form and scroll to top, or just do it directly
+        if (confirm(`Detected root path: ${folderPath}\n\nDo you want to start a real-time watcher for this project?`)) {
+          await axios.post('/api/watchers', { folderPath, projectName, collection });
+          fetchData();
+        }
+      } catch (err) {
+        console.error('Failed to enable watch:', err);
+        alert("Could not automatically detect project path. Please use 'Connect Folder' manually.");
       }
-    } catch (err) {
-      console.error('Failed to enable watch:', err);
-      alert("Could not automatically detect project path. Please use 'Connect Folder' manually.");
-    }
-  };
-
+    };
+  
+    const handleTestSummarization = async () => {
+      if (!newWatcher.folderpath) {
+        alert("Please enter a folder path first.");
+        return;
+      }
+      setTesting(true);
+      setTestResult(null);
+      try {
+        // Load current prompt if empty
+        if (!testPrompt) {
+          const configRes = await axios.get('/api/config');
+          const activeId = configRes.data.prompts?.activeSummarizeId || 'default';
+          const template = configRes.data.prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
+          setTestPrompt(template?.text || "Summarize this code:\n\n{{code}}");
+        }
+  
+        const res = await axios.post('/api/test/summarize-file', {
+          folderPath: newWatcher.folderpath,
+          type: testTarget,
+          customPrompt: testPrompt || undefined
+        });
+        setTestResult(res.data);
+      } catch (err: any) {
+        console.error(err);
+        alert(err.response?.data?.error || "Test failed. Check if folder path is correct.");
+      } finally {
+        setTesting(false);
+      }
+    };
   return (
     <div className="flex h-full w-full overflow-hidden">
       <div className="flex-1 overflow-y-auto">
@@ -287,7 +327,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                 className="bg-primary text-primary-foreground px-5 py-2.5 rounded-2xl font-bold flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-primary/20"
               >
                 {showAddForm ? <EyeOff size={20} /> : <Plus size={20} />}
-                {showAddForm ? 'Cancel' : 'Connect Folder'}
+                {showAddForm ? 'Cancel' : 'Add Project'}
               </button>
             </div>
           </div>
@@ -462,7 +502,7 @@ export default function KBView({ onExplore }: KBViewProps) {
             <div className="bg-card border-2 border-primary/20 p-8 rounded-3xl space-y-6 animate-in zoom-in-95 duration-200 shadow-xl shadow-primary/5">
               <div className="flex items-center gap-3">
                 <FolderGit2 className="text-primary" size={24} />
-                <h3 className="font-bold text-xl tracking-tight">Connect Local Project</h3>
+                <h3 className="font-bold text-xl tracking-tight">Add Local Project</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
@@ -496,7 +536,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                   />
                 </div>
               </div>
-              <div className="flex items-center gap-4 px-1">
+              <div className="flex flex-wrap items-center gap-4 px-1">
                 <button
                   onClick={async () => {
                     const newValue = !summarize;
@@ -517,6 +557,14 @@ export default function KBView({ onExplore }: KBViewProps) {
                   {summarize ? <Plus size={14} className="rotate-45" /> : <Plus size={14} />}
                   AI Summarization {summarize ? "Enabled" : "Disabled"}
                 </button>
+                {summarize && (
+                  <button
+                    onClick={() => setShowTestModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-xl font-bold text-xs hover:bg-secondary/80 transition-all text-muted-foreground hover:text-foreground"
+                  >
+                    <Wand2 size={14} /> Test AI Summarization
+                  </button>
+                )}
                 <p className="text-[10px] text-muted-foreground font-medium">Use Hierarchical Context for higher search accuracy (slower).</p>
               </div>
               <div className="flex items-center justify-between pt-2">
@@ -690,6 +738,121 @@ export default function KBView({ onExplore }: KBViewProps) {
         </div>
       </div>
       {showDebug && <DebugPanel />}
+
+      {/* Test Summarization Modal */}
+      {showTestModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-card border border-border w-full max-w-4xl h-[85vh] flex flex-col rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="p-6 border-b border-border flex items-center justify-between bg-secondary/30">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 p-2.5 rounded-xl text-primary">
+                  <Wand2 size={24} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Test AI Summarization</h3>
+                  <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Preview & Tune Prompt</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowTestModal(false)}
+                className="p-3 hover:bg-secondary rounded-2xl transition-colors text-muted-foreground"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+              {/* Left Panel: Configuration */}
+              <div className="w-full md:w-1/3 border-r border-border p-6 flex flex-col gap-6 bg-secondary/10 overflow-y-auto">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Test Target</label>
+                  <div className="flex gap-2 p-1 bg-secondary rounded-xl">
+                    <button 
+                      onClick={() => setTestTarget('code')}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                        testTarget === 'code' ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Source Code
+                    </button>
+                    <button 
+                      onClick={() => setTestTarget('docs')}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                        testTarget === 'docs' ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Docs
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3 flex-1 flex flex-col">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Prompt Template</label>
+                  <div className="flex-1 min-h-[200px]">
+                    <PromptEditor 
+                      title="Edit Template" 
+                      description="Modify strictly for this test. To save permanently, update in Prompts view." 
+                      value={testPrompt} 
+                      onChange={setTestPrompt} 
+                      height="h-full"
+                      placeholder="Enter prompt template..."
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  onClick={handleTestSummarization}
+                  disabled={testing}
+                  className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-bold uppercase tracking-widest text-xs hover:opacity-90 transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {testing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                  {testing ? 'Running Model...' : 'Run Test'}
+                </button>
+              </div>
+
+              {/* Right Panel: Results */}
+              <div className="w-full md:w-2/3 p-6 bg-card flex flex-col gap-4 overflow-hidden">
+                {testResult ? (
+                  <div className="h-full flex flex-col gap-4 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-md">Success</span>
+                        <span className="text-xs font-mono text-muted-foreground truncate max-w-[300px]">{testResult.file}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col gap-2 min-h-0">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">AI Summary Output</label>
+                      <div className="flex-1 bg-secondary/30 rounded-2xl p-4 border border-border overflow-y-auto font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground">
+                        {testResult.summary}
+                      </div>
+                    </div>
+
+                    <div className="h-1/3 flex flex-col gap-2 min-h-0">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Source Content (Truncated)</label>
+                      <div className="flex-1 bg-secondary/10 rounded-2xl p-4 border border-border/50 overflow-y-auto font-mono text-[10px] text-muted-foreground">
+                        {testResult.content}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-50">
+                    <div className="bg-secondary p-4 rounded-full mb-4">
+                      <Zap size={32} className="text-muted-foreground" />
+                    </div>
+                    <h4 className="font-bold text-lg">Ready to Test</h4>
+                    <p className="text-sm text-muted-foreground max-w-xs mt-2">
+                      Click "Run Test" to pick a random file from your folder and generate a summary using the template.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       {confirmModal.isOpen && (

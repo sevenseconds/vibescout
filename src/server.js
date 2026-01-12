@@ -10,6 +10,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { streamSSE } from 'hono/streaming';
+import { glob } from "glob";
 import { logger } from "./logger.js";
 import {
   handleIndexFolder,
@@ -469,6 +470,66 @@ app.post('/api/test/llm', async (c) => {
     return c.json({ success: true, message: `Successfully reached LLM: "${response.substring(0, 50)}..."` });
   } catch (err) {
     return c.json({ success: false, error: err.message }, 500);
+  }
+});
+
+app.post('/api/test/summarize-file', async (c) => {
+  try {
+    const { folderPath, type = 'code', customPrompt } = await c.req.json();
+    if (!folderPath) return c.json({ error: 'Folder path required' }, 400);
+
+    const patterns = type === 'docs' 
+      ? ['**/*.md', '**/*.txt', 'README.md'] 
+      : ['**/*.ts', '**/*.js', '**/*.py', '**/*.go', '**/*.java', '**/*.cpp'];
+    
+    // Find a random file
+    const absolutePath = path.resolve(folderPath);
+    if (!await fs.pathExists(absolutePath)) {
+      return c.json({ error: 'Folder does not exist' }, 404);
+    }
+
+    const files = await glob(patterns, { 
+      cwd: absolutePath, 
+      nodir: true, 
+      ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+      maxDepth: 5 
+    });
+
+    if (files.length === 0) {
+      return c.json({ error: `No ${type} files found in folder` }, 404);
+    }
+
+    // Pick a random file
+    const randomFile = files[Math.floor(Math.random() * files.length)];
+    const filePath = path.join(absolutePath, randomFile);
+    const content = await fs.readFile(filePath, 'utf-8');
+
+    // If custom prompt provided, verify we can use it
+    let templateName = undefined;
+    if (customPrompt) {
+      // We need to inject this into the config so the provider can find it
+      // This is a bit of a hack: we save it as a special key 'test_custom'
+      const config = await loadConfig();
+      if (!config.prompts) config.prompts = {};
+      config.prompts['test_custom'] = customPrompt;
+      await saveConfig(config);
+      templateName = 'test_custom';
+    }
+
+    const summary = await summarizerManager.summarize(content.substring(0, 10000), {
+      fileName: randomFile,
+      projectName: path.basename(absolutePath),
+      promptTemplate: templateName
+    });
+
+    return c.json({
+      file: randomFile,
+      content: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+      summary
+    });
+  } catch (err) {
+    logger.error(`Test summarization failed: ${err.message}`);
+    return c.json({ error: err.message }, 500);
   }
 });
 
