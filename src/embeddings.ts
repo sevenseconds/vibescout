@@ -120,7 +120,16 @@ class RerankerManager {
     const results = [];
     for (const doc of documents) {
       const output = await pipe(query, { text_pair: doc.content });
-      results.push({ ...doc, rerankScore: output[0].score });
+      let score = output[0].score;
+      
+      // Category-based boosting (prioritize code for 'vibe coding' experience)
+      if (doc.category === 'code') {
+        score *= 1.15; // 15% boost for code
+      } else if (doc.category === 'documentation') {
+        score *= 0.95; // 5% penalty for documentation to reduce noise
+      }
+      
+      results.push({ ...doc, rerankScore: score });
     }
     return results.sort((a, b) => b.rerankScore - a.rerankScore).slice(0, topK);
   }

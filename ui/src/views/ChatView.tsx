@@ -16,7 +16,7 @@ interface Message {
 }
 
 interface ChatViewProps {
-  preFill?: { query?: string; projectName?: string; collection?: string; fileTypes?: string[] };
+  preFill?: { query?: string; projectName?: string; collection?: string; fileTypes?: string[]; category?: 'all' | 'code' | 'documentation' };
   onPreFillClear?: () => void;
 }
 
@@ -32,17 +32,19 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
   const [projectName, setProjectName] = useState('');
   const [collection, setCollection] = useState('');
   const [fileType, setFileType] = useState('');
+  const [filterCategory, setFilterCategory] = useState<'all' | 'code' | 'documentation'>('all');
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (preFill?.query || preFill?.projectName || preFill?.collection || preFill?.fileTypes) {
+    if (preFill?.query || preFill?.projectName || preFill?.collection || preFill?.fileTypes || preFill?.category) {
       if (preFill.query) setInput(preFill.query);
       if (preFill.projectName) setProjectName(preFill.projectName);
       if (preFill.collection) setCollection(preFill.collection);
       if (preFill.fileTypes) setFileType(preFill.fileTypes.join(', '));
+      if (preFill.category) setFilterCategory(preFill.category);
       
-      if (preFill.projectName || preFill.collection || preFill.fileTypes) {
+      if (preFill.projectName || preFill.collection || preFill.fileTypes || preFill.category) {
         setShowFilters(true);
       }
       
@@ -89,7 +91,8 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
         query: currentInput,
         projectName: projectName || undefined,
         collection: collection || undefined,
-        fileTypes: parsedFileTypes
+        fileTypes: parsedFileTypes,
+        categories: filterCategory === 'all' ? undefined : [filterCategory]
       });
       const assistantMessage: Message = { role: 'assistant', content: response.data.response };
       setMessages(prev => [...prev, assistantMessage]);
@@ -115,6 +118,7 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
     setProjectName('');
     setCollection('');
     setFileType('');
+    setFilterCategory('all');
     onPreFillClear?.();
   };
 
@@ -158,7 +162,7 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
                   onClick={() => setShowFilters(!showFilters)}
                   className={cn(
                     "p-2.5 rounded-2xl border transition-all flex items-center gap-2 px-4",
-                    showFilters || projectName || collection || fileType
+                    showFilters || projectName || collection || fileType || filterCategory !== 'all'
                       ? "bg-primary/10 border-primary/30 text-primary"
                       : "bg-secondary border-border text-muted-foreground hover:text-foreground"
                   )}
@@ -237,7 +241,7 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
               <div className="bg-card border border-border p-4 rounded-2xl shadow-lg animate-in slide-in-from-bottom-2 duration-200">
                 <div className="flex items-center justify-between mb-3 px-1">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Scope Filters</h3>
-                  {(projectName || collection || fileType) && (
+                  {(projectName || collection || fileType || filterCategory !== 'all') && (
                     <button 
                       onClick={clearFilters}
                       className="text-[10px] font-bold uppercase tracking-wider text-primary hover:underline flex items-center gap-1"
@@ -246,7 +250,36 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="flex items-center gap-1 bg-secondary border border-border rounded-lg p-1">
+                    <button 
+                      onClick={() => setFilterCategory('all')}
+                      className={cn(
+                        "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
+                        filterCategory === 'all' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      All
+                    </button>
+                    <button 
+                      onClick={() => setFilterCategory('code')}
+                      className={cn(
+                        "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
+                        filterCategory === 'code' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Code
+                    </button>
+                    <button 
+                      onClick={() => setFilterCategory('documentation')}
+                      className={cn(
+                        "flex-1 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
+                        filterCategory === 'documentation' ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Docs
+                    </button>
+                  </div>
                   <input 
                     type="text" 
                     placeholder="Project Name"
@@ -263,11 +296,16 @@ export default function ChatView({ preFill, onPreFillClear }: ChatViewProps) {
                   />
                   <input 
                     type="text" 
-                    placeholder="Extensions (e.g. .ts, .js)"
+                    placeholder="Extensions"
                     value={fileType}
                     onChange={(e) => setFileType(e.target.value)}
                     className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary font-mono transition-all"
                   />
+                </div>
+                <div className="mt-3 px-1">
+                  <p className="text-[9px] text-muted-foreground font-medium">
+                    Try a <strong>Force Re-index</strong> if Code/Docs filtering is not returning expected results.
+                  </p>
                 </div>
               </div>
             )}

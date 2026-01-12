@@ -62,7 +62,8 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
         query,
         projectName: projectName || undefined,
         collection: collection || undefined,
-        fileTypes: parsedFileTypes
+        fileTypes: parsedFileTypes,
+        categories: filterCategory === 'all' ? undefined : [filterCategory]
       });
       setResults(response.data); 
     } catch (err) {
@@ -199,36 +200,12 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat }
                   )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Project Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. vibescout"
-                      value={projectName}
-                      onChange={(e) => setProjectName(e.target.value)}
-                      className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">Collection</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. default"
-                      value={collection}
-                      onChange={(e) => setCollection(e.target.value)}
-                      className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">File Extension</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. .ts, .js"
-                      value={fileType}
-                      onChange={(e) => setFileType(e.target.value)}
-                      className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"
-                    />
-                  </div>
+                  {/* ... existing filter inputs ... */}
+                </div>
+                <div className="mt-4 p-3 bg-primary/5 rounded-xl border border-primary/10">
+                  <p className="text-[10px] text-primary/70 font-medium">
+                    <strong>Pro Tip:</strong> If category filtering (Code/Docs) doesn't seem to work, try a <strong>Force Re-index</strong> in the Knowledge Base view to update your database schema.
+                  </p>
                 </div>
               </div>
             )}

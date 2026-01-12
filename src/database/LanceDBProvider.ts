@@ -66,7 +66,7 @@ export class LanceDBProvider implements VectorDBProvider {
     }
   }
 
-  async search(embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; limit?: number }): Promise<VectorResult[]> {
+  async search(embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; categories?: string[]; limit?: number }): Promise<VectorResult[]> {
     const table = await this.getTable();
     if (!table) return [];
 
@@ -76,6 +76,9 @@ export class LanceDBProvider implements VectorDBProvider {
     let filtered = results as unknown as VectorResult[];
     if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
     if (options.projectName) filtered = filtered.filter(r => r.projectName === options.projectName);
+    if (options.categories && options.categories.length > 0) {
+      filtered = filtered.filter(r => options.categories!.includes(r.category));
+    }
     if (options.fileTypes && options.fileTypes.length > 0) {
       filtered = filtered.filter(r => {
         const path = r.filePath.toLowerCase();
@@ -87,7 +90,7 @@ export class LanceDBProvider implements VectorDBProvider {
   }
 
   // FTS Search (Unique to LanceDB)
-  async hybridSearch(queryText: string, embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; limit?: number }): Promise<VectorResult[]> {
+  async hybridSearch(queryText: string, embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; categories?: string[]; limit?: number }): Promise<VectorResult[]> {
     const table = await this.getTable();
     if (!table) return [];
 
@@ -105,6 +108,9 @@ export class LanceDBProvider implements VectorDBProvider {
     let filtered = combined;
     if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
     if (options.projectName) filtered = filtered.filter(r => r.projectName === options.projectName);
+    if (options.categories && options.categories.length > 0) {
+      filtered = filtered.filter(r => options.categories!.includes(r.category));
+    }
     if (options.fileTypes && options.fileTypes.length > 0) {
       filtered = filtered.filter(r => {
         const path = r.filePath.toLowerCase();

@@ -454,7 +454,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 /**
  * Shared search logic that returns raw result objects
  */
-export async function searchCode(query, collection, projectName, fileTypes) {
+export async function searchCode(query, collection, projectName, fileTypes, categories) {
   const currentModel = embeddingManager.getModel();
   const storedModel = await getStoredModel();
   
@@ -464,18 +464,18 @@ export async function searchCode(query, collection, projectName, fileTypes) {
   }
 
   const queryVector = await embeddingManager.generateEmbedding(query);
-  const rawResults = await hybridSearch(query, queryVector, { collection, projectName, fileTypes, limit: 15 });
+  const rawResults = await hybridSearch(query, queryVector, { collection, projectName, fileTypes, categories, limit: 15 });
   return await rerankerManager.rerank(query, rawResults, 10);
 }
 
 /**
  * Tool: search_code (MCP Wrapper)
  */
-export async function handleSearchCode(query, collection, projectName) {
-  const results = await searchCode(query, collection, projectName);
+export async function handleSearchCode(query, collection, projectName, categories) {
+  const results = await searchCode(query, collection, projectName, undefined, categories);
 
   const formattedResults = results.map(r => 
-    `[Score: ${r.rerankScore.toFixed(4)}] [Project: ${r.projectName}]
+    `[Score: ${r.rerankScore.toFixed(4)}] [Project: ${r.projectName}] [Category: ${r.category}]
 File: ${r.filePath} (${r.startLine}-${r.endLine})
 Summary: ${r.summary || "N/A"}
 ---
@@ -488,8 +488,8 @@ Summary: ${r.summary || "N/A"}
 /**
  * RAG-based Chat Logic
  */
-export async function chatWithCode(query, collection, projectName, history = [], fileTypes) {
-  const results = await searchCode(query, collection, projectName, fileTypes);
+export async function chatWithCode(query, collection, projectName, history = [], fileTypes, categories) {
+  const results = await searchCode(query, collection, projectName, fileTypes, categories);
   
   if (results.length === 0 && history.length === 0) {
     return "I couldn't find any relevant code to answer your question.";

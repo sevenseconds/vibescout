@@ -88,6 +88,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             query: { type: "string" },
             collection: { type: "string" },
             projectName: { type: "string" },
+            category: { 
+              type: "string", 
+              description: "Filter by category: 'code' or 'documentation'",
+              enum: ["code", "documentation"] 
+            },
           },
           required: ["query"],
         },
@@ -186,7 +191,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       return { content: [{ type: "text", text: msg }] };
     }
-    if (name === "search_code") return await handleSearchCode(args.query, args.collection, args.projectName);
+    if (name === "search_code") return await handleSearchCode(args.query, args.collection, args.projectName, args.category ? [args.category] : undefined);
     if (name === "move_project") {
       await moveProjectToCollection(args.projectName, args.newCollection);
       return { content: [{ type: "text", text: `Moved to ${args.newCollection}` }] };
@@ -459,8 +464,8 @@ app.get('/api/deps', async (c) => {
 });
 
 app.post('/api/search', async (c) => {
-  const { query, collection, projectName, fileTypes } = await c.req.json();
-  const results = await searchCode(query, collection, projectName, fileTypes);
+  const { query, collection, projectName, fileTypes, categories } = await c.req.json();
+  const results = await searchCode(query, collection, projectName, fileTypes, categories);
   return c.json(results);
 });
 
@@ -468,7 +473,7 @@ app.post('/api/search/summarize', async (c) => {
   const { query, results } = await c.req.json();
   
   const context = results.slice(0, 5).map(r => 
-    `File: ${r.filePath}\nCode:\n${r.content.substring(0, 1000)}`
+    `File: ${r.filePath}\nCategory: ${r.category}\nCode:\n${r.content.substring(0, 1000)}`
   ).join("\n\n---\n\n");
 
   const summary = await summarizerManager.generateBestQuestion(query, context);
@@ -501,9 +506,9 @@ Return ONLY the prompt text, no preamble or explanation.`;
 });
 
 app.post('/api/chat', async (c) => {
-  const { query, collection, projectName, fileTypes } = await c.req.json();
+  const { query, collection, projectName, fileTypes, categories } = await c.req.json();
   const history = await getChatMessages();
-  const response = await chatWithCode(query, collection, projectName, history, fileTypes);
+  const response = await chatWithCode(query, collection, projectName, history, fileTypes, categories);
   
   await addChatMessage("user", query);
   await addChatMessage("assistant", response);

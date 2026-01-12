@@ -35,6 +35,7 @@ export class VectorizeProvider implements VectorDBProvider {
           projectName: r.projectName,
           name: r.name,
           type: r.type,
+          category: r.category || (r.filePath?.endsWith('.md') ? 'documentation' : 'code'),
           filePath: r.filePath,
           startLine: r.startLine,
           endLine: r.endLine,
@@ -68,7 +69,7 @@ export class VectorizeProvider implements VectorDBProvider {
     }
   }
 
-  async search(embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; limit?: number }): Promise<VectorResult[]> {
+  async search(embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; categories?: string[]; limit?: number }): Promise<VectorResult[]> {
     try {
       const response = await fetch(`${this.getBaseUrl()}/query`, {
         method: "POST",
@@ -79,9 +80,6 @@ export class VectorizeProvider implements VectorDBProvider {
         body: JSON.stringify({
           vector: embedding,
           topK: options.limit || 20,
-          // Vectorize doesn't support complex metadata filtering via REST API easily yet
-          // unless using GraphQL or specific worker bindings. 
-          // For now we'll filter in memory after retrieval if needed.
           returnMetadata: "all"
         })
       });
@@ -97,9 +95,12 @@ export class VectorizeProvider implements VectorDBProvider {
         score: m.score
       } as VectorResult));
 
-      // Post-filtering for collection/project/fileTypes
+      // Post-filtering
       if (options.collection) results = results.filter(r => r.collection === options.collection);
       if (options.projectName) results = results.filter(r => r.projectName === options.projectName);
+      if (options.categories && options.categories.length > 0) {
+        results = results.filter(r => options.categories!.includes(r.category));
+      }
       if (options.fileTypes && options.fileTypes.length > 0) {
         results = results.filter(r => {
           const path = r.filePath.toLowerCase();
@@ -112,6 +113,12 @@ export class VectorizeProvider implements VectorDBProvider {
       logger.error(`Vectorize search error: ${err.message}`);
       return [];
     }
+  }
+
+  async hybridSearch(queryText: string, embedding: number[], options: { collection?: string; projectName?: string; fileTypes?: string[]; categories?: string[]; limit?: number }): Promise<VectorResult[]> {
+    // Vectorize doesn't natively support hybrid FTS search via REST yet.
+    // Fall back to vector search.
+    return this.search(embedding, options);
   }
 
   async deleteByFile(filePath: string): Promise<void> {
