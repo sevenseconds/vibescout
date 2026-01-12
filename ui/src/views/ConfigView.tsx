@@ -5,6 +5,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import modelsData from '../models.json';
 import DebugPanel from '../components/DebugPanel';
+import { notify } from '../utils/events';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -132,10 +133,10 @@ export default function ConfigView() {
       const res = await axios.get(`/api/models/ollama?url=${encodeURIComponent(config.ollamaUrl)}`);
       const modelNames = res.data.map((m: any) => m.name);
       setOllamaModels(modelNames);
-      alert(`Ollama Sync Success!\n\nAvailable models: ${modelNames.join(', ')}`);
+      notify('success', `Ollama Sync Success! Available models: ${modelNames.join(', ')}`);
     } catch (err) {
       console.error(err);
-      alert('Failed to connect to Ollama. Make sure it is running.');
+      notify('error', 'Failed to connect to Ollama. Make sure it is running.');
     } finally {
       setOllamaSyncing(false);
     }
@@ -146,10 +147,10 @@ export default function ConfigView() {
     setTestingEmbedding(true);
     try {
       const res = await axios.post('/api/test/embedding', config);
-      alert(`Embedding Test: ${res.data.message}\n\nConfiguration is valid and has been auto-saved.`);
+      notify('success', `Embedding Test: ${res.data.message}. Configuration is valid and has been auto-saved.`);
       await handleSave();
     } catch (err: any) {
-      alert(`Embedding Test Failed: ${err.response?.data?.error || err.message}`);
+      notify('error', `Embedding Test Failed: ${err.response?.data?.error || err.message}`);
     } finally {
       setTestingEmbedding(false);
     }
@@ -160,10 +161,10 @@ export default function ConfigView() {
     setTestingLLM(true);
     try {
       const res = await axios.post('/api/test/llm', config);
-      alert(`LLM Test: ${res.data.message}\n\nConfiguration is valid and has been auto-saved.`);
+      notify('success', `LLM Test: ${res.data.message}. Configuration is valid and has been auto-saved.`);
       await handleSave();
     } catch (err: any) {
-      alert(`LLM Test Failed: ${err.response?.data?.error || err.message}`);
+      notify('error', `LLM Test Failed: ${err.response?.data?.error || err.message}`);
     } finally {
       setTestingLLM(false);
     }

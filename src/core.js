@@ -388,9 +388,8 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
               const fileNameForEmbed = (config.embedFilePath === 'name') ? path.basename(file) : file;
 
-              // Get git info for this file (using relative path from repo root)
-              const relativeFilePath = gitRepoPath ? path.relative(gitRepoPath, filePath) : file;
-              const gitInfo = gitInfoMap.get(relativeFilePath);
+              // Get git info for this file (lookup by absolute path)
+              const gitInfo = gitInfoMap.get(filePath);
 
               // Build git context for embedding (if enabled)
               let gitContext = '';
@@ -637,8 +636,8 @@ export async function indexSingleFile(filePath, projectName, collection, summari
       ? await batchCollectGitInfo(gitRepoPath, [filePath], gitConfig.churnWindow || 6)
       : new Map();
 
-    const relativeFilePath = gitRepoPath ? path.relative(gitRepoPath, filePath) : filePath;
-    const gitInfo = gitInfoMap.get(relativeFilePath);
+    // Get git info (lookup by absolute path)
+    const gitInfo = gitInfoMap.get(filePath);
 
     const { blocks, metadata } = await extractCodeBlocks(filePath);
     await updateDependencies(filePath, projectName, collection, metadata);

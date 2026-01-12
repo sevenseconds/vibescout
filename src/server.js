@@ -897,11 +897,12 @@ function resolveRuntimePath(runtimePath, deps) {
 
       // Find a file that ends with this path
       const match = deps.find(d => {
+        if (!d.filepath) return false; // Skip records with undefined filepath
         // Check if file path ends with X/Y/Z.ext
-        return d.filePath.endsWith('/' + testPath) || d.filePath.endsWith(testPath);
+        return d.filepath.endsWith('/' + testPath) || d.filepath.endsWith(testPath);
       });
 
-      if (match) return match.filePath;
+      if (match) return match.filepath;
     }
   }
 
@@ -918,12 +919,12 @@ app.get('/api/graph', async (c) => {
   // Merge dependencies by filePath - a file may have been indexed multiple times
   const depsMap = new Map();
   for (const d of rawDeps) {
-    if (!d.filePath) continue; // Skip records with undefined filePath
-    if (!depsMap.has(d.filePath)) {
-      depsMap.set(d.filePath, { ...d, imports: d.imports });
+    if (!d.filepath) continue; // Skip records with undefined filepath
+    if (!depsMap.has(d.filepath)) {
+      depsMap.set(d.filepath, { ...d, imports: d.imports });
     } else {
       // Merge imports from multiple index runs
-      const existing = depsMap.get(d.filePath);
+      const existing = depsMap.get(d.filepath);
       const existingImports = JSON.parse(existing.imports);
       const newImports = JSON.parse(d.imports);
 
@@ -945,11 +946,11 @@ app.get('/api/graph', async (c) => {
 
   const nodeMap = new Map();
   for (const d of deps) {
-    if (!d.filePath) continue; // Skip records with undefined filePath
-    if (!nodeMap.has(d.filePath)) {
-      const node = { id: d.filePath, label: path.basename(d.filePath), group: d.projectName, collection: d.collection };
+    if (!d.filepath) continue; // Skip records with undefined filepath
+    if (!nodeMap.has(d.filepath)) {
+      const node = { id: d.filepath, label: path.basename(d.filepath), group: d.projectname, collection: d.collection };
       nodes.push(node);
-      nodeMap.set(d.filePath, node);
+      nodeMap.set(d.filepath, node);
     }
   }
 
@@ -957,7 +958,7 @@ app.get('/api/graph', async (c) => {
   const seenLinks = new Set();
 
   for (const d of deps) {
-    if (!d.filePath) continue; // Skip records with undefined filePath
+    if (!d.filepath) continue; // Skip records with undefined filepath
     const imports = JSON.parse(d.imports);
 
     for (const imp of imports) {
@@ -967,24 +968,24 @@ app.get('/api/graph', async (c) => {
       if (imp.runtime || (!imp.source.startsWith('.') && !imp.source.startsWith('/'))) {
         // Runtime dependency - resolve dot notation to file path
         const targetPath = resolveRuntimePath(imp.source, deps);
-        target = targetPath ? deps.find(other => other.filePath === targetPath) : null;
+        target = targetPath ? deps.find(other => other.filepath === targetPath) : null;
       } else {
         // Static import - use improved matching logic
         target = deps.find(other =>
-          other.filePath !== d.filePath && matchImportToFile(imp.source, other.filePath)
+          other.filepath && other.filepath !== d.filepath && matchImportToFile(imp.source, other.filepath)
         );
       }
 
-      if (target && target.filePath !== d.filePath) {
+      if (target && target.filepath && target.filepath !== d.filepath) {
         // Create a unique key for this link (source -> target)
-        const linkKey = `${d.filePath}||${target.filePath}`;
+        const linkKey = `${d.filepath}||${target.filepath}`;
 
         // Only add if we haven't seen this link before
         if (!seenLinks.has(linkKey)) {
           seenLinks.add(linkKey);
           links.push({
-            source: d.filePath,
-            target: target.filePath,
+            source: d.filepath,
+            target: target.filepath,
             type: imp.runtime ? 'runtime' : 'static'  // Optional: for styling
           });
         }

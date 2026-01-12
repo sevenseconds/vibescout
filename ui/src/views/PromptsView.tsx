@@ -5,6 +5,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import DebugPanel from '../components/DebugPanel';
 import PromptEditor from '../components/PromptEditor';
+import { notify } from '../utils/events';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -159,7 +160,7 @@ export default function PromptsView() {
       setGeneratedPrompt(res.data.prompt);
     } catch (err) {
       console.error(err);
-      alert('Failed to generate prompt. Make sure your LLM provider is active.');
+      notify('error', 'Failed to generate prompt. Make sure your LLM provider is active.');
     } finally {
       setIsGenerating(false);
     }

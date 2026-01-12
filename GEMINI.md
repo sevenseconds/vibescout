@@ -63,3 +63,82 @@ npm test
 
 ### MCP Integration
 - VibeScout exposes several tools (e.g., `index_folder`, `search_code`, `get_file_dependencies`) via the MCP protocol, allowing it to be used as a backend for AI clients like Claude Desktop or Gemini CLI.
+
+## LanceDB Column Naming Convention (CRITICAL)
+
+**All LanceDB column names MUST be lowercase or snake_case. NEVER use camelCase or PascalCase.**
+
+### ✅ CORRECT
+```typescript
+const record = {
+  filepath: "/path/to/file.js",      // lowercase
+  project_name: "my-project",        // snake_case
+  last_commit_author: "John Doe",    // snake_case
+  collection: "default",              // lowercase
+};
+```
+
+### ❌ WRONG
+```typescript
+const record = {
+  filePath: "/path/to/file.js",      // ❌ camelCase - WILL FAIL
+  projectName: "my-project",          // ❌ camelCase - WILL FAIL
+  lastCommitAuthor: "John Doe",       // ❌ camelCase - WILL FAIL
+  Collection: "default",              // ❌ PascalCase - WILL FAIL
+};
+```
+
+### Database Schema Reference
+
+#### dependencies table
+| Column | Type | Naming |
+|--------|------|---------|
+| filepath | string | lowercase |
+| projectname | string | lowercase |
+| collection | string | lowercase |
+| imports | string (JSON) | lowercase |
+| exports | string (JSON) | lowercase |
+
+#### code_search table
+| Column | Type | Naming |
+|--------|------|---------|
+| filepath | string | lowercase |
+| projectname | string | lowercase |
+| collection | string | lowercase |
+| name | string | lowercase |
+| type | string | lowercase |
+| category | string | lowercase |
+| startline | number | lowercase |
+| endline | number | lowercase |
+| summary | string | lowercase |
+| comments | string | lowercase |
+| content | string | lowercase |
+| vector | number[] | lowercase |
+
+#### Git Metadata Columns (v0.2.14+)
+| Column | Type | Naming |
+|--------|------|---------|
+| last_commit_author | string | snake_case |
+| last_commit_email | string | snake_case |
+| last_commit_date | string | snake_case |
+| last_commit_hash | string | snake_case |
+| last_commit_message | string | snake_case |
+| commit_count_6m | number | snake_case |
+| churn_level | string | snake_case |
+
+### Why This Matters
+
+When querying LanceDB, the column names in the database **MUST EXACTLY MATCH** what you use in your code:
+
+```typescript
+const result = await table.query().toArray();
+console.log(result[0].filePath);  // undefined ❌
+console.log(result[0].filepath);  // "/path/to/file.js" ✅
+```
+
+### Best Practices
+
+1. **Always use lowercase or snake_case for database columns**
+2. **Be consistent** - if you use snake_case for git columns (last_commit_author), use it everywhere
+3. **Document the schema** - keep this reference updated when adding new columns
+4. **Test your queries** - verify column names match what's in the database

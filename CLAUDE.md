@@ -162,3 +162,124 @@ Core tools exposed to AI assistants:
 - `src/extractors/` - Language-specific extractors (JavaScript)
 - `ui/` - React frontend (TypeScript + Vite)
 - `tests/` - Vitest test suites (JavaScript)
+
+## LanceDB Column Naming Convention (CRITICAL)
+
+**ALL LanceDB column names MUST be lowercase or snake_case. NEVER use camelCase or PascalCase.**
+
+This is a critical requirement that often causes bugs when not followed.
+
+### Examples
+
+#### ✅ CORRECT - Lowercase or Snake_Case
+```typescript
+const record = {
+  filepath: "/path/to/file.js",          // lowercase
+  projectname: "my-project",              // lowercase
+  collection: "default",                  // lowercase
+  last_commit_author: "John Doe",         // snake_case
+  commit_count_6m: 42,                    // snake_case
+  churn_level: "high"                     // snake_case
+};
+```
+
+#### ❌ WRONG - CamelCase or PascalCase
+```typescript
+const record = {
+  filePath: "/path/to/file.js",          // ❌ FAILS - undefined when queried
+  projectName: "my-project",              // ❌ FAILS - undefined when queried
+  Collection: "default",                  // ❌ FAILS - undefined when queried
+  lastCommitAuthor: "John Doe",           // ❌ FAILS - undefined when queried
+  commitCount6m: 42,                      // ❌ FAILS - undefined when queried
+  churnLevel: "high"                      // ❌ FAILS - undefined when queried
+};
+```
+
+### Why This Matters
+
+LanceDB stores column names exactly as provided. When querying, you must use the exact same casing:
+
+```typescript
+// Storing data (in db.ts)
+const record = {
+  filepath: "/path/to/file.js",
+  projectname: "my-project"
+};
+await table.add([record]);
+
+// Querying data (in server.js or elsewhere)
+const results = await table.query().toArray();
+console.log(results[0].filepath);      // ✅ Works! "/path/to/file.js"
+console.log(results[0].filePath);      // ❌ undefined!
+```
+
+### Current Database Schema
+
+#### Dependencies Table (`src/db.ts:updateDependencies`)
+| Column | Type | Casing | Note |
+|--------|------|--------|------|
+| filepath | string | lowercase | File path |
+| projectname | string | lowercase | Project name |
+| collection | string | lowercase | Collection name |
+| imports | string (JSON) | lowercase | Import metadata |
+| exports | string (JSON) | lowercase | Export metadata |
+
+#### Code Search Table (embeddings)
+| Column | Type | Casing | Note |
+|--------|------|--------|------|
+| filepath | string | lowercase | File path |
+| projectname | string | lowercase | Project name |
+| collection | string | lowercase | Collection name |
+| name | string | lowercase | Symbol/block name |
+| type | string | lowercase | Block type |
+| category | string | lowercase | Code/documentation |
+| startline | number | lowercase | Start line |
+| endline | number | lowercase | End line |
+| summary | string | lowercase | AI summary |
+| comments | string | lowercase | Extracted comments |
+| content | string | lowercase | Code content |
+| vector | number[] | lowercase | Embedding vector |
+
+#### Git Metadata Columns (v0.2.14+)
+| Column | Type | Casing | Note |
+|--------|------|--------|------|
+| last_commit_author | string | snake_case | Commit author name |
+| last_commit_email | string | snake_case | Author email |
+| last_commit_date | string | snake_case | ISO date string |
+| last_commit_hash | string | snake_case | Git commit hash |
+| last_commit_message | string | snake_case | Commit message |
+| commit_count_6m | number | snake_case | Commits in 6 months |
+| churn_level | string | snake_case | low/medium/high |
+
+### Best Practices
+
+1. **Always check the schema** - When adding new columns, use lowercase or snake_case
+2. **Match the casing exactly** - When querying, use the exact same casing as stored
+3. **Be consistent** - Don't mix camelCase and snake_case in the same table
+4. **Document new columns** - Update this section when adding new database fields
+5. **Test your queries** - Verify data is retrieved correctly before committing
+
+### TypeScript Interfaces
+
+In TypeScript interfaces (like `src/database/base.ts`), you can use camelCase for type safety, but you must map to/from lowercase when interacting with the database:
+
+```typescript
+// TypeScript interface (can use camelCase)
+interface SearchResult {
+  filepath: string;           // lowercase to match DB
+  projectname: string;        // lowercase to match DB
+  lastCommitAuthor?: string;  // camelCase for JS convention
+}
+
+// When querying, map correctly
+const results = await table.query().toArray();
+return results.map(r => ({
+  ...r,
+  lastCommitAuthor: r.last_commit_author  // Map snake_case to camelCase
+}));
+```
+
+### Related Files
+- `src/db.ts` - Database operations with correct column names
+- `src/database/base.ts` - TypeScript type definitions
+- `src/server.js` - API endpoints that query the database (check casing!)

@@ -145,13 +145,31 @@ export async function batchCollectGitInfo(
 
     await Promise.all(
       batch.map(async (file) => {
-        // Convert absolute path to relative path from repo root
-        const relativePath = path.relative(repoPath, file);
+        try {
+          // Convert absolute path to relative path from repo root
+          let relativePath: string;
+          try {
+            relativePath = path.relative(repoPath, file);
+          } catch (pathErr) {
+            logger.debug(`[Git] path.relative failed for ${file}: ${pathErr.message}`);
+            // Fallback: use basename if relative path fails
+            relativePath = path.basename(file);
+          }
 
-        const gitInfo = await getFileGitInfo(repoPath, relativePath, churnWindow);
-        if (gitInfo) {
-          // Store with relative path as key
-          gitInfoMap.set(relativePath, gitInfo);
+          // Additional safety: validate relative path
+          if (!relativePath || relativePath.startsWith('..')) {
+            logger.debug(`[Git] Invalid relative path for ${file}: ${relativePath}`);
+            return; // Skip this file
+          }
+
+          const gitInfo = await getFileGitInfo(repoPath, relativePath, churnWindow);
+          if (gitInfo) {
+            // Store with ABSOLUTE path as key (more reliable than relative paths)
+            gitInfoMap.set(file, gitInfo);
+          }
+        } catch (err) {
+          logger.debug(`[Git] Failed to process ${file}: ${err.message}`);
+          // Continue processing other files
         }
       })
     );

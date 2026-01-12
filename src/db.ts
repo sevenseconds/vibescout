@@ -186,7 +186,9 @@ export async function getAllDependencies() {
   if (!tables.includes("dependencies")) return [];
 
   const table = await db.openTable("dependencies");
-  return await table.query().toArray();
+  const results = await table.query().toArray();
+  logger.debug(`[DB] Retrieved ${results.length} dependency records`);
+  return results;
 }
 
 export async function findSymbolUsages(symbolName: string) {
