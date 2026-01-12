@@ -201,7 +201,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   });
 
   // Get all potential files - use .gitignore patterns during traversal to prevent EMFILE errors
-  const allFiles = await glob("**/*.{ts,js,md,py,go,dart,java,kt,kts,json,toml,xml,html,svg}", {
+  const allFiles = await glob("**/*.{ts,js,md,py,go,dart,java,kt,kts,json,toml,xml,html}", {
     cwd: absolutePath,
     dot: true,
     nodir: true,

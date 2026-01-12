@@ -211,7 +211,17 @@ async function startWatching(
     "**/*.spec.js",
     "**/*.spec.ts",
     "**/.vscode/**",
-    "**/.idea/**"
+    "**/.idea/**",
+    // Images
+    "**/*.png",
+    "**/*.jpg",
+    "**/*.jpeg",
+    "**/*.gif",
+    "**/*.bmp",
+    "**/*.webp",
+    "**/*.ico",
+    "**/*.tiff",
+    "**/*.svg"
   ];
 
   const allPatterns = [...ignorePatterns, ...additionalIgnores];
