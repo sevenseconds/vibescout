@@ -490,6 +490,7 @@ app.post('/api/test/summarize-file', async (c) => {
     // Find a random file
     const absolutePath = path.resolve(folderPath);
     if (!await fs.pathExists(absolutePath)) {
+      logger.error(`[Test] Folder not found: ${absolutePath}`);
       return c.json({ error: `Folder does not exist: ${absolutePath}` }, 404);
     }
 
@@ -501,7 +502,9 @@ app.post('/api/test/summarize-file', async (c) => {
     });
 
     if (files.length === 0) {
-      return c.json({ error: `No ${type} files found in folder` }, 404);
+      const allFiles = await fs.readdir(absolutePath);
+      logger.warn(`[Test] No matching files found in ${absolutePath}. Directory contains: ${allFiles.slice(0, 5).join(', ')}...`);
+      return c.json({ error: `No ${type} files (e.g. .ts, .js, .md) found in ${absolutePath}. Found: ${allFiles.length} items.` }, 404);
     }
 
     // Pick a random file

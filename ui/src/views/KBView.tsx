@@ -5,6 +5,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import DebugPanel from '../components/DebugPanel';
 import PromptEditor from '../components/PromptEditor';
+import { notify } from '../utils/events';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -259,7 +260,7 @@ export default function KBView({ onExplore }: KBViewProps) {
         }
       } catch (err) {
         console.error('Failed to enable watch:', err);
-        alert("Could not automatically detect project path. Please use 'Connect Folder' manually.");
+        notify('error', "Could not automatically detect project path. Please use 'Add Project' manually.");
       }
     };
   
@@ -283,7 +284,7 @@ export default function KBView({ onExplore }: KBViewProps) {
   
     const handleTestSummarization = async () => {
       if (!newWatcher.folderpath) {
-        alert("Please enter a folder path first.");
+        notify('error', "Please enter a folder path first.");
         return;
       }
       setTesting(true);
@@ -297,7 +298,7 @@ export default function KBView({ onExplore }: KBViewProps) {
         setTestResult(res.data);
       } catch (err: any) {
         console.error(err);
-        alert(err.response?.data?.error || "Test failed. Check if folder path is correct.");
+        notify('error', err.response?.data?.error || "Test failed. Check if folder path is correct.");
       } finally {
         setTesting(false);
       }
@@ -720,7 +721,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                                 if (watcher) {
                                   handleReindex(watcher);
                                 } else {
-                                  alert("Full re-index for static projects requires re-connecting the folder.");
+                                  notify('error', "Full re-index for static projects requires re-connecting the folder.");
                                 }
                               }}
                               disabled={!isWatched}

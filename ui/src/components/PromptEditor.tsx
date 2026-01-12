@@ -9,7 +9,7 @@ interface PromptEditorProps {
   placeholder?: string;
 }
 
-export default function PromptEditor({ title, description, value, onChange, height = "h-40", placeholder = "Enter your prompt template here..." }: PromptEditorProps) {
+export default function PromptEditor({ title, description, value, onChange, height = "h-96", placeholder = "Enter your prompt template here..." }: PromptEditorProps) {
   return (
     <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
       <div className="p-6 bg-secondary/50 border-b border-border flex items-center gap-3">

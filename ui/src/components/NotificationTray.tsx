@@ -3,6 +3,7 @@ import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { subscribeToNotifications } from '../utils/events';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -21,6 +22,14 @@ export default function NotificationTray() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   useEffect(() => {
+    // Subscribe to manual notifications
+    const unsubscribe = subscribeToNotifications((n) => {
+      setNotification(n);
+      if (n.type === 'success') {
+        setTimeout(() => setNotification(null), 5000);
+      }
+    });
+
     const interval = setInterval(async () => {
       try {
         const res = await axios.get('/api/index/status');
@@ -50,7 +59,10 @@ export default function NotificationTray() {
       }
     }, 2000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [lastStatus]);
 
   if (!notification) return null;
