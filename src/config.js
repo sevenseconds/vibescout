@@ -37,6 +37,7 @@ const DEFAULT_CONFIG = {
   verbose: false,
   offline: false,
   useReranker: true,
+  embedFilePath: "full", // "full" (relative path) or "name" (filename only)
   // Directories to watch (relative to project root)
   // Set to null or [] to watch the entire project root
   // Set to ["src", "lib", "components"] to watch only specific directories
@@ -339,6 +340,16 @@ export async function interactiveConfig() {
       initial: currentConfig.useReranker
     });
     const useReranker = await rerankerPrompt.run();
+
+    const embedPathPrompt = new Select({
+      message: "File Path Privacy Level (Trade-off: Accuracy vs Privacy):",
+      choices: [
+        { name: "full", message: "Full Path (High Accuracy, Low Privacy)" },
+        { name: "name", message: "Filename Only (Lower Accuracy, High Privacy)" }
+      ],
+      initial: currentConfig.embedFilePath === "name" ? 1 : 0
+    });
+    const embedFilePath = await embedPathPrompt.run();
     
     const newConfig = {
       provider,
@@ -359,7 +370,8 @@ export async function interactiveConfig() {
       summarize,
       verbose,
       offline,
-      useReranker
+      useReranker,
+      embedFilePath
     };
 
     await saveConfig(newConfig);

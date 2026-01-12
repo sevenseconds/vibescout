@@ -35,6 +35,7 @@ interface Config {
   verbose: boolean;
   offline: boolean;
   useReranker: boolean;
+  embedFilePath?: "full" | "name";
   watchDirectories: string[] | null;
   fileTypes: Record<string, {
     extensions: string[];
@@ -431,6 +432,46 @@ export default function ConfigView() {
                   >
                     {config?.useReranker ? "Active" : "Disabled"}
                   </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm text-foreground">File Path Privacy</h4>
+                      <Globe size={14} className="text-primary" />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Exclude directory paths from embeddings (reduces accuracy)</p>
+                  </div>
+                  <div className="flex bg-secondary rounded-lg p-1 border border-border">
+                    <button 
+                      onClick={() => {
+                        const newConfig = { ...config, embedFilePath: 'full' };
+                        setConfig(newConfig as Config);
+                        setSaving(true);
+                        axios.post('/api/config', newConfig).finally(() => setSaving(false));
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-[10px] font-bold transition-all",
+                        (config?.embedFilePath || 'full') === 'full' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Full Path
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const newConfig = { ...config, embedFilePath: 'name' };
+                        setConfig(newConfig as Config);
+                        setSaving(true);
+                        axios.post('/api/config', newConfig).finally(() => setSaving(false));
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-[10px] font-bold transition-all",
+                        config?.embedFilePath === 'name' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Name Only
+                    </button>
+                  </div>
                 </div>
               </div>
             </section>

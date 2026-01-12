@@ -160,6 +160,7 @@ export function pauseIndexing(paused) {
  * @param {boolean} force - If true, clear existing index and re-scan everything
  */
 export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false, force = false) {
+  const config = await loadConfig();
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
 
@@ -364,7 +365,8 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               }
 
               const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
-              const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${derivedProjectName}\nFile: ${file}\nType: ${block.type}\nName: ${block.name}\nComments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
+              const fileNameForEmbed = (config.embedFilePath === 'name') ? path.basename(file) : file;
+              const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${derivedProjectName}\nFile: ${fileNameForEmbed}\nType: ${block.type}\nName: ${block.name}\nComments: ${block.comments}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
 
               textsToEmbed.push(textToEmbed);
               blockData.push({
@@ -563,6 +565,7 @@ export async function openFile(filePath, line = 1) {
 
 export async function indexSingleFile(filePath, projectName, collection, summarize = true) {
   try {
+    const config = await loadConfig();
     const content = await fs.readFile(filePath, "utf-8");
     const hash = crypto.createHash("md5").update(content).digest("hex");
     const existingHash = await getFileHash(filePath);
@@ -594,7 +597,8 @@ export async function indexSingleFile(filePath, projectName, collection, summari
           : "";
 
         const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
-        const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${projectName}\nFile: ${path.basename(filePath)}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
+        const fileNameForEmbed = path.basename(filePath);
+        const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${projectName}\nFile: ${fileNameForEmbed}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
         dataToInsert.push({
           vector: null,
           textToEmbed,
