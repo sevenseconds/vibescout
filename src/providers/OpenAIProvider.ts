@@ -22,13 +22,18 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
       const activeId = config.prompts?.activeSummarizeId || 'default';
       const activeTemplate = config.prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
       template = activeTemplate?.text || "";
+    } else if (templateName === 'docSummarize') {
+      const activeId = config.prompts?.activeDocSummarizeId || 'default';
+      const activeTemplate = config.prompts?.docSummarizeTemplates?.find((t: any) => t.id === activeId);
+      template = activeTemplate?.text || "";
     } else {
       template = config.prompts?.[templateName] || "";
     }
-    
+
     // Default system fallbacks if template is empty
     if (!template) {
       if (templateName === 'summarize') template = "Summarize this code:\n\n{{code}}";
+      if (templateName === 'docSummarize') template = "Summarize this documentation:\n\n{{content}}";
       if (templateName === 'chunkSummarize') template = "Summarize this logic block in context of {{parentName}}:\n\n{{code}}";
       if (templateName === 'bestQuestion') template = "Generate the best question for this context:\n\n{{context}}";
     }

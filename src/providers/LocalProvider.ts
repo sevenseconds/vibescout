@@ -16,10 +16,23 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
 
   private async fillPrompt(templateName: string, placeholders: Record<string, string>) {
     const config = await loadConfig();
-    let template = config.prompts?.[templateName] || "";
-    
+    let template = "";
+
+    if (templateName === 'summarize') {
+      const activeId = config.prompts?.activeSummarizeId || 'default';
+      const activeTemplate = config.prompts?.summarizeTemplates?.find((t: any) => t.id === activeId);
+      template = activeTemplate?.text || "";
+    } else if (templateName === 'docSummarize') {
+      const activeId = config.prompts?.activeDocSummarizeId || 'default';
+      const activeTemplate = config.prompts?.docSummarizeTemplates?.find((t: any) => t.id === activeId);
+      template = activeTemplate?.text || "";
+    } else {
+      template = config.prompts?.[templateName] || "";
+    }
+
     if (!template) {
       if (templateName === 'summarize') template = "Summarize this code:\n\n{{code}}";
+      if (templateName === 'docSummarize') template = "Summarize this documentation:\n\n{{content}}";
       if (templateName === 'bestQuestion') template = "Generate the best question for this context:\n\n{{context}}";
     }
 
