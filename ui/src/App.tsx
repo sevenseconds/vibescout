@@ -17,7 +17,9 @@ import {
   Moon,
   Sun,
   Monitor,
-  MessageSquare
+  MessageSquare,
+  Menu,
+  X
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -92,25 +94,47 @@ function AppContent() {
     { path: '/config', label: 'Settings', icon: Settings },
   ];
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans">
+      {/* Sidebar Mobile Overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden animate-in fade-in duration-200"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-card flex flex-col shrink-0">
-        <div className="p-6 flex items-center gap-3 border-b border-border">
-          <div className="bg-primary p-2 rounded-xl text-primary-foreground shadow-lg shadow-primary/20">
-            <Activity size={24} strokeWidth={2.5} />
+      <aside className={cn(
+        "fixed inset-y-0 left-0 w-64 border-r border-border bg-card flex flex-col shrink-0 z-50 transition-transform duration-300 transform lg:relative lg:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="p-6 flex items-center justify-between border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary p-2 rounded-xl text-primary-foreground shadow-lg shadow-primary/20">
+              <Activity size={24} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg leading-tight tracking-tight text-foreground">VibeScout</h1>
+              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Code Intelligence</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-lg leading-tight tracking-tight text-foreground">VibeScout</h1>
-            <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Code Intelligence</p>
-          </div>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="lg:hidden p-2 text-muted-foreground hover:text-foreground"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={() => setIsSidebarOpen(false)}
               className={({ isActive }) => cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 group text-sm font-bold",
                 isActive
@@ -163,7 +187,23 @@ function AppContent() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
-        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+        {/* Mobile Header */}
+        <div className="lg:hidden h-16 border-b border-border bg-card flex items-center px-6 shrink-0 z-30 justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary p-1.5 rounded-lg text-primary-foreground">
+              <Activity size={18} />
+            </div>
+            <span className="font-bold tracking-tight">VibeScout</span>
+          </div>
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 bg-secondary rounded-xl text-foreground"
+          >
+            <Menu size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 font-sans">
           <Routes>
             <Route path="/" element={<Navigate to="/search" replace />} />
             <Route path="/search" element={

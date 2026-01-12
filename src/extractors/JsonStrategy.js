@@ -11,7 +11,9 @@ export const JsonStrategy = {
     const tree = parser.parse(code);
     const blocks = [];
     const metadata = { imports: [], exports: [] };
-    const lines = code.split("\n");
+    // Handle JSON without newlines - split by \n but ensure at least one line
+    const lines = code.includes("\n") ? code.split("\n") : [code];
+    const lineCount = lines.length;
 
     function processPair(node) {
       if (node.type === "pair") {
@@ -27,9 +29,10 @@ export const JsonStrategy = {
       }
     }
 
-    // Only extract top-level pairs to avoid over-chunking
-    // Check if the tree is valid and has children
-    if (tree && tree.rootNode && tree.rootNode.childCount > 0) {
+    // Check if parsing was successful
+    const hasValidTree = tree && tree.rootNode && !tree.rootNode.hasError && tree.rootNode.childCount > 0;
+
+    if (hasValidTree) {
       const root = tree.rootNode.child(0); // usually object or array
       if (root && root.type === "object") {
         for (let i = 0; i < root.childCount; i++) {
@@ -43,20 +46,21 @@ export const JsonStrategy = {
           type: "file",
           category: "documentation",
           startLine: 1,
-          endLine: lines.length,
+          endLine: lineCount,
           comments: "",
           content: code,
           filePath
         });
       }
     } else if (code.trim().length > 0) {
-      // Fallback for cases where tree-sitter fails but content exists
+      // Fallback for invalid JSON or parsing failures - still index the content
+      // This handles malformed JSON, JSON without EOL, etc.
       blocks.push({
         name: "json_root",
         type: "file",
         category: "documentation",
         startLine: 1,
-        endLine: lines.length,
+        endLine: lineCount,
         comments: "",
         content: code,
         filePath

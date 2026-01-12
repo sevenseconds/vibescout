@@ -13,11 +13,15 @@
     "LICENSE"
   ],
   "scripts": {
-    "start": "node src/index.js",
+    "start": "npx tsx src/index.js",
     "test": "vitest run --fileParallelism=false",
     "lint": "eslint .",
     "build:ui": "cd ui && npm run build && rm -rf ../src/ui-dist && cp -r dist ../src/ui-dist",
-    "reset-db": "node src/index.js reset --force",
+    "dev:client": "cd ui && npm run dev",
+    "dev:server": "npx tsx src/index.js ui --port 3002",
+    "dev:ui": "npm run dev:server & npm run dev:client",
+    "dev": "npm run dev:ui",
+    "reset-db": "npx tsx src/index.js reset --force",
     "prepublishOnly": "npm run build:ui",
     "version": "npm run build:ui && git add -f src/ui-dist",
     "release": "npm version patch && npm publish"

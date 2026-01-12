@@ -21,7 +21,7 @@ export class VectorizeProvider implements VectorDBProvider {
   private generateId(r: VectorResult): string {
     // Unique ID for Vectorize
     return crypto.createHash("md5")
-      .update(`${r.filePath}-${r.startLine}-${r.name}`)
+      .update(`${r.filepath}-${r.startline}-${r.name}`)
       .digest("hex");
   }
 
@@ -32,13 +32,13 @@ export class VectorizeProvider implements VectorDBProvider {
         values: r.vector,
         metadata: {
           collection: r.collection,
-          projectName: r.projectName,
+          projectname: r.projectname,
           name: r.name,
           type: r.type,
-          category: r.category || (r.filePath?.endsWith('.md') ? 'documentation' : 'code'),
-          filePath: r.filePath,
-          startLine: r.startLine,
-          endLine: r.endLine,
+          category: r.category || (r.filepath?.endsWith('.md') ? 'documentation' : 'code'),
+          filepath: r.filepath,
+          startline: r.startline,
+          endline: r.endline,
           comments: r.comments.substring(0, 1000), // metadata limit
           content: r.content.substring(0, 5000),
           summary: r.summary || ""
@@ -51,7 +51,7 @@ export class VectorizeProvider implements VectorDBProvider {
         const batch = vectors.slice(i, i + batchSize);
         const response = await fetch(`${this.getBaseUrl()}/insert`, {
           method: "POST",
-          headers: { 
+          headers: {
             "Authorization": `Bearer ${this.apiToken}`,
             "Content-Type": "application/json"
           },
@@ -73,7 +73,7 @@ export class VectorizeProvider implements VectorDBProvider {
     try {
       const response = await fetch(`${this.getBaseUrl()}/query`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Authorization": `Bearer ${this.apiToken}`,
           "Content-Type": "application/json"
         },
@@ -97,13 +97,13 @@ export class VectorizeProvider implements VectorDBProvider {
 
       // Post-filtering
       if (options.collection) results = results.filter(r => r.collection === options.collection);
-      if (options.projectName) results = results.filter(r => r.projectName === options.projectName);
+      if (options.projectName) results = results.filter(r => r.projectname === options.projectName);
       if (options.categories && options.categories.length > 0) {
         results = results.filter(r => options.categories!.includes(r.category));
       }
       if (options.fileTypes && options.fileTypes.length > 0) {
         results = results.filter(r => {
-          const path = r.filePath.toLowerCase();
+          const path = r.filepath.toLowerCase();
           return options.fileTypes!.some(ext => path.endsWith(ext.toLowerCase()));
         });
       }
@@ -124,7 +124,7 @@ export class VectorizeProvider implements VectorDBProvider {
   async deleteByFile(filePath: string): Promise<void> {
     // Vectorize deletion by metadata is not supported via REST API easily.
     // Usually you need IDs.
-    // For VibeScout, since we want full Cloudflare support, 
+    // For VibeScout, since we want full Cloudflare support,
     // we would ideally need to track which IDs belong to which file.
     // For now, we'll log that file-level pruning is restricted in cloud mode.
     logger.debug(`File-level deletion requested for ${filePath} in Vectorize mode. (Note: Pruning requires IDs)`);
@@ -137,5 +137,9 @@ export class VectorizeProvider implements VectorDBProvider {
   async clear(): Promise<void> {
     // Not safely implemented via REST to avoid accidental data loss.
     logger.warn("Clear database requested in Vectorize mode. Please use Cloudflare Dashboard to reset your index.");
+  }
+
+  async close(): Promise<void> {
+    // REST based, nothing to close
   }
 }

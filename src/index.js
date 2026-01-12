@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { serve } from '@hono/node-server';
-import { serveStatic } from '@hono/node-server/serve-static';
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Command } from "commander";
 import fs from "fs-extra";
 import { logger, LogLevel } from "./logger.js";
 import { configureEnvironment, embeddingManager, summarizerManager, rerankerManager } from "./embeddings.js";
-import { closeDb, compactDatabase, initDB } from "./db.js";
+import { closeDb, compactDatabase, initDB, clearDatabase } from "./db.js";
 import { handleIndexFolder, stopIndexing } from "./core.js";
 import { server, app } from "./server.js";
 import { initWatcher } from "./watcher.js";
@@ -38,7 +38,7 @@ async function startServer(mode, port, isUI = false) {
   if (mode === "sse" || mode === "http") {
     const isSSE = mode === "sse";
     logger.info(`Starting MCP ${isSSE ? "SSE" : "HTTP"} Server on port ${port}${isUI ? " (with Web UI)" : ""}...`);
-    
+
     // Standardize on /mcp endpoint
     const transport = new StreamableHTTPServerTransport({ endpoint: "/mcp" });
     await server.connect(transport);
@@ -58,11 +58,11 @@ async function startServer(mode, port, isUI = false) {
         logger.warn(`[UI] Warning: UI assets not found at ${distPath}. Web UI will not be available.`);
         logger.warn(`[UI] If you are developing, run 'npm run build:ui' to generate the assets.`);
       }
-      app.use('/*', serveStatic({ root: distPath }));
+      app.use("/*", serveStatic({ root: distPath }));
       // Fallback for SPA
-      app.get('*', async (c, next) => {
+      app.get("*", async (c, next) => {
         const url = new URL(c.req.url);
-        if (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/mcp')) {
+        if (!url.pathname.startsWith("/api/") && !url.pathname.startsWith("/mcp")) {
           const indexPath = path.resolve(distPath, "index.html");
           if (await fs.pathExists(indexPath)) {
             const html = await fs.readFile(indexPath, "utf-8");
@@ -75,7 +75,8 @@ async function startServer(mode, port, isUI = false) {
 
     serve({
       fetch: app.fetch,
-      port
+      port,
+      hostname: '0.0.0.0'
     });
 
     if (isUI || !isSSE) {
@@ -110,7 +111,7 @@ async function main() {
 
   program.hook("preAction", async (thisCommand) => {
     const opts = thisCommand.opts();
-    
+
     let level = LogLevel.INFO;
     if (opts.verbose) {
       level = LogLevel.DEBUG;
@@ -204,7 +205,7 @@ async function main() {
     .option("--force", "Skip confirmation prompt")
     .action(async (options) => {
       let proceed = !!options.force;
-      
+
       if (!proceed) {
         const prompt = new pkg.Confirm({
           name: 'question',

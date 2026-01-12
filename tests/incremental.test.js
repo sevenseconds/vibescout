@@ -4,7 +4,7 @@ import { handleIndexFolder } from "../src/core.js";
 import path from "path";
 import fs from "fs-extra";
 
-vi.spyOn(process, "exit").mockImplementation(() => {});
+vi.spyOn(process, "exit").mockImplementation(() => { });
 
 describe("Incremental Indexing", () => {
   const testDir = path.join(process.cwd(), "temp_incremental_test");
@@ -24,16 +24,16 @@ describe("Incremental Indexing", () => {
     await fs.writeFile(filePath, "export function test() { return 1; }");
 
     // First index
-    const res1 = await handleIndexFolder(testDir, "TestProject");
+    const res1 = await handleIndexFolder(testDir, "TestProject", "default", false);
     expect(res1.content[0].text).toContain("Indexed: 1");
 
     // Second index (no changes)
-    const res2 = await handleIndexFolder(testDir, "TestProject");
+    const res2 = await handleIndexFolder(testDir, "TestProject", "default", false);
     expect(res2.content[0].text).toContain("Skipped: 1");
 
     // Modify file
     await fs.writeFile(filePath, "export function test() { return 2; }");
-    const res3 = await handleIndexFolder(testDir, "TestProject");
+    const res3 = await handleIndexFolder(testDir, "TestProject", "default", false);
     expect(res3.content[0].text).toContain("Indexed: 1");
   }, 60000);
 });

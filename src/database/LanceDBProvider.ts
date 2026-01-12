@@ -1,6 +1,7 @@
 import * as lancedb from "@lancedb/lancedb";
 import fs from "fs-extra";
 import { VectorDBProvider, VectorResult } from "./base.js";
+import { logger } from "../logger.js";
 
 export class LanceDBProvider implements VectorDBProvider {
   name: string = "lancedb";
@@ -40,21 +41,21 @@ export class LanceDBProvider implements VectorDBProvider {
       } catch (err: any) {
         if (err.message.includes("Found field not in schema: category")) {
           logger.info("[DB] Missing 'category' field detected. Performing automatic schema migration...");
-          
+
           // 1. Fetch all existing data
           const allData = await table.query().toArray();
-          
+
           // 2. Add category to existing records (default to 'code' for legacy)
           const migratedData = allData.map(row => ({
             ...row,
-            category: row.category || (row.filePath?.endsWith('.md') ? 'documentation' : 'code')
+            category: row.category || (row.filepath?.endsWith('.md') ? 'documentation' : 'code')
           }));
 
           // 3. Drop and recreate table with correct schema
           await db.dropTable(tableName);
           const newTable = await db.createTable(tableName, [...migratedData, ...data]);
           await newTable.createIndex("content", { config: lancedb.Index.fts() });
-          
+
           logger.info(`[DB] Schema migration complete. Migrated ${migratedData.length} records.`);
           return;
         }
@@ -75,13 +76,13 @@ export class LanceDBProvider implements VectorDBProvider {
 
     let filtered = results as unknown as VectorResult[];
     if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
-    if (options.projectName) filtered = filtered.filter(r => r.projectName === options.projectName);
+    if (options.projectName) filtered = filtered.filter(r => r.projectname === options.projectName);
     if (options.categories && options.categories.length > 0) {
       filtered = filtered.filter(r => options.categories!.includes(r.category));
     }
     if (options.fileTypes && options.fileTypes.length > 0) {
       filtered = filtered.filter(r => {
-        const path = r.filePath.toLowerCase();
+        const path = r.filepath.toLowerCase();
         return options.fileTypes!.some(ext => path.endsWith(ext.toLowerCase()));
       });
     }
@@ -99,7 +100,7 @@ export class LanceDBProvider implements VectorDBProvider {
 
     const seen = new Set();
     const combined = [...ftsResults, ...vectorResults].filter(item => {
-      const id = `${item.filePath}-${item.startLine}-${item.name}`;
+      const id = `${item.filepath}-${item.startline}-${item.name}`;
       if (seen.has(id)) return false;
       seen.add(id);
       return true;
@@ -107,13 +108,13 @@ export class LanceDBProvider implements VectorDBProvider {
 
     let filtered = combined;
     if (options.collection) filtered = filtered.filter(r => r.collection === options.collection);
-    if (options.projectName) filtered = filtered.filter(r => r.projectName === options.projectName);
+    if (options.projectName) filtered = filtered.filter(r => r.projectname === options.projectName);
     if (options.categories && options.categories.length > 0) {
       filtered = filtered.filter(r => options.categories!.includes(r.category));
     }
     if (options.fileTypes && options.fileTypes.length > 0) {
       filtered = filtered.filter(r => {
-        const path = r.filePath.toLowerCase();
+        const path = r.filepath.toLowerCase();
         return options.fileTypes!.some(ext => path.endsWith(ext.toLowerCase()));
       });
     }
@@ -123,12 +124,12 @@ export class LanceDBProvider implements VectorDBProvider {
 
   async deleteByFile(filePath: string): Promise<void> {
     const table = await this.getTable();
-    if (table) await table.delete(`"filePath" = '${filePath}'`);
+    if (table) await table.delete(`filepath = '${filePath}'`);
   }
 
   async deleteByProject(projectName: string): Promise<void> {
     const table = await this.getTable();
-    if (table) await table.delete(`"projectName" = '${projectName}'`);
+    if (table) await table.delete(`projectname = '${projectName}'`);
   }
 
   async clear(): Promise<void> {

@@ -38,7 +38,7 @@ async function getFileTypeConfig(filePath) {
     if (typeConfig.extensions) {
       for (const ext of typeConfig.extensions) {
         // Handle both extensions starting with dot and full filenames
-        if (ext.startsWith('.')) {
+        if (ext.startsWith(".")) {
           if (filePath.endsWith(ext)) {
             return { typeName, ...typeConfig };
           }
@@ -54,10 +54,10 @@ async function getFileTypeConfig(filePath) {
 
   // Default: treat as code file
   return {
-    typeName: 'code',
+    typeName: "code",
     summarize: true,
-    promptTemplate: 'summarize',
-    description: 'Unknown file type'
+    promptTemplate: "summarize",
+    description: "Unknown file type"
   };
 }
 
@@ -98,14 +98,14 @@ async function getIgnoreFilter(folderPath) {
       const content = await fs.readFile(filePath, "utf-8");
       ig.add(content);
       // Parse content to extract patterns for glob
-      const lines = content.split('\n');
+      const lines = content.split("\n");
       for (const line of lines) {
         const trimmed = line.trim();
         // Skip comments and empty lines
-        if (trimmed && !trimmed.startsWith('#')) {
+        if (trimmed && !trimmed.startsWith("#")) {
           // Convert gitignore pattern to glob pattern
           // Gitignore uses ** for matching, but we need to ensure proper format
-          if (!trimmed.includes('/')) {
+          if (!trimmed.includes("/")) {
             // Pattern without slash applies everywhere
             patterns.push(`**/${trimmed}`);
           } else {
@@ -162,7 +162,7 @@ export function pauseIndexing(paused) {
 export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false, force = false) {
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
-  
+
   if (indexingProgress.active) {
     return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
   }
@@ -178,26 +178,26 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   // Convert patterns to glob-compatible format
   const globIgnorePatterns = ignorePatterns.map(p => {
     // If it already has **/, it's already formatted
-    if (p.startsWith('**/')) {
+    if (p.startsWith("**/")) {
       // For patterns like **/node_modules, add trailing /**
-      if (!p.endsWith('/**') && !p.endsWith('*') && !p.includes('.')) {
-        return p + '/**';
+      if (!p.endsWith("/**") && !p.endsWith("*") && !p.includes(".")) {
+        return p + "/**";
       }
       return p;
     }
     // For patterns with / (like dist/), treat as directory
-    if (p.includes('/')) {
-      if (!p.endsWith('/**') && !p.endsWith('*')) {
-        return '**/' + p + '/**';
+    if (p.includes("/")) {
+      if (!p.endsWith("/**") && !p.endsWith("*")) {
+        return "**/" + p + "/**";
       }
-      return '**/' + p;
+      return "**/" + p;
     }
     // For file patterns (contains . or specific file extension), don't add /**
-    if (p.includes('.') || p === 'node_modules' || p === 'dist' || p === 'build') {
-      return '**/' + p;
+    if (p.includes(".") || p === "node_modules" || p === "dist" || p === "build") {
+      return "**/" + p;
     }
     // For directory patterns without /, add /**
-    return '**/' + p + '/**';
+    return "**/" + p + "/**";
   });
 
   // Get all potential files - use .gitignore patterns during traversal to prevent EMFILE errors
@@ -215,7 +215,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   // Filter files using ignore patterns (double-check with gitignore instance)
   const filesOnDisk = allFiles.filter(file => !ig.ignores(file));
   const absoluteFilesOnDisk = new Set(filesOnDisk.map(f => path.join(absolutePath, f)));
-  
+
   if (indexingProgress.active) {
     return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
   }
@@ -256,7 +256,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
       const queue = [...filesOnDisk];
       const hashUpdates = [];
-      
+
       const processFile = async (file, attempt = 1) => {
         if (isShuttingDown) return;
 
@@ -282,7 +282,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
             // Remove from currentFiles and add to completed
             indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
-            indexingProgress.completedFiles.unshift({ file, status: 'skipped' });
+            indexingProgress.completedFiles.unshift({ file, status: "skipped" });
             if (indexingProgress.completedFiles.length > 20) indexingProgress.completedFiles.pop();
 
             return;
@@ -322,14 +322,19 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 }
 
                 // Use the configured prompt template
-                const promptTemplate = fileTypeConfig.promptTemplate || 'summarize';
-                const summary = await summarizerManager.summarize(contentToSummarize, {
-                  fileName: file,
-                  projectName: derivedProjectName,
-                  promptTemplate,
-                  sectionName: parent.name.replace('Doc: ', '')
-                });
-                parentSummaries.set(parent.name, summary);
+                const promptTemplate = fileTypeConfig.promptTemplate || "summarize";
+                try {
+                  const summary = await summarizerManager.summarize(contentToSummarize, {
+                    fileName: file,
+                    projectName: derivedProjectName,
+                    promptTemplate,
+                    sectionName: parent.name.replace("Doc: ", "")
+                  });
+                  parentSummaries.set(parent.name, summary);
+                } catch (summaryErr) {
+                  logger.error(`[Index] Summarization failed for ${file} [${parent.name}]: ${summaryErr.message}`);
+                  parentSummaries.set(parent.name, ""); // Continue with empty summary
+                }
               }
             }
 
@@ -342,15 +347,20 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
               let summary = "";
               if (shouldSummarize) {
-                summary = block.type === "chunk"
-                  ? await summarizerManager.summarize(block.content, {
+                try {
+                  summary = block.type === "chunk"
+                    ? await summarizerManager.summarize(block.content, {
                       fileName: file,
                       projectName: derivedProjectName,
                       type: 'chunk',
                       parentName: block.parentName,
                       promptTemplate: fileTypeConfig.promptTemplate || 'summarize'
                     })
-                  : parentSummaries.get(block.name) || "";
+                    : parentSummaries.get(block.name) || "";
+                } catch (summaryErr) {
+                  logger.error(`[Index] Summarization failed for block ${block.name} in ${file}: ${summaryErr.message}`);
+                  summary = "";
+                }
               }
 
               const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
@@ -358,10 +368,17 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
               textsToEmbed.push(textToEmbed);
               blockData.push({
-                collection, projectName: derivedProjectName, name: block.name, type: block.type,
+                collection,
+                projectname: derivedProjectName,
+                name: block.name,
+                type: block.type,
                 category: block.category || (file.endsWith('.md') ? 'documentation' : 'code'),
-                filePath, startLine: block.startLine, endLine: block.endLine,
-                comments: block.comments, content: block.content, summary
+                filepath: filePath,
+                startline: block.startLine,
+                endline: block.endLine,
+                comments: block.comments,
+                content: block.content,
+                summary
               });
             }
 
@@ -388,7 +405,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
           // Remove from currentFiles and add to completed
           indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
-          indexingProgress.completedFiles.unshift({ file, status: 'completed', blocks: blocks.length });
+          indexingProgress.completedFiles.unshift({ file, status: "completed", blocks: blocks.length });
           if (indexingProgress.completedFiles.length > 20) indexingProgress.completedFiles.pop();
 
         } catch (err) {
@@ -409,7 +426,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
           // Remove from currentFiles and add to completed as failed
           indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
-          indexingProgress.completedFiles.unshift({ file, status: 'failed', error: err.message });
+          indexingProgress.completedFiles.unshift({ file, status: "failed", error: err.message });
           if (indexingProgress.completedFiles.length > 20) indexingProgress.completedFiles.pop();
         }
       };
@@ -423,7 +440,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
       await Promise.all(workers);
       if (hashUpdates.length > 0) await bulkUpdateFileHashes(hashUpdates);
-      
+
       indexingProgress.active = false;
       if (isShuttingDown) {
         indexingProgress.status = "stopped";
@@ -437,7 +454,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           logger.info(`[Success] Indexing complete for "${derivedProjectName}". Indexed: ${totalIndexed} blocks, Skipped: ${skipped}, Pruned: ${pruned}.`);
         }
       }
-      
+
       return { totalIndexed, skipped, pruned };
     } catch (err) {
       indexingProgress.active = false;
@@ -468,7 +485,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 export async function searchCode(query, collection, projectName, fileTypes, categories) {
   const currentModel = embeddingManager.getModel();
   const storedModel = await getStoredModel();
-  
+
   if (storedModel && storedModel !== currentModel) {
     logger.info(`[Auto-Switch] Switching model from "${currentModel}" to stored model "${storedModel}" to match index.`);
     await embeddingManager.setModel(storedModel);
@@ -485,9 +502,9 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
 export async function handleSearchCode(query, collection, projectName, categories = ['code']) {
   const results = await searchCode(query, collection, projectName, undefined, categories);
 
-  const formattedResults = results.map(r => 
-    `[Score: ${r.rerankScore.toFixed(4)}] [Project: ${r.projectName}] [Category: ${r.category}]
-File: ${r.filePath} (${r.startLine}-${r.endLine})
+  const formattedResults = results.map(r =>
+    `[Score: ${r.rerankScore.toFixed(4)}] [Project: ${r.projectname}] [Category: ${r.category}]
+File: ${r.filepath} (${r.startline}-${r.endline})
 Summary: ${r.summary || "N/A"}
 ---
 `
@@ -501,14 +518,14 @@ Summary: ${r.summary || "N/A"}
  */
 export async function chatWithCode(query, collection, projectName, history = [], fileTypes, categories) {
   const results = await searchCode(query, collection, projectName, fileTypes, categories);
-  
+
   if (results.length === 0 && history.length === 0) {
     return "I couldn't find any relevant code to answer your question.";
   }
 
   // Format context for the LLM
-  const context = results.map(r => 
-    `File: ${r.filePath}\nProject: ${r.projectName}\nCode:\n${r.content}`
+  const context = results.map(r =>
+    `File: ${r.filepath}\nProject: ${r.projectname}\nCode:\n${r.content}`
   ).join("\n\n---\n\n");
 
   return await summarizerManager.generateResponse(query, context, history);
@@ -572,17 +589,26 @@ export async function indexSingleFile(filePath, projectName, collection, summari
       for (const block of blocks) {
         const summary = summarize
           ? (block.type === "chunk"
-            ? await summarizerManager.summarize(block.content, { fileName: path.basename(filePath), projectName, type: 'chunk', parentName: block.parentName })
+            ? await summarizerManager.summarize(block.content, { fileName: path.basename(filePath), projectName, type: "chunk", parentName: block.parentName })
             : parentSummaries.get(block.name) || "")
           : "";
 
         const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
         const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${projectName}\nFile: ${path.basename(filePath)}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
         dataToInsert.push({
-          vector: null, textToEmbed, collection, projectName, name: block.name, type: block.type,
-          category: block.category || (filePath.endsWith('.md') ? 'documentation' : 'code'),
-          filePath, startLine: block.startLine, endLine: block.endLine,
-          comments: block.comments, content: block.content, summary
+          vector: null,
+          textToEmbed,
+          collection,
+          projectname: projectName,
+          name: block.name,
+          type: block.type,
+          category: block.category || (filePath.endsWith(".md") ? "documentation" : "code"),
+          filepath: filePath,
+          startline: block.startLine,
+          endline: block.endLine,
+          comments: block.comments,
+          content: block.content,
+          summary
         });
       }
 

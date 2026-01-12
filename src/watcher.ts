@@ -20,7 +20,7 @@ async function countFilesRecursively(dirPath: string, maxFiles: number = 3000): 
     return files.length;
   } catch (err) {
     // If glob fails (likely EMFILE), assume it's a large project
-    logger.debug(`[Watcher] File count failed: ${err.message}, assuming large project`);
+    logger.debug(`[Watcher] File count failed: ${(err as any).message}, assuming large project`);
     return maxFiles + 1;
   }
 }
@@ -84,7 +84,7 @@ async function getIgnorePatterns(folderPath: string): Promise<string[]> {
   return patterns;
 }
 
-const watchers = new Map<string, chokidar.FSWatcher>();
+const watchers = new Map<string, any>();
 const debounceTimers = new Map<string, NodeJS.Timeout>();
 
 export async function initWatcher(force = false) {
@@ -100,10 +100,10 @@ export async function initWatcher(force = false) {
     try {
       let totalFiles = 0;
       for (const item of watchList) {
-        const absolutePath = path.resolve(item.folderPath);
+        const absolutePath = path.resolve(item.folderpath);
         const count = await countFilesRecursively(absolutePath);
         totalFiles += count;
-        logger.info(`[Watcher] Project "${item.projectName}" has ${count} files`);
+        logger.info(`[Watcher] Project "${item.projectname}" has ${count} files`);
         if (totalFiles > EMFILE_THRESHOLD) {
           logger.info(`[Watcher] Total files across all projects: ${totalFiles} (threshold: ${EMFILE_THRESHOLD}), using polling mode to prevent EMFILE errors`);
           usePollingMode = true;
@@ -122,9 +122,9 @@ export async function initWatcher(force = false) {
   // Now start all watchers with the determined mode
   for (const item of watchList) {
     try {
-      await startWatching(item.folderPath, item.projectName, item.collection, force, usePollingMode);
+      await startWatching(item.folderpath, item.projectname, item.collection, force, usePollingMode);
     } catch (err: any) {
-      logger.error(`Failed to start watcher for ${item.folderPath}: ${err.message}`);
+      logger.error(`Failed to start watcher for ${item.folderpath}: ${err.message}`);
     }
   }
 }
@@ -137,7 +137,10 @@ async function startWatching(
   globalPollingMode?: boolean
 ) {
   const absolutePath = path.resolve(folderPath);
-  if (watchers.has(absolutePath)) return;
+  if (watchers.has(absolutePath)) {
+    logger.debug(`[Watcher] Already watching ${absolutePath}, skipping start.`);
+    return;
+  }
 
   // Read settings from config
   const config = await loadConfig();
@@ -266,8 +269,8 @@ async function startWatching(
   }
 
   // Add error handler for watcher (for runtime errors)
-  watcher.on('error', error => {
-    if (error.message.includes('EMFILE') || error.message.includes('too many open files')) {
+  watcher.on("error", (error: any) => {
+    if (error.message.includes("EMFILE") || error.message.includes("too many open files")) {
       logger.warn(`[Watcher] Runtime EMFILE error for ${projectName}. The watcher will continue with polling.`);
       // Don't close the watcher - let it recover
     } else {
@@ -295,9 +298,9 @@ async function startWatching(
     debounceTimers.set(filePath, timer);
   };
 
-  watcher.on("add", f => debouncedIndex(f))
-         .on("change", f => debouncedIndex(f))
-         .on("unlink", f => deleteFileData(f));
+  watcher.on("add", (f: string) => debouncedIndex(f))
+    .on("change", (f: string) => debouncedIndex(f))
+    .on("unlink", (f: string) => deleteFileData(f));
 
   watchers.set(absolutePath, watcher);
   const mode = watcher.options.usePolling ? 'polling' : 'native events';
@@ -351,14 +354,19 @@ export async function watchProject(folderPath: string, projectName: string, coll
 
 export async function unwatchProject(folderPath: string, projectName?: string) {
   const absolutePath = path.resolve(folderPath);
-  logger.info(`[Watcher] Stopping watcher for: ${folderPath}`);
+  logger.info(`[Watcher] Stopping watcher for: ${absolutePath}`);
 
   const watcher = watchers.get(absolutePath);
   if (watcher) {
-    // Don't await close() to avoid blocking the API response
-    // Chokidar can be slow on some systems
-    watcher.close().catch(err => logger.error(`[Watcher] Error closing instance: ${err.message}`));
+    try {
+      await watcher.close();
+      logger.info(`[Watcher] Closed chokidar instance for ${absolutePath}`);
+    } catch (err: any) {
+      logger.error(`[Watcher] Error closing instance for ${absolutePath}: ${err.message}`);
+    }
     watchers.delete(absolutePath);
+  } else {
+    logger.debug(`[Watcher] No active watcher found for ${absolutePath} to close.`);
   }
 
   // Clear any pending debounce timers for this path

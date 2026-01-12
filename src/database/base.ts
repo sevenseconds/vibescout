@@ -1,12 +1,12 @@
 export interface VectorResult {
   collection: string;
-  projectName: string;
+  projectname: string;
   name: string;
   type: string;
   category: 'code' | 'documentation';
-  filePath: string;
-  startLine: number;
-  endLine: number;
+  filepath: string;
+  startline: number;
+  endline: number;
   comments: string;
   content: string;
   summary?: string;

@@ -11,11 +11,11 @@ const HOME_DIR = os.homedir();
 const GLOBAL_DATA_DIR = path.join(HOME_DIR, ".vibescout", "data");
 
 const isTest = process.env.NODE_ENV === "test";
-const DB_ROOT = isTest 
-  ? path.join(process.cwd(), ".lancedb_test") 
+const DB_ROOT = isTest
+  ? path.join(process.cwd(), ".lancedb_test")
   : (process.env.VIBESCOUT_DB_PATH || GLOBAL_DATA_DIR);
 
-const DB_PATH = DB_ROOT;
+export const DB_PATH = DB_ROOT;
 const HASH_FILE = path.join(DB_PATH, "hashes.json");
 
 let activeMetaDb: lancedb.Connection | null = null;
@@ -89,7 +89,7 @@ export async function createOrUpdateTable(data: VectorResult[], modelName: strin
   const db = await getMetaDb();
   const metaTableName = "metadata";
   const tables = await db.tableNames();
-  
+
   if (tables.includes(metaTableName)) {
     const metaTable = await db.openTable(metaTableName);
     const meta = await metaTable.query().toArray();
@@ -111,10 +111,10 @@ export async function updateDependencies(filePath: string, projectName: string, 
   const db = await getMetaDb();
   const depTableName = "dependencies";
   const tables = await db.tableNames();
-  
+
   const record = {
-    filePath,
-    projectName,
+    filepath: filePath,
+    projectname: projectName,
     collection,
     imports: JSON.stringify(metadata.imports),
     exports: JSON.stringify(metadata.exports)
@@ -122,7 +122,7 @@ export async function updateDependencies(filePath: string, projectName: string, 
 
   if (tables.includes(depTableName)) {
     const table = await db.openTable(depTableName);
-    await table.delete(`"filePath" = '${filePath}'`);
+    await table.delete(`filepath = '${filePath}'`);
     await table.add([record]);
   } else {
     try {
@@ -130,7 +130,7 @@ export async function updateDependencies(filePath: string, projectName: string, 
     } catch (err: any) {
       if (err.message.includes("already exists")) {
         const table = await db.openTable(depTableName);
-        await table.delete(`"filePath" = '${filePath}'`);
+        await table.delete(`filepath = '${filePath}'`);
         await table.add([record]);
       } else {
         throw err;
@@ -142,7 +142,7 @@ export async function updateDependencies(filePath: string, projectName: string, 
 export async function moveProjectToCollection(projectName: string, newCollection: string) {
   const db = await getMetaDb();
   const tables = await db.tableNames();
-  
+
   // 1. Update code_search table (if local)
   const p = getProvider();
   if (p instanceof LanceDBProvider) {
@@ -150,7 +150,7 @@ export async function moveProjectToCollection(projectName: string, newCollection
     if (table) {
       await table.update({
         values: { collection: `'${newCollection}'` },
-        where: `"projectName" = '${projectName}'`
+        where: `projectname = '${projectName}'`
       });
     }
   }
@@ -160,7 +160,7 @@ export async function moveProjectToCollection(projectName: string, newCollection
     const depTable = await db.openTable("dependencies");
     await depTable.update({
       values: { collection: `'${newCollection}'` },
-      where: `"projectName" = '${projectName}'`
+      where: `projectname = '${projectName}'`
     });
   }
 }
@@ -169,11 +169,11 @@ export async function getFileDependencies(filePath: string) {
   const db = await getMetaDb();
   const tables = await db.tableNames();
   if (!tables.includes("dependencies")) return null;
-  
+
   const table = await db.openTable("dependencies");
-  const result = await table.query().where(`"filePath" = '${filePath}'`).toArray();
+  const result = await table.query().where(`filepath = '${filePath}'`).toArray();
   if (result.length === 0) return null;
-  
+
   return {
     imports: JSON.parse(result[0].imports),
     exports: JSON.parse(result[0].exports)
@@ -184,7 +184,7 @@ export async function getAllDependencies() {
   const db = await getMetaDb();
   const tables = await db.tableNames();
   if (!tables.includes("dependencies")) return [];
-  
+
   const table = await db.openTable("dependencies");
   return await table.query().toArray();
 }
@@ -193,19 +193,19 @@ export async function findSymbolUsages(symbolName: string) {
   const db = await getMetaDb();
   const tables = await db.tableNames();
   if (!tables.includes("dependencies")) return [];
-  
+
   const table = await db.openTable("dependencies");
   const all = await table.query().toArray();
-  
+
   return all.filter(row => {
     const imports = JSON.parse(row.imports);
-    return imports.some((imp: any) => 
-      (imp.symbols && imp.symbols.includes(symbolName)) || 
+    return imports.some((imp: any) =>
+      (imp.symbols && imp.symbols.includes(symbolName)) ||
       imp.source === symbolName ||
       imp.source.endsWith("." + symbolName) ||
       imp.source.endsWith("/" + symbolName)
     );
-  }).map(row => ({ filePath: row.filePath, projectName: row.projectName, collection: row.collection }));
+  }).map(row => ({ filePath: row.filepath, projectName: row.projectname, collection: row.collection }));
 }
 
 export async function getFileHash(filePath: string) {
@@ -229,12 +229,12 @@ export async function bulkUpdateFileHashes(updates: { filePath: string, hash: st
 
 export async function deleteFileData(filePath: string) {
   await getProvider().deleteByFile(filePath);
-  
+
   const db = await getMetaDb();
   const tables = await db.tableNames();
   if (tables.includes("dependencies")) {
     const depTable = await db.openTable("dependencies");
-    await depTable.delete(`"filePath" = '${filePath}'`);
+    await depTable.delete(`filepath = '${filePath}'`);
   }
 
   const hashes = await loadHashes();
@@ -266,15 +266,21 @@ export async function getStoredModel() {
 export async function listKnowledgeBase() {
   const db = await getMetaDb();
   const tables = await db.tableNames();
-  if (!tables.includes("dependencies")) return {};
-  
-  const table = await db.openTable("dependencies");
-  const allData = await table.query().select(["collection", "projectName"]).toArray();
+
   const projects: Record<string, Set<string>> = {};
-  allData.forEach(row => {
-    if (!projects[row.collection]) projects[row.collection] = new Set();
-    projects[row.collection].add(row.projectName);
-  });
+
+  if (tables.includes("dependencies")) {
+    const table = await db.openTable("dependencies");
+    // Get all unique projects and their collections
+    const allData = await table.query().select(["collection", "projectname"]).toArray();
+    allData.forEach(row => {
+      if (row.collection && row.projectname) {
+        if (!projects[row.collection]) projects[row.collection] = new Set();
+        projects[row.collection].add(row.projectname);
+      }
+    });
+  }
+
   return Object.fromEntries(Object.entries(projects).map(([col, projs]) => [col, Array.from(projs)]));
 }
 
@@ -291,29 +297,20 @@ export async function addToWatchList(folderPath: string, projectName: string, co
   const tableName = "watch_list";
   const tables = await db.tableNames();
   const absolutePath = path.resolve(folderPath);
-  const record = { folderPath: absolutePath, projectName, collection };
+  const record = { folderpath: absolutePath, projectname: projectName, collection };
 
   if (tables.includes(tableName)) {
     const table = await db.openTable(tableName);
-    await table.delete(`"folderPath" = '${absolutePath}'`);
+    await table.delete(`folderpath = '${absolutePath}'`);
     await table.add([record]);
   } else {
     await db.createTable(tableName, [record]);
   }
 }
 
-export async function unwatchProject(folderPath: string, projectName?: string) {
-  const absolutePath = path.resolve(folderPath);
-  logger.info(`[Watcher] Attempting to stop watcher for: ${folderPath}`);
-  
-  const watcher = watchers.get(absolutePath);
-  if (watcher) {
-    await watcher.close();
-    watchers.delete(absolutePath);
-  }
-  
-  await removeFromWatchList(folderPath, projectName);
-}
+// Note: unwatchProject is moved to watcher.ts to avoid circular dependencies and duplication
+// removeFromWatchList is still here as it handles the DB record
+
 
 export async function removeFromWatchList(folderPath: string, projectName?: string) {
   const db = await getMetaDb();
@@ -322,18 +319,18 @@ export async function removeFromWatchList(folderPath: string, projectName?: stri
   if (tables.includes(tableName)) {
     const table = await db.openTable(tableName);
     const absolutePath = path.resolve(folderPath);
-    
+
     const all = await table.query().toArray();
     // Find all matching targets (handles potential duplicates or path variations)
-    const targets = all.filter(r => 
-      path.resolve(r.folderPath) === absolutePath || 
-      (projectName && r.projectName === projectName)
+    const targets = all.filter(r =>
+      path.resolve(r.folderpath) === absolutePath ||
+      (projectName && r.projectname === projectName)
     );
 
     if (targets.length > 0) {
       for (const target of targets) {
-        await table.delete(`"folderPath" = '${target.folderPath}'`);
-        logger.info(`[DB] Successfully removed watcher record for: ${target.folderPath}`);
+        await table.delete(`folderpath = '${target.folderpath}'`);
+        logger.info(`[DB] Successfully removed watcher record for: ${target.folderpath}`);
       }
     } else {
       logger.warn(`[DB] No matching watcher found for ${folderPath} (${projectName || ''})`);
@@ -407,35 +404,51 @@ export async function deleteProject(projectName: string) {
   logger.info(`[DB] Attempting to delete project index: ${projectName}`);
   const db = await getMetaDb();
   const tables = await db.tableNames();
-  
+
   // 1. Get all file paths for this project from dependencies before we delete them
   let projectFiles: string[] = [];
   if (tables.includes("dependencies")) {
     const depTable = await db.openTable("dependencies");
-    const records = await depTable.query().where(`"projectName" = '${projectName}'`).select(["filePath"]).toArray();
-    projectFiles = records.map(r => r.filePath);
+    const records = await depTable.query().where(`projectname = '${projectName}'`).select(["filepath"]).toArray();
+    projectFiles = records.map(r => r.filepath);
     logger.debug(`[DB] Found ${projectFiles.length} files to clear from cache for ${projectName}`);
   }
 
   // 2. Delete from vector store
-  await getProvider().deleteByProject(projectName);
-  logger.info(`[DB] Successfully deleted ${projectName} from vector store.`);
+  try {
+    await getProvider().deleteByProject(projectName);
+    logger.info(`[DB] Successfully deleted ${projectName} from vector store.`);
+  } catch (err: any) {
+    logger.error(`[DB] Failed to delete ${projectName} from vector store: ${err.message}`);
+  }
 
   // 3. Delete from dependencies
   if (tables.includes("dependencies")) {
-    const depTable = await db.openTable("dependencies");
-    await depTable.delete(`"projectName" = '${projectName}'`);
-    logger.info(`[DB] Successfully deleted ${projectName} from dependencies table.`);
+    try {
+      const depTable = await db.openTable("dependencies");
+      await depTable.delete(`projectname = '${projectName}'`);
+      logger.info(`[DB] Successfully deleted ${projectName} from dependencies table.`);
+    } catch (err: any) {
+      logger.error(`[DB] Failed to delete ${projectName} from dependencies: ${err.message}`);
+    }
   }
 
   // 4. Clear file hashes so it can be re-indexed
   if (projectFiles.length > 0) {
-    const hashes = await loadHashes();
-    for (const fp of projectFiles) {
-      delete hashes[fp];
+    try {
+      const hashes = await loadHashes();
+      let clearedCount = 0;
+      for (const fp of projectFiles) {
+        if (hashes[fp]) {
+          delete hashes[fp];
+          clearedCount++;
+        }
+      }
+      await saveHashes(hashes);
+      logger.debug(`[DB] Successfully cleared ${clearedCount} file hashes for ${projectName}.`);
+    } catch (err: any) {
+      logger.error(`[DB] Failed to clear hashes for ${projectName}: ${err.message}`);
     }
-    await saveHashes(hashes);
-    logger.debug(`[DB] Successfully cleared ${projectFiles.length} file hashes for ${projectName}.`);
   }
 }
 
