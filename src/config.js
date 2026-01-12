@@ -109,7 +109,16 @@ export async function loadConfig() {
   if (await fs.pathExists(CONFIG_FILE)) {
     try {
       const userConfig = await fs.readJson(CONFIG_FILE);
-      return { ...DEFAULT_CONFIG, ...userConfig };
+      // Deep merge prompts specifically
+      const mergedPrompts = {
+        ...DEFAULT_CONFIG.prompts,
+        ...(userConfig.prompts || {})
+      };
+      return { 
+        ...DEFAULT_CONFIG, 
+        ...userConfig,
+        prompts: mergedPrompts
+      };
     } catch (err) {
       console.error(`Error reading config file: ${err.message}`);
     }

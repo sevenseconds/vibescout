@@ -476,14 +476,20 @@ app.post('/api/search/summarize', async (c) => {
 });
 
 app.post('/api/prompts/generate', async (c) => {
-  const { description } = await c.req.json();
+  const { description, target } = await c.req.json();
   
-  const systemPrompt = `You are a prompt engineering expert for code analysis. 
+  const placeholders = target === 'doc' 
+    ? `{{content}} - The documentation content
+{{fileName}} - The name of the file
+{{sectionName}} - The specific section name (if available)`
+    : `{{code}} - The code snippet
+{{fileName}} - The name of the file
+{{projectName}} - The project name`;
+
+  const systemPrompt = `You are a prompt engineering expert for ${target === 'doc' ? 'documentation' : 'code'} analysis. 
 The user wants a summarization prompt template for a tool called VibeScout.
 You must use these exact placeholders in your generated template:
-{{code}} - The code snippet
-{{fileName}} - The name of the file
-{{projectName}} - The project name
+${placeholders}
 
 Generate a highly effective, technical, and concise prompt based on the user's requirement. 
 Return ONLY the prompt text, no preamble or explanation.`;

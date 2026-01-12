@@ -18,8 +18,11 @@ interface SummarizeTemplate {
 interface Prompts {
   summarizeTemplates: SummarizeTemplate[];
   activeSummarizeId: string;
+  docSummarizeTemplates: SummarizeTemplate[];
+  activeDocSummarizeId: string;
   chunkSummarize: string;
   bestQuestion: string;
+  chatResponse: string;
 }
 
 export default function PromptsView() {
@@ -30,6 +33,7 @@ export default function PromptsView() {
 
   // AI Generator state
   const [showGenerator, setShowGenerator] = useState(false);
+  const [generatorTarget, setGeneratorTarget] = useState<'code' | 'doc'>('code');
   const [generatorDesc, setGeneratorDesc] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState('');
@@ -42,8 +46,11 @@ export default function PromptsView() {
       setPrompts({
         summarizeTemplates: data.summarizeTemplates || [],
         activeSummarizeId: data.activeSummarizeId || '',
+        docSummarizeTemplates: data.docSummarizeTemplates || [],
+        activeDocSummarizeId: data.activeDocSummarizeId || '',
         chunkSummarize: data.chunkSummarize || '',
-        bestQuestion: data.bestQuestion || ''
+        bestQuestion: data.bestQuestion || '',
+        chatResponse: data.chatResponse || ''
       });
     } catch (err) {
       console.error(err);
@@ -78,7 +85,7 @@ export default function PromptsView() {
     const newId = Math.random().toString(36).substring(7);
     const newTemplate: SummarizeTemplate = {
       id: newId,
-      name: 'New Template',
+      name: 'New Code Template',
       text: 'Summarize this code:\n\n{{code}}'
     };
     setPrompts({
@@ -106,12 +113,48 @@ export default function PromptsView() {
     });
   };
 
+  const addDocTemplate = () => {
+    if (!prompts) return;
+    const newId = Math.random().toString(36).substring(7);
+    const newTemplate: SummarizeTemplate = {
+      id: newId,
+      name: 'New Doc Template',
+      text: 'Summarize this documentation:\n\n{{content}}'
+    };
+    setPrompts({
+      ...prompts,
+      docSummarizeTemplates: [...prompts.docSummarizeTemplates, newTemplate],
+      activeDocSummarizeId: prompts.activeDocSummarizeId || newId
+    });
+  };
+
+  const removeDocTemplate = (id: string) => {
+    if (!prompts || prompts.docSummarizeTemplates.length <= 1) return;
+    const filtered = prompts.docSummarizeTemplates.filter(t => t.id !== id);
+    setPrompts({
+      ...prompts,
+      docSummarizeTemplates: filtered,
+      activeDocSummarizeId: prompts.activeDocSummarizeId === id ? filtered[0].id : prompts.activeDocSummarizeId
+    });
+  };
+
+  const updateDocTemplate = (id: string, updates: Partial<SummarizeTemplate>) => {
+    if (!prompts) return;
+    setPrompts({
+      ...prompts,
+      docSummarizeTemplates: prompts.docSummarizeTemplates.map(t => t.id === id ? { ...t, ...updates } : t)
+    });
+  };
+
   const handleGenerate = async () => {
     if (!generatorDesc.trim()) return;
     setIsGenerating(true);
     setGeneratedPrompt('');
     try {
-      const res = await axios.post('/api/prompts/generate', { description: generatorDesc });
+      const res = await axios.post('/api/prompts/generate', { 
+        description: generatorDesc,
+        target: generatorTarget 
+      });
       setGeneratedPrompt(res.data.prompt);
     } catch (err) {
       console.error(err);
@@ -129,11 +172,21 @@ export default function PromptsView() {
       name: 'AI Generated',
       text: generatedPrompt
     };
-    setPrompts({
-      ...prompts,
-      summarizeTemplates: [...prompts.summarizeTemplates, newTemplate],
-      activeSummarizeId: newId
-    });
+    
+    if (generatorTarget === 'code') {
+      setPrompts({
+        ...prompts,
+        summarizeTemplates: [...prompts.summarizeTemplates, newTemplate],
+        activeSummarizeId: newId
+      });
+    } else {
+      setPrompts({
+        ...prompts,
+        docSummarizeTemplates: [...prompts.docSummarizeTemplates, newTemplate],
+        activeDocSummarizeId: newId
+      });
+    }
+    
     setShowGenerator(false);
     setGeneratorDesc('');
     setGeneratedPrompt('');
@@ -148,6 +201,7 @@ export default function PromptsView() {
   }
 
   const activeTemplate = prompts?.summarizeTemplates.find(t => t.id === prompts.activeSummarizeId);
+  const activeDocTemplate = prompts?.docSummarizeTemplates.find(t => t.id === prompts.activeDocSummarizeId);
 
   return (
     <div className="flex h-full w-full overflow-hidden">
@@ -194,13 +248,16 @@ export default function PromptsView() {
               <Info size={18} />
               <h4 className="text-xs font-black uppercase tracking-widest">Available Variables</h4>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Variable badge="{{code}}" desc="The snippet of code" />
-              <Variable badge="{{fileName}}" desc="Name of the file" />
-              <Variable badge="{{projectName}}" desc="Current project name" />
-              <Variable badge="{{parentName}}" desc="Parent scope (for chunks)" />
-              <Variable badge="{{query}}" desc="The user's search query" />
-              <Variable badge="{{context}}" desc="Search results context" />
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <Variable badge="{{code}}" desc="Code snippet" />
+              <Variable badge="{{content}}" desc="Doc content" />
+              <Variable badge="{{fileName}}" desc="File name" />
+              <Variable badge="{{projectName}}" desc="Project name" />
+              <Variable badge="{{sectionName}}" desc="Doc section" />
+              <Variable badge="{{parentName}}" desc="Parent scope" />
+              <Variable badge="{{query}}" desc="User query" />
+              <Variable badge="{{context}}" desc="AI context" />
+              <Variable badge="{{history}}" desc="Chat history" />
               <Variable badge="{{date}}" desc="Current date" />
               <Variable badge="{{time}}" desc="Current time" />
             </div>
@@ -211,11 +268,11 @@ export default function PromptsView() {
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-2 text-foreground">
                   <Layers size={20} className="text-primary" />
-                  <h3 className="font-bold text-xl tracking-tight">Summarization Library</h3>
+                  <h3 className="font-bold text-xl tracking-tight">Code Library</h3>
                 </div>
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => setShowGenerator(true)}
+                    onClick={() => { setGeneratorTarget('code'); setShowGenerator(true); }}
                     className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all"
                   >
                     <Sparkles size={14} /> AI Generator
@@ -271,10 +328,83 @@ export default function PromptsView() {
               {activeTemplate && (
                 <div className="animate-in slide-in-from-top-2 duration-300 pt-2">
                   <PromptEditor 
-                    title={`Editing: ${activeTemplate.name}`}
-                    description="This template is used during full file and function indexing."
+                    title={`Editing Code Template: ${activeTemplate.name}`}
+                    description="This template is used during full file and function indexing for code files."
                     value={activeTemplate.text}
                     onChange={(val) => updateTemplate(activeTemplate.id, { text: val })}
+                  />
+                </div>
+              )}
+            </section>
+
+            <section className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-2 text-foreground">
+                  <Layers size={20} className="text-primary" />
+                  <h3 className="font-bold text-xl tracking-tight">Documentation Library</h3>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => { setGeneratorTarget('doc'); setShowGenerator(true); }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-primary/20 transition-all"
+                  >
+                    <Sparkles size={14} /> AI Generator
+                  </button>
+                  <button 
+                    onClick={addDocTemplate}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-secondary border border-border rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-secondary/80 transition-all"
+                  >
+                    <Plus size={14} /> Add Template
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {prompts?.docSummarizeTemplates.map(t => (
+                  <div 
+                    key={t.id}
+                    onClick={() => setPrompts({ ...prompts, activeDocSummarizeId: t.id })}
+                    className={cn(
+                      "p-4 rounded-2xl border-2 cursor-pointer transition-all relative group",
+                      prompts.activeDocSummarizeId === t.id 
+                        ? "bg-primary/5 border-primary shadow-lg shadow-primary/5" 
+                        : "bg-card border-border hover:border-border/80"
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                        prompts.activeDocSummarizeId === t.id ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+                      )}>
+                        {prompts.activeDocSummarizeId === t.id ? 'Active' : 'Draft'}
+                      </span>
+                      {prompts.docSummarizeTemplates.length > 1 && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); removeDocTemplate(t.id); }}
+                          className="text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <input 
+                      value={t.name}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => updateDocTemplate(t.id, { name: e.target.value })}
+                      className="bg-transparent font-bold text-sm w-full focus:outline-none focus:text-primary"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 italic">{t.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              {activeDocTemplate && (
+                <div className="animate-in slide-in-from-top-2 duration-300 pt-2">
+                  <PromptEditor 
+                    title={`Editing Doc Template: ${activeDocTemplate.name}`}
+                    description="This template is used during documentation file indexing (Markdown, Text, etc)."
+                    value={activeDocTemplate.text}
+                    onChange={(val) => updateDocTemplate(activeDocTemplate.id, { text: val })}
                   />
                 </div>
               )}
@@ -296,14 +426,22 @@ export default function PromptsView() {
             <section className="space-y-4">
               <div className="flex items-center gap-2 px-2 text-foreground">
                 <MessageSquare size={20} className="text-primary" />
-                <h3 className="font-bold text-xl tracking-tight">Smart Question</h3>
+                <h3 className="font-bold text-xl tracking-tight">Chat & Insight</h3>
               </div>
-              <PromptEditor 
-                title="Insight Generator"
-                description="Synthesizes search results into a starting chat prompt."
-                value={prompts?.bestQuestion || ''}
-                onChange={(val) => setPrompts(prev => prev ? {...prev, bestQuestion: val} : null)}
-              />
+              <div className="grid grid-cols-1 gap-6">
+                <PromptEditor 
+                  title="Insight Generator"
+                  description="Synthesizes search results into a starting chat prompt."
+                  value={prompts?.bestQuestion || ''}
+                  onChange={(val) => setPrompts(prev => prev ? {...prev, bestQuestion: val} : null)}
+                />
+                <PromptEditor 
+                  title="Chat Assistant System Prompt"
+                  description="Defines the behavior and personality of the AI when answering your questions."
+                  value={prompts?.chatResponse || ''}
+                  onChange={(val) => setPrompts(prev => prev ? {...prev, chatResponse: val} : null)}
+                />
+              </div>
             </section>
           </div>
 
@@ -329,13 +467,37 @@ export default function PromptsView() {
                 </div>
 
                 <div className="p-8 space-y-6 overflow-y-auto">
+                  <div className="flex gap-4 p-1 bg-secondary rounded-2xl">
+                    <button 
+                      onClick={() => setGeneratorTarget('code')}
+                      className={cn(
+                        "flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                        generatorTarget === 'code' ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Source Code
+                    </button>
+                    <button 
+                      onClick={() => setGeneratorTarget('doc')}
+                      className={cn(
+                        "flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                        generatorTarget === 'doc' ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Documentation
+                    </button>
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Describe your requirement</label>
                     <textarea 
                       value={generatorDesc}
                       onChange={(e) => setGeneratorDesc(e.target.value)}
                       className="w-full h-24 bg-secondary border border-border rounded-2xl p-4 text-sm focus:outline-none focus:border-primary transition-all resize-none"
-                      placeholder="e.g. Focus on security vulnerabilities and data flow analysis..."
+                      placeholder={generatorTarget === 'code' 
+                        ? "e.g. Focus on security vulnerabilities and data flow analysis..." 
+                        : "e.g. Focus on extracting API endpoints and usage examples from the text..."
+                      }
                     />
                   </div>
 
