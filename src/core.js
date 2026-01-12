@@ -226,6 +226,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   indexingProgress = {
     active: true,
     projectName: derivedProjectName,
+    collection,
     totalFiles: filesOnDisk.length,
     processedFiles: 0,
     failedFiles: 0,
@@ -575,7 +576,7 @@ export async function indexSingleFile(filePath, projectName, collection, summari
           : "";
 
         const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
-        const textToEmbed = `Category: ${block.category}\nProject: ${projectName}\nFile: ${path.basename(filePath)}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
+        const textToEmbed = `Category: ${block.category}\nCollection: ${collection}\nProject: ${projectName}\nFile: ${path.basename(filePath)}\nSummary: ${summary}\nCode: ${contextPrefix}${block.content.substring(0, 500)}`;
         dataToInsert.push({
           vector: null, textToEmbed, collection, projectName, name: block.name, type: block.type,
           category: block.category || (filePath.endsWith('.md') ? 'documentation' : 'code'),

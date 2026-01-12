@@ -41,7 +41,7 @@ import { loadConfig, saveConfig } from "./config.js";
 export const server = new Server(
   {
     name: "vibescout",
-    version: "0.2.0",
+    version: "0.2.7",
   },
   {
     capabilities: {

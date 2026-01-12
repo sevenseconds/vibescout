@@ -151,13 +151,11 @@ export default function KBView({ onExplore }: KBViewProps) {
     if (!confirm(`Are you sure you want to delete "${projectName}" from the index? This cannot be undone.`)) return;
     try {
       // Optimistic UI update for the index list and stats
-      let deletedProjectCollectionCount = 0;
       setKb(prev => {
         const next = { ...prev };
         for (const col in next) {
           const filtered = next[col].filter(p => p !== projectName);
           if (filtered.length !== next[col].length) {
-            deletedProjectCollectionCount++;
             next[col] = filtered;
           }
           if (next[col].length === 0) delete next[col];
@@ -177,13 +175,14 @@ export default function KBView({ onExplore }: KBViewProps) {
       // 1. Find if this project has a watcher and remove it first
       const watcher = watchers.find(w => w.projectName === projectName);
       if (watcher) {
-        // Optimistic UI update for watchers
         setWatchers(prev => prev.filter(w => w.projectName !== projectName));
         await axios.delete(`/api/watchers?folderPath=${encodeURIComponent(watcher.folderPath)}&projectName=${encodeURIComponent(watcher.projectName)}`);
       }
 
       // 2. Delete the project index
       await axios.delete(`/api/projects?projectName=${encodeURIComponent(projectName)}`);
+      
+      // 3. Ensure final sync
       await fetchData();
     } catch (err) {
       console.error(err);
