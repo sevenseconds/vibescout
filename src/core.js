@@ -471,7 +471,7 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
 /**
  * Tool: search_code (MCP Wrapper)
  */
-export async function handleSearchCode(query, collection, projectName, categories) {
+export async function handleSearchCode(query, collection, projectName, categories = ['code']) {
   const results = await searchCode(query, collection, projectName, undefined, categories);
 
   const formattedResults = results.map(r => 

@@ -81,18 +81,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "search_code",
-        description: "Search across knowledge base with Reranking.",
+        description: "Search across knowledge base with Reranking. Excludes documentation by default.",
         inputSchema: {
           type: "object",
           properties: {
-            query: { type: "string" },
-            collection: { type: "string" },
-            projectName: { type: "string" },
+            query: { type: "string", description: "The search query" },
+            collection: { type: "string", description: "Optional collection filter" },
+            projectName: { type: "string", description: "Optional project filter" },
             category: { 
               type: "string", 
-              description: "Filter by category: 'code' or 'documentation'",
+              description: "Filter by category: 'code' (default) or 'documentation'",
               enum: ["code", "documentation"] 
             },
+            categories: {
+              type: "array",
+              items: { type: "string", enum: ["code", "documentation"] },
+              description: "Filter by multiple categories (e.g. ['code', 'documentation'] to include both)"
+            }
           },
           required: ["query"],
         },
@@ -191,7 +196,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       
       return { content: [{ type: "text", text: msg }] };
     }
-    if (name === "search_code") return await handleSearchCode(args.query, args.collection, args.projectName, args.category ? [args.category] : undefined);
+    if (name === "search_code") {
+      const searchCategories = args.categories || (args.category ? [args.category] : undefined);
+      return await handleSearchCode(args.query, args.collection, args.projectName, searchCategories);
+    }
     if (name === "move_project") {
       await moveProjectToCollection(args.projectName, args.newCollection);
       return { content: [{ type: "text", text: `Moved to ${args.newCollection}` }] };
