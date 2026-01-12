@@ -118,6 +118,12 @@ Core tools exposed to AI assistants:
   - `GraphView.tsx` - Dependency graph visualization
   - `KBView.tsx` - Knowledge base management
   - `ConfigView.tsx` - Provider and settings configuration
+  - `PromptsView.tsx` - AI prompt template management
+- Key components:
+  - `NotificationTray.tsx` - Toast notification system (top-right corner)
+  - `LiveLogs.tsx` - Real-time server log viewer (bottom-right)
+  - `DebugPanel.tsx` - AI request/response inspector
+  - `PromptEditor.tsx` - Code editor for prompt templates
 - API communication via axios to backend endpoints
 
 ### API Endpoints (Hono in `src/server.js`)
@@ -149,6 +155,25 @@ Core tools exposed to AI assistants:
 - Vitest for test runner
 - Test files in `tests/` directory
 - Include `.test.js` suffix
+
+**Notifications** (`ui/src/utils/events.ts`)
+- Event-based notification system for user feedback
+- Use `notify(type, message)` instead of `alert()` for user-facing messages
+- `notify('success', message)` - Green success toast, auto-hides after 5 seconds
+- `notify('error', message)` - Red error toast, persists until dismissed
+- Notifications are managed by `NotificationTray` component in `ui/src/App.tsx`
+- Subscribe via `subscribeToNotifications(listener)` for custom handling
+
+```typescript
+// Usage example in React components
+import { notify } from '../utils/events';
+
+// Success notification (auto-hides)
+notify('success', 'Configuration saved successfully');
+
+// Error notification (manual dismiss)
+notify('error', 'Failed to connect to server');
+```
 
 ## TypeScript Configuration
 - Root `tsconfig.json` for `src/` - ESNext target, NodeNext module
