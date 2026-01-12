@@ -49,14 +49,17 @@ async function startServer(mode, port, isUI = false) {
     });
 
     if (isUI) {
-      const distPath = path.join(__dirname, "../ui/dist");
-      app.use('/*', serveStatic({ root: path.relative(process.cwd(), distPath) }));
+      const distPath = path.resolve(__dirname, "../ui/dist");
+      app.use('/*', serveStatic({ root: distPath }));
       // Fallback for SPA
       app.get('*', async (c, next) => {
         const url = new URL(c.req.url);
         if (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/mcp')) {
-          const html = await fs.readFile(path.join(distPath, "index.html"), "utf-8");
-          return c.html(html);
+          const indexPath = path.resolve(distPath, "index.html");
+          if (await fs.pathExists(indexPath)) {
+            const html = await fs.readFile(indexPath, "utf-8");
+            return c.html(html);
+          }
         }
         return next();
       });
