@@ -28,6 +28,7 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
       if (templateName === 'summarize') template = "Summarize this code:\n\n{{code}}";
       if (templateName === 'chunkSummarize') template = "Summarize this logic block in context of {{parentName}}:\n\n{{code}}";
       if (templateName === 'bestQuestion') template = "Generate the best question for this context:\n\n{{context}}";
+      if (templateName === 'chatResponse') template = "You are a code assistant.\n\nContext:\n{{context}}\n\nQuestion: {{query}}";
     }
 
     Object.entries(placeholders).forEach(([key, value]) => {
@@ -79,18 +80,20 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string } = {}): Promise<string> {
+  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string } = {}): Promise<string> {
     const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
     try {
       const model = this.modelName || "gemini-1.5-flash";
-      const templateName = options.type === 'chunk' ? 'chunkSummarize' : 'summarize';
+      const templateName = options.promptTemplate || (options.type === 'chunk' ? 'chunkSummarize' : 'summarize');
       const prompt = await this.fillPrompt(templateName, {
         code: text,
+        content: text, // For documentation
         fileName: options.fileName || 'unknown',
         projectName: options.projectName || 'unknown',
-        parentName: options.parentName || 'unknown'
+        parentName: options.parentName || 'unknown',
+        sectionName: options.sectionName || ''
       });
 
       const payload = {
@@ -175,7 +178,16 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
 
     try {
       const model = this.modelName || "gemini-1.5-flash";
-      const contents = history.map(m => ({
+
+      // Use configurable chat template
+      const historyText = history.map(m => `${m.role}: ${m.content}`).join("\n");
+      const userPrompt = await this.fillPrompt('chatResponse', {
+        query: prompt,
+        context,
+        history: historyText || "(No previous conversation)"
+      });
+
+      const contents = history.slice(-10).map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.content }]
       }));
@@ -183,7 +195,7 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
       // Add current turn
       contents.push({
         role: 'user',
-        parts: [{ text: `Use the following code context to answer the question.\n\nContext:\n${context}\n\nQuestion: ${prompt}` }]
+        parts: [{ text: userPrompt }]
       });
 
       const payload = { contents };

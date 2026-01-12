@@ -35,6 +35,55 @@ const DEFAULT_CONFIG = {
   port: 3000,
   summarize: true,
   verbose: false,
+  // Directories to watch (relative to project root)
+  // Set to null or [] to watch the entire project root
+  // Set to ["src", "lib", "components"] to watch only specific directories
+  watchDirectories: ["src", "public", "app", "lib", "components"],
+
+  // File type configuration for indexing and summarization
+  fileTypes: {
+    // Code files - summarize with code-focused prompts
+    code: {
+      extensions: [".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".dart", ".java", ".kt", ".kts", ".rs", ".cpp", ".c", ".h"],
+      summarize: true,
+      promptTemplate: "summarize", // Uses summarizeTemplates[activeSummarizeId]
+      description: "Source code files"
+    },
+    // Documentation files - summarize with doc-focused prompts
+    docs: {
+      extensions: [".md", ".mdx", ".txt", ".rst"],
+      summarize: true,
+      promptTemplate: "docSummarize",
+      maxLength: 3000, // Truncate content before sending to AI
+      description: "Documentation and text files"
+    },
+    // Config files - skip summarization (just embed)
+    config: {
+      extensions: [".json", ".yaml", ".yml", ".toml", ".ini", ".conf"],
+      summarize: false,
+      description: "Configuration files"
+    },
+    // Web files - summarize with code prompts
+    web: {
+      extensions: [".html", ".htm", ".css", ".scss", ".sass", ".less", ".svg", ".xml"],
+      summarize: true,
+      promptTemplate: "summarize",
+      description: "Web files"
+    },
+    // Test files - skip summarization
+    test: {
+      extensions: [".test.js", ".test.ts", ".spec.js", ".spec.ts", ".test.tsx", ".spec.tsx"],
+      summarize: false,
+      description: "Test files"
+    },
+    // Lock files - skip entirely
+    lock: {
+      extensions: ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "poetry.lock", "Cargo.lock"],
+      index: false, // Don't even index these
+      description: "Lock files"
+    }
+  },
+
   throttlingErrors: ["并发数过高", "1214", "1302", "1301", "429", "Rate limit", "too many requests"],
   prompts: {
     summarizeTemplates: [
@@ -43,7 +92,11 @@ const DEFAULT_CONFIG = {
     ],
     activeSummarizeId: 'default',
     chunkSummarize: "Summarize this specific logic block within a function. Focus on what this part specifically achieves.\n\nFile: {{fileName}}\nContext: {{parentName}}\n\nCode:\n{{code}}",
-    bestQuestion: "I have searched my codebase for \"{{query}}\". \nBased on the code snippets found below, what is the most insightful and technically accurate question I should ask a chat assistant to understand how this specific logic is implemented and how it relates to my query?\n\nProvide only the question text, no preamble.\n\nContext:\n{{context}}"
+    // Specialized prompt for documentation/markdown files
+    docSummarize: "Summarize this documentation section concisely in 1-2 sentences. Focus on: What topic does this cover? What are the key points or instructions?\n\nFile: {{fileName}}\nSection: {{sectionName}}\n\nContent:\n{{content}}",
+    bestQuestion: "I have searched my codebase for \"{{query}}\". \nBased on the code snippets found below, what is the most insightful and technically accurate question I should ask a chat assistant to understand how this specific logic is implemented and how it relates to my query?\n\nProvide only the question text, no preamble.\n\nContext:\n{{context}}",
+    // Chat response prompt for code assistant
+    chatResponse: "You are an expert code assistant helping a developer understand their codebase. Use the provided code context and conversation history to answer questions accurately and concisely.\n\nConversation History:\n{{history}}\n\nRelevant Code Context:\n{{context}}\n\nUser Question: {{query}}\n\nProvide a helpful, technically accurate answer. If the context doesn't contain enough information, say so. Use code examples when helpful."
   }
 };
 

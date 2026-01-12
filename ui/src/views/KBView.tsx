@@ -83,21 +83,27 @@ export default function KBView({ onExplore }: KBViewProps) {
 
   useEffect(() => {
     fetchData();
-    // Poll progress if active
+    // Poll progress every 2 seconds
     const interval = setInterval(async () => {
       try {
         const res = await axios.get('/api/index/status');
-        setIndexProgress(res.data);
-        if (!res.data.active && indexProgress?.active) {
-          // If just finished, refresh KB
-          fetchData();
-        }
+        const newIndexProgress = res.data;
+
+        setIndexProgress(prev => {
+          // Check if indexing just finished (was active, now not)
+          const justFinished = prev?.active && !newIndexProgress.active && newIndexProgress.status !== 'idle';
+          if (justFinished) {
+            // Refresh data after indexing completes
+            setTimeout(() => fetchData(), 500);
+          }
+          return newIndexProgress;
+        });
       } catch (err) {
-        console.error(err);
+        console.error('Failed to fetch index progress:', err);
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, [indexProgress?.active]);
+  }, []); // Empty dependency array - only run once on mount
 
   const handleAddWatcher = async () => {
     if (!newWatcher.folderPath || !newWatcher.projectName) return;

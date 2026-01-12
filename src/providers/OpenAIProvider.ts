@@ -88,7 +88,7 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string } = {}): Promise<string> {
+  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string } = {}): Promise<string> {
     const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
@@ -97,13 +97,20 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
         throw new Error(`API Key is missing for ${this.name} provider.`);
       }
 
-      const templateName = options.type === 'chunk' ? 'chunkSummarize' : 'summarize';
-      const prompt = await this.fillPrompt(templateName, {
+      // Determine which template to use
+      const templateName = options.promptTemplate || (options.type === 'chunk' ? 'chunkSummarize' : 'summarize');
+
+      // Prepare template variables
+      const templateVars: any = {
         code: text,
+        content: text, // For documentation
         fileName: options.fileName || 'unknown',
         projectName: options.projectName || 'unknown',
-        parentName: options.parentName || 'unknown'
-      });
+        parentName: options.parentName || 'unknown',
+        sectionName: options.sectionName || ''
+      };
+
+      const prompt = await this.fillPrompt(templateName, templateVars);
 
       const payload = {
         model: this.modelName,
@@ -195,10 +202,18 @@ export class OpenAIProvider implements EmbeddingProvider, SummarizerProvider {
         throw new Error(`API Key is missing for ${this.name} provider.`);
       }
 
+      // Use configurable chat template
+      const historyText = history.map(m => `${m.role}: ${m.content}`).join("\n");
+      const userPrompt = await this.fillPrompt('chatResponse', {
+        query: prompt,
+        context,
+        history: historyText || "(No previous conversation)"
+      });
+
       const messages = [
-        { role: "system", content: "You are a code assistant. Answer questions based on the provided code context and conversation history." },
-        ...history.map(m => ({ role: m.role, content: m.content })),
-        { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
+        { role: "system", content: "You are a helpful code assistant." },
+        ...history.slice(-5).map(m => ({ role: m.role, content: m.content })),
+        { role: "user", content: userPrompt }
       ];
 
       const payload = {

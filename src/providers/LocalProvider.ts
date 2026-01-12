@@ -89,14 +89,21 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async summarize(text: string, options: { fileName?: string; projectName?: string } = {}): Promise<string> {
+  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string } = {}): Promise<string> {
     try {
       const pipe = await this.getSummarizerPipe();
-      const prompt = await this.fillPrompt('summarize', {
+      const templateName = options.promptTemplate || 'summarize';
+
+      const templateVars: any = {
         code: text,
+        content: text,
         fileName: options.fileName || 'unknown',
-        projectName: options.projectName || 'unknown'
-      });
+        projectName: options.projectName || 'unknown',
+        parentName: options.parentName || 'unknown',
+        sectionName: options.sectionName || ''
+      };
+
+      const prompt = await this.fillPrompt(templateName, templateVars);
 
       const input = prompt.substring(0, 1024);
       const output = await pipe(input, {
@@ -131,7 +138,16 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
   async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
     // Local BART is mostly a summarizer, but we can try to use it for simple context-based Q&A.
     const recentHistory = history.slice(-2).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join("\n");
-    const input = `Context:\n${context}\n\nHistory:\n${recentHistory}\n\nQuestion: ${prompt}`.substring(0, 1024);
+
+    // Use configurable template, but truncate heavily since BART has 1024 token limit
+    const historyText = recentHistory || "(No previous conversation)";
+    const templateInput = await this.fillPrompt('chatResponse', {
+      query: prompt,
+      context: context.substring(0, 500), // Truncate context
+      history: historyText.substring(0, 200) // Truncate history
+    });
+
+    const input = templateInput.substring(0, 1024);
     try {
       const pipe = await this.getSummarizerPipe();
       const output = await pipe(input, {

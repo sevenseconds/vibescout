@@ -1,5 +1,6 @@
 import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
+import { loadConfig } from "../config.js";
 
 export class CloudflareProvider implements EmbeddingProvider, SummarizerProvider {
   name: string = "cloudflare";
@@ -11,6 +12,28 @@ export class CloudflareProvider implements EmbeddingProvider, SummarizerProvider
     this.modelName = modelName;
     this.accountId = accountId;
     this.apiToken = apiToken;
+  }
+
+  private async fillPrompt(templateName: string, placeholders: Record<string, string>) {
+    const config = await loadConfig();
+    let template = config.prompts?.[templateName] || "";
+
+    if (!template) {
+      if (templateName === 'chatResponse') template = "You are a code assistant.\n\nContext:\n{{context}}\n\nQuestion: {{query}}";
+      if (templateName === 'summarize') template = "Summarize this code:\n\n{{code}}";
+      if (templateName === 'chunkSummarize') template = "Summarize this logic block in context of {{parentName}}:\n\n{{code}}";
+      if (templateName === 'bestQuestion') template = "Generate the best question:\n\n{{context}}";
+    }
+
+    Object.entries(placeholders).forEach(([key, value]) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      template = template.replace(regex, value || '');
+    });
+
+    template = template.replace(/{{date}}/g, new Date().toLocaleDateString());
+    template = template.replace(/{{time}}/g, new Date().toLocaleTimeString());
+
+    return template;
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
@@ -48,16 +71,31 @@ export class CloudflareProvider implements EmbeddingProvider, SummarizerProvider
     }
   }
 
-  async summarize(text: string): Promise<string> {
+  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string } = {}): Promise<string> {
     const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
     const model = this.modelName || "@cf/meta/llama-3-8b-instruct";
 
     try {
+      // Determine which template to use
+      const templateName = options.promptTemplate || (options.type === 'chunk' ? 'chunkSummarize' : 'summarize');
+
+      // Prepare template variables
+      const templateVars: any = {
+        code: text,
+        content: text, // For documentation
+        fileName: options.fileName || 'unknown',
+        projectName: options.projectName || 'unknown',
+        parentName: options.parentName || 'unknown',
+        sectionName: options.sectionName || ''
+      };
+
+      const prompt = await this.fillPrompt(templateName, templateVars);
+
       const payload = {
         messages: [
-          { role: "system", content: "Summarize this code concisely." },
-          { role: "user", content: text }
+          { role: "system", content: "You are a helpful assistant that summarizes code and documentation concisely." },
+          { role: "user", content: prompt }
         ]
       };
 
@@ -95,10 +133,18 @@ export class CloudflareProvider implements EmbeddingProvider, SummarizerProvider
     const model = this.modelName || "@cf/meta/llama-3-8b-instruct";
 
     try {
+      // Use configurable chat template
+      const historyText = history.map(m => `${m.role}: ${m.content}`).join("\n");
+      const userPrompt = await this.fillPrompt('chatResponse', {
+        query: prompt,
+        context,
+        history: historyText || "(No previous conversation)"
+      });
+
       const messages = [
-        { role: "system", content: "You are a code assistant. Answer using the provided context and conversation history." },
-        ...history.map(m => ({ role: m.role, content: m.content })),
-        { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
+        { role: "system", content: "You are a helpful code assistant." },
+        ...history.slice(-5).map(m => ({ role: m.role, content: m.content })),
+        { role: "user", content: userPrompt }
       ];
 
       const payload = { messages };

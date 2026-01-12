@@ -6,14 +6,15 @@ import ignore from "ignore";
 import { extractCodeBlocks } from "./extractor.js";
 import { embeddingManager, rerankerManager, summarizerManager } from "./embeddings.js";
 import { logger } from "./logger.js";
-import { 
-  createOrUpdateTable, 
-  hybridSearch, 
-  getStoredModel, 
-  getFileHash, 
+import { loadConfig } from "./config.js";
+import {
+  createOrUpdateTable,
+  hybridSearch,
+  getStoredModel,
+  getFileHash,
   bulkUpdateFileHashes,
   updateFileHash,
-  deleteFileData, 
+  deleteFileData,
   getProjectFiles,
   updateDependencies
 } from "./db.js";
@@ -24,13 +25,70 @@ const execAsync = promisify(exec);
 const CONCURRENCY_LIMIT = 16;
 
 /**
+ * Get file type configuration for a given file path
+ * Determines whether to summarize and which prompt to use
+ */
+async function getFileTypeConfig(filePath) {
+  const config = await loadConfig();
+  const fileTypes = config.fileTypes || {};
+
+  // Find matching file type
+  for (const [typeName, typeConfig] of Object.entries(fileTypes)) {
+    if (typeConfig.extensions) {
+      for (const ext of typeConfig.extensions) {
+        // Handle both extensions starting with dot and full filenames
+        if (ext.startsWith('.')) {
+          if (filePath.endsWith(ext)) {
+            return { typeName, ...typeConfig };
+          }
+        } else {
+          // Full filename match (e.g., package-lock.json)
+          if (filePath.endsWith('/' + ext) || filePath.endsWith('//' + ext) || filePath === ext) {
+            return { typeName, ...typeConfig };
+          }
+        }
+      }
+    }
+  }
+
+  // Default: treat as code file
+  return {
+    typeName: 'code',
+    summarize: true,
+    promptTemplate: 'summarize',
+    description: 'Unknown file type'
+  };
+}
+
+/**
  * Helper to load ignore patterns from .vibeignore and .gitignore
+ * Returns both the ignore instance and the raw patterns array
  */
 async function getIgnoreFilter(folderPath) {
   const ig = ignore();
-  
+
   // Default ignores
-  ig.add([".git", "node_modules", "dist", ".lancedb", ".lancedb_test", ".vibescout"]);
+  const defaultPatterns = [
+    ".git",
+    "node_modules",
+    "dist",
+    ".lancedb",
+    ".lancedb_test",
+    ".vibescout",
+    // Lock files that shouldn't be indexed
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "bun.lockb",
+    // Other generated files
+    "tsconfig.tsbuildinfo",
+    ".next",
+    "coverage",
+    ".nyc_output"
+  ];
+  ig.add(defaultPatterns);
+
+  const patterns = [...defaultPatterns];
 
   const ignoreFiles = [".gitignore", ".vibeignore"];
   for (const file of ignoreFiles) {
@@ -38,10 +96,26 @@ async function getIgnoreFilter(folderPath) {
     if (await fs.pathExists(filePath)) {
       const content = await fs.readFile(filePath, "utf-8");
       ig.add(content);
+      // Parse content to extract patterns for glob
+      const lines = content.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        // Skip comments and empty lines
+        if (trimmed && !trimmed.startsWith('#')) {
+          // Convert gitignore pattern to glob pattern
+          // Gitignore uses ** for matching, but we need to ensure proper format
+          if (!trimmed.includes('/')) {
+            // Pattern without slash applies everywhere
+            patterns.push(`**/${trimmed}`);
+          } else {
+            patterns.push(trimmed);
+          }
+        }
+      }
     }
   }
-  
-  return ig;
+
+  return { filter: ig, patterns };
 }
 
 // Global state for progress tracking
@@ -98,16 +172,46 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
     await deleteProject(derivedProjectName);
   }
 
-  const ig = await getIgnoreFilter(absolutePath);
-  
-  // Get all potential files
-  const allFiles = await glob("**/*.{ts,js,md,py,go,dart,java,kt,kts,json,toml,xml,html,svg}", { 
-    cwd: absolutePath,
-    dot: true,
-    nodir: true
+  const { filter: ig, patterns: ignorePatterns } = await getIgnoreFilter(absolutePath);
+
+  // Convert patterns to glob-compatible format
+  const globIgnorePatterns = ignorePatterns.map(p => {
+    // If it already has **/, it's already formatted
+    if (p.startsWith('**/')) {
+      // For patterns like **/node_modules, add trailing /**
+      if (!p.endsWith('/**') && !p.endsWith('*') && !p.includes('.')) {
+        return p + '/**';
+      }
+      return p;
+    }
+    // For patterns with / (like dist/), treat as directory
+    if (p.includes('/')) {
+      if (!p.endsWith('/**') && !p.endsWith('*')) {
+        return '**/' + p + '/**';
+      }
+      return '**/' + p;
+    }
+    // For file patterns (contains . or specific file extension), don't add /**
+    if (p.includes('.') || p === 'node_modules' || p === 'dist' || p === 'build') {
+      return '**/' + p;
+    }
+    // For directory patterns without /, add /**
+    return '**/' + p + '/**';
   });
 
-  // Filter files using ignore patterns
+  // Get all potential files - use .gitignore patterns during traversal to prevent EMFILE errors
+  const allFiles = await glob("**/*.{ts,js,md,py,go,dart,java,kt,kts,json,toml,xml,html,svg}", {
+    cwd: absolutePath,
+    dot: true,
+    nodir: true,
+    ignore: {
+      // Use patterns from .gitignore/.vibeignore during file system traversal
+      child: globIgnorePatterns
+    },
+    maxDepth: 30 // Limit traversal depth
+  });
+
+  // Filter files using ignore patterns (double-check with gitignore instance)
   const filesOnDisk = allFiles.filter(file => !ig.ignores(file));
   const absoluteFilesOnDisk = new Set(filesOnDisk.map(f => path.join(absolutePath, f)));
   
@@ -187,9 +291,20 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           const { blocks, metadata } = await extractCodeBlocks(filePath);
           await updateDependencies(filePath, derivedProjectName, collection, metadata);
 
+          // Get file type configuration to determine if/how to summarize
+          const fileTypeConfig = await getFileTypeConfig(filePath);
+
+          // Skip files marked as "index: false" (like lock files)
+          if (fileTypeConfig.index === false) {
+            logger.info(`[Index] Skipping ${file} (file type '${fileTypeConfig.typeName}' is configured to not index)`);
+            return;
+          }
+
           if (blocks.length > 0) {
             const parentSummaries = new Map();
-            if (summarize) {
+            const shouldSummarize = summarize && fileTypeConfig.summarize !== false;
+
+            if (shouldSummarize) {
               const parents = blocks.filter(b => b.type !== "chunk");
               for (const parent of parents) {
                 if (isShuttingDown) break;
@@ -197,9 +312,20 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 while (isPaused && !isShuttingDown) {
                   await new Promise(r => setTimeout(r, 500));
                 }
-                const summary = await summarizerManager.summarize(parent.content, {
+
+                // Truncate content if maxLength is specified (for large docs)
+                let contentToSummarize = parent.content;
+                if (fileTypeConfig.maxLength && contentToSummarize.length > fileTypeConfig.maxLength) {
+                  contentToSummarize = contentToSummarize.substring(0, fileTypeConfig.maxLength) + "\n\n... (truncated)";
+                }
+
+                // Use the configured prompt template
+                const promptTemplate = fileTypeConfig.promptTemplate || 'summarize';
+                const summary = await summarizerManager.summarize(contentToSummarize, {
                   fileName: file,
-                  projectName: derivedProjectName
+                  projectName: derivedProjectName,
+                  promptTemplate,
+                  sectionName: parent.name.replace('Doc: ', '')
                 });
                 parentSummaries.set(parent.name, summary);
               }
@@ -213,9 +339,15 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               if (isShuttingDown) break;
 
               let summary = "";
-              if (summarize) {
+              if (shouldSummarize) {
                 summary = block.type === "chunk"
-                  ? await summarizerManager.summarize(block.content, { fileName: file, projectName: derivedProjectName, type: 'chunk', parentName: block.parentName })
+                  ? await summarizerManager.summarize(block.content, {
+                      fileName: file,
+                      projectName: derivedProjectName,
+                      type: 'chunk',
+                      parentName: block.parentName,
+                      promptTemplate: fileTypeConfig.promptTemplate || 'summarize'
+                    })
                   : parentSummaries.get(block.name) || "";
               }
 

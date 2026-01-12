@@ -159,7 +159,7 @@ export class SummarizerManager {
     }
   }
 
-  async summarize(text: string, options?: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string }): Promise<string> {
+  async summarize(text: string, options?: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string }): Promise<string> {
     const throttler = getThrottler(this.provider.name, this.throttlingErrors);
     return throttler.run(() => this.provider.summarize(text, options));
   }

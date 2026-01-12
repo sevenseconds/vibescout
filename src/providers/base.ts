@@ -11,7 +11,7 @@ export interface ChatMessage {
 
 export interface SummarizerProvider {
   name: string;
-  summarize(text: string, options?: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string }): Promise<string>;
+  summarize(text: string, options?: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string }): Promise<string>;
   generateBestQuestion(query: string, context: string): Promise<string>;
   generateResponse(prompt: string, context: string, history?: ChatMessage[]): Promise<string>;
 }

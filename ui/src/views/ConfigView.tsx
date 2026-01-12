@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, Eye, EyeOff, Settings, MessagesSquare, Zap, Plus, X, RefreshCw, Bug } from 'lucide-react';
+import { Bot, Save, Shield, Loader2, Cpu, Key, Globe, Server, Check, Eye, EyeOff, Settings, MessagesSquare, Zap, Plus, X, RefreshCw, Bug, FileCode } from 'lucide-react';
 import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -33,6 +33,15 @@ interface Config {
   port: number;
   summarize: boolean;
   verbose: boolean;
+  watchDirectories: string[] | null;
+  fileTypes: Record<string, {
+    extensions: string[];
+    summarize: boolean;
+    promptTemplate?: string;
+    maxLength?: number;
+    index?: boolean;
+    description: string;
+  }>;
   throttlingErrors: string[];
 }
 
@@ -499,6 +508,111 @@ export default function ConfigView() {
                     </div>
                   </div>
                 )}
+              </div>
+            </section>
+
+            <section className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+              <div className="p-6 bg-secondary/50 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <FileCode size={20} className="text-primary" />
+                  <h3 className="font-bold tracking-tight text-lg text-foreground">File Type Configuration</h3>
+                </div>
+              </div>
+              <div className="p-8 space-y-6">
+                <p className="text-sm text-muted-foreground">Configure how different file types are indexed and summarized. This helps optimize performance and accuracy for various file types.</p>
+
+                {config?.fileTypes && Object.entries(config.fileTypes).map(([typeId, typeConfig]) => (
+                  <div key={typeId} className="bg-secondary/30 rounded-2xl p-6 border border-border/50 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="font-bold text-foreground capitalize flex items-center gap-2">
+                          {typeId}
+                          <span className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full font-medium">{typeConfig.description}</span>
+                        </h4>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {typeConfig.extensions.map(ext => (
+                            <span key={ext} className="text-[10px] font-mono px-2 py-1 bg-background border border-border rounded-md text-muted-foreground">{ext}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={typeConfig.index !== false}
+                            onChange={(e) => {
+                              const newFileTypes = { ...config.fileTypes };
+                              newFileTypes[typeId] = { ...typeConfig, index: e.target.checked };
+                              updateConfig('fileTypes', newFileTypes);
+                            }}
+                            className="w-4 h-4 rounded border-border"
+                          />
+                          <span className="text-xs font-medium text-foreground">Index</span>
+                        </label>
+                        {typeConfig.index !== false && (
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={typeConfig.summarize}
+                              onChange={(e) => {
+                                const newFileTypes = { ...config.fileTypes };
+                                newFileTypes[typeId] = { ...typeConfig, summarize: e.target.checked };
+                                updateConfig('fileTypes', newFileTypes);
+                              }}
+                              className="w-4 h-4 rounded border-border"
+                              disabled={typeConfig.index !== true && typeConfig.index !== undefined}
+                            />
+                            <span className="text-xs font-medium text-foreground">Summarize</span>
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {typeConfig.summarize && typeConfig.index !== false && (
+                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/50">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Prompt Template</label>
+                          <select
+                            value={typeConfig.promptTemplate || 'summarize'}
+                            onChange={(e) => {
+                              const newFileTypes = { ...config.fileTypes };
+                              newFileTypes[typeId] = { ...typeConfig, promptTemplate: e.target.value };
+                              updateConfig('fileTypes', newFileTypes);
+                            }}
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"
+                          >
+                            <option value="summarize">Code Analysis</option>
+                            <option value="docSummarize">Documentation Summary</option>
+                            <option value="chunkSummarize">Chunk Analysis</option>
+                          </select>
+                        </div>
+
+                        {typeConfig.maxLength !== undefined && (
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Max Content Length</label>
+                            <input
+                              type="number"
+                              value={typeConfig.maxLength}
+                              onChange={(e) => {
+                                const newFileTypes = { ...config.fileTypes };
+                                newFileTypes[typeId] = { ...typeConfig, maxLength: parseInt(e.target.value) || undefined };
+                                updateConfig('fileTypes', newFileTypes);
+                              }}
+                              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all font-mono"
+                              placeholder="No limit"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl">
+                  <p className="text-xs text-muted-foreground">
+                    <strong className="text-primary">Tip:</strong> For large documentation files (.md, .txt), the content is automatically truncated before summarization to prevent timeouts. You can adjust the max length for each file type above.
+                  </p>
+                </div>
               </div>
             </section>
 

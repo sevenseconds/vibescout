@@ -28,6 +28,7 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
       if (templateName === 'summarize') template = "Summarize this code:\n\n{{code}}";
       if (templateName === 'chunkSummarize') template = "Summarize this logic block in context of {{parentName}}:\n\n{{code}}";
       if (templateName === 'bestQuestion') template = "Generate the best question for this context:\n\n{{context}}";
+      if (templateName === 'chatResponse') template = "You are a code assistant.\n\nContext:\n{{context}}\n\nQuestion: {{query}}";
     }
 
     Object.entries(placeholders).forEach(([key, value]) => {
@@ -89,17 +90,19 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
     }
   }
 
-  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string } = {}): Promise<string> {
+  async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string } = {}): Promise<string> {
     const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
     try {
-      const templateName = options.type === 'chunk' ? 'chunkSummarize' : 'summarize';
+      const templateName = options.promptTemplate || (options.type === 'chunk' ? 'chunkSummarize' : 'summarize');
       const prompt = await this.fillPrompt(templateName, {
         code: text,
+        content: text, // For documentation
         fileName: options.fileName || 'unknown',
         projectName: options.projectName || 'unknown',
-        parentName: options.parentName || 'unknown'
+        parentName: options.parentName || 'unknown',
+        sectionName: options.sectionName || ''
       });
 
       const payload = {
@@ -180,8 +183,13 @@ export class OllamaProvider implements EmbeddingProvider, SummarizerProvider {
     let requestId: string | null = null;
 
     try {
+      // Use configurable chat template
       const historyText = history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join("\n");
-      const fullPrompt = `You are a code assistant. Use the following context and history to answer.\n\nContext:\n${context}\n\nHistory:\n${historyText}\n\nQuestion: ${prompt}`;
+      const fullPrompt = await this.fillPrompt('chatResponse', {
+        query: prompt,
+        context,
+        history: historyText || "(No previous conversation)"
+      });
 
       const payload = {
         model: this.modelName,
