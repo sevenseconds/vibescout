@@ -1,6 +1,6 @@
 {
   "name": "@sevenseconds/vibescout",
-  "version": "0.2.21",
+  "version": "0.2.22",
   "description": "A high-performance local MCP server for semantic code search, summarization, and RAG.",
   "main": "src/index.js",
   "bin": {
