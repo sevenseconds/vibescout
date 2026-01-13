@@ -28,8 +28,9 @@ export class BedrockLLMProvider {
   private client: BedrockRuntimeClient;
   private modelName: string;
   private region: string;
+  private debugStore: any;
 
-  constructor(options: BedrockLLMOptions) {
+  constructor(options: BedrockLLMOptions, debugStore?: any) {
     const {
       modelName,
       region = 'us-east-1',
@@ -40,6 +41,7 @@ export class BedrockLLMProvider {
 
     this.modelName = modelName;
     this.region = region;
+    this.debugStore = debugStore;
 
     // Build credential provider chain
     let credentials;
@@ -78,14 +80,27 @@ export class BedrockLLMProvider {
    * Summarize text using the LLM
    */
   async summarize(text: string, maxLength?: number): Promise<string> {
+    let requestId: string | null = null;
     try {
       const prompt = maxLength
         ? `Summarize the following text in ${maxLength} characters or less:\n\n${text}`
         : `Summarize the following text concisely:\n\n${text}`;
 
+      if (this.debugStore) {
+        requestId = this.debugStore.logRequest(`${this.name}:summarize`, this.modelName, { prompt: prompt.substring(0, 500) + "..." });
+      }
+
       const response = await this.callBedrock(prompt);
+
+      if (requestId && this.debugStore) {
+        this.debugStore.updateResponse(requestId, response);
+      }
+
       return response;
-    } catch (error) {
+    } catch (error: any) {
+      if (requestId && this.debugStore) {
+        this.debugStore.updateError(requestId, error.message);
+      }
       console.error('[BedrockLLMProvider] Error in summarize:', error);
       throw error;
     }
@@ -95,12 +110,25 @@ export class BedrockLLMProvider {
    * Generate the best question for a code block
    */
   async generateBestQuestion(code: string, summary: string): Promise<string> {
+    let requestId: string | null = null;
     try {
       const prompt = `Given this code summary:\n${summary}\n\nAnd this code:\n${code}\n\nGenerate the single best question that would help understand this code. Return only the question, no explanation.`;
 
+      if (this.debugStore) {
+        requestId = this.debugStore.logRequest(`${this.name}:bestQuestion`, this.modelName, { prompt: prompt.substring(0, 500) + "..." });
+      }
+
       const response = await this.callBedrock(prompt);
+
+      if (requestId && this.debugStore) {
+        this.debugStore.updateResponse(requestId, response);
+      }
+
       return response;
-    } catch (error) {
+    } catch (error: any) {
+      if (requestId && this.debugStore) {
+        this.debugStore.updateError(requestId, error.message);
+      }
       console.error('[BedrockLLMProvider] Error in generateBestQuestion:', error);
       throw error;
     }
@@ -110,14 +138,27 @@ export class BedrockLLMProvider {
    * Generate a response from a prompt with context
    */
   async generateResponse(prompt: string, context?: string): Promise<string> {
+    let requestId: string | null = null;
     try {
       const fullPrompt = context
         ? `Context:\n${context}\n\nQuestion:\n${prompt}\n\nProvide a helpful answer based on the context above.`
         : prompt;
 
+      if (this.debugStore) {
+        requestId = this.debugStore.logRequest(`${this.name}:chat`, this.modelName, { prompt: fullPrompt.substring(0, 500) + "..." });
+      }
+
       const response = await this.callBedrock(fullPrompt);
+
+      if (requestId && this.debugStore) {
+        this.debugStore.updateResponse(requestId, response);
+      }
+
       return response;
-    } catch (error) {
+    } catch (error: any) {
+      if (requestId && this.debugStore) {
+        this.debugStore.updateError(requestId, error.message);
+      }
       console.error('[BedrockLLMProvider] Error in generateResponse:', error);
       throw error;
     }

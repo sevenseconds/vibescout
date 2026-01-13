@@ -8,6 +8,8 @@
 import { ProviderPlugin, PluginContext } from '../../../types.js';
 import { BedrockSSOProvider } from './provider.js';
 
+let pluginContext: PluginContext;
+
 const plugin: ProviderPlugin = {
   name: 'bedrock-sso-inference',
   version: '1.0.0',
@@ -64,6 +66,7 @@ const plugin: ProviderPlugin = {
    * Initialize the plugin and register as provider
    */
   initialize(context: PluginContext) {
+    pluginContext = context;
     context.registerProvider(this);
   },
 
@@ -79,7 +82,7 @@ const plugin: ProviderPlugin = {
       region: config.region || 'us-east-1',
       ssoProfile: config.ssoProfile,
       ssoSession: config.ssoSession
-    });
+    }, pluginContext?.debugStore);
   },
 
   /**

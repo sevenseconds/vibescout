@@ -19,13 +19,13 @@ describe("Ignore Functionality", () => {
 
   it("should respect .vibeignore patterns", async () => {
     // Create files
-    await fs.writeFile(path.join(testDir, "included.ts"), "export const a = 1;");
-    await fs.writeFile(path.join(testDir, "ignored.ts"), "export const b = 2;");
+    await fs.writeFile(path.join(testDir, "included.ts"), "export function included() { return 1; }");
+    await fs.writeFile(path.join(testDir, "ignored.ts"), "export function ignored() { return 2; }");
     
     // Create .vibeignore
     await fs.writeFile(path.join(testDir, ".vibeignore"), "ignored.ts");
 
-    await handleIndexFolder(testDir, "IgnoreTest");
+    await handleIndexFolder(testDir, "IgnoreTest", "default", false);
 
     const indexedFiles = await getProjectFiles();
     const fileNames = indexedFiles.map(f => path.basename(f));
@@ -35,13 +35,13 @@ describe("Ignore Functionality", () => {
   }, 30000);
 
   it("should respect .gitignore patterns", async () => {
-    await fs.writeFile(path.join(testDir, "git_included.ts"), "export const a = 1;");
-    await fs.writeFile(path.join(testDir, "git_ignored.ts"), "export const b = 2;");
+    await fs.writeFile(path.join(testDir, "git_included.ts"), "export function git_included() { return 1; }");
+    await fs.writeFile(path.join(testDir, "git_ignored.ts"), "export function git_ignored() { return 2; }");
 
     // Create .gitignore
     await fs.writeFile(path.join(testDir, ".gitignore"), "git_ignored.ts");
 
-    await handleIndexFolder(testDir, "GitIgnoreTest");
+    await handleIndexFolder(testDir, "GitIgnoreTest", "default", false);
 
     const indexedFiles = await getProjectFiles();
     const fileNames = indexedFiles.map(f => path.basename(f));
@@ -51,13 +51,13 @@ describe("Ignore Functionality", () => {
   }, 30000);
 
   it("should respect .vibescoutignore patterns", async () => {
-    await fs.writeFile(path.join(testDir, "vibe_included.ts"), "export const a = 1;");
-    await fs.writeFile(path.join(testDir, "vibe_ignored.ts"), "export const b = 2;");
+    await fs.writeFile(path.join(testDir, "vibe_included.ts"), "export function vibe_included() { return 1; }");
+    await fs.writeFile(path.join(testDir, "vibe_ignored.ts"), "export function vibe_ignored() { return 2; }");
 
     // Create .vibescoutignore
     await fs.writeFile(path.join(testDir, ".vibescoutignore"), "vibe_ignored.ts");
 
-    await handleIndexFolder(testDir, "VibeScoutIgnoreTest");
+    await handleIndexFolder(testDir, "VibeScoutIgnoreTest", "default", false);
 
     const indexedFiles = await getProjectFiles();
     const fileNames = indexedFiles.map(f => path.basename(f));
@@ -67,13 +67,13 @@ describe("Ignore Functionality", () => {
   }, 30000);
 
   it("should respect .cursorignore patterns", async () => {
-    await fs.writeFile(path.join(testDir, "cursor_included.ts"), "export const a = 1;");
-    await fs.writeFile(path.join(testDir, "cursor_ignored.ts"), "export const b = 2;");
+    await fs.writeFile(path.join(testDir, "cursor_included.ts"), "export function cursor_included() { return 1; }");
+    await fs.writeFile(path.join(testDir, "cursor_ignored.ts"), "export function cursor_ignored() { return 2; }");
 
     // Create .cursorignore (AI editor ignore file)
     await fs.writeFile(path.join(testDir, ".cursorignore"), "cursor_ignored.ts");
 
-    await handleIndexFolder(testDir, "CursorIgnoreTest");
+    await handleIndexFolder(testDir, "CursorIgnoreTest", "default", false);
 
     const indexedFiles = await getProjectFiles();
     const fileNames = indexedFiles.map(f => path.basename(f));

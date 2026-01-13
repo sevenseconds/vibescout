@@ -8,6 +8,8 @@
 import { ProviderPlugin, PluginContext } from '../../../types.js';
 import { BedrockInferenceProvider } from './provider.js';
 
+let pluginContext: PluginContext;
+
 const plugin: ProviderPlugin = {
   name: 'bedrock-inference',
   version: '1.0.0',
@@ -72,6 +74,7 @@ const plugin: ProviderPlugin = {
    * Initialize the plugin and register as provider
    */
   initialize(context: PluginContext) {
+    pluginContext = context;
     context.registerProvider(this);
   },
 
@@ -88,7 +91,7 @@ const plugin: ProviderPlugin = {
       accessKeyId: config.accessKeyId,
       secretAccessKey: config.secretAccessKey,
       sessionToken: config.sessionToken
-    });
+    }, pluginContext?.debugStore);
   },
 
   /**

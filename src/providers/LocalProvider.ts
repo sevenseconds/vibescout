@@ -2,6 +2,7 @@ import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { pipeline } from "@huggingface/transformers";
 import { logger } from "../logger.js";
 import { loadConfig } from "../config.js";
+import { debugStore } from "../debug.js";
 
 export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
   name: string = "local";
@@ -76,9 +77,19 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    const pipe = await this.getEmbeddingPipe();
-    const output = await pipe(text, { pooling: "mean", normalize: true });
-    return Array.from(output.data);
+    let requestId: string | null = null;
+
+    try {
+      requestId = debugStore.logRequest(`${this.name}:embed`, this.modelName, { text: text.substring(0, 100) + "..." });
+      const pipe = await this.getEmbeddingPipe();
+      const output = await pipe(text, { pooling: "mean", normalize: true });
+      const result = Array.from(output.data);
+      debugStore.updateResponse(requestId, `[Embedding Vector: size ${result.length}]`);
+      return result;
+    } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
+      throw err;
+    }
   }
 
   async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
@@ -103,6 +114,8 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string } = {}): Promise<string> {
+    let requestId: string | null = null;
+
     try {
       const pipe = await this.getSummarizerPipe();
       const templateName = options.promptTemplate || 'summarize';
@@ -117,6 +130,8 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
       };
 
       const prompt = await this.fillPrompt(templateName, templateVars);
+      
+      requestId = debugStore.logRequest(`${this.name}:summarize`, this.summarizerModelName, { prompt: prompt.substring(0, 500) + "..." });
 
       const input = prompt.substring(0, 1024);
       const output = await pipe(input, {
@@ -124,31 +139,44 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
         min_new_tokens: 10,
         repetition_penalty: 2.0
       });
-      return output[0].summary_text;
+      const result = output[0].summary_text;
+      debugStore.updateResponse(requestId, result);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Local Summarization failed: ${err.message}`);
       throw err;
     }
   }
 
   async generateBestQuestion(query: string, context: string): Promise<string> {
+    let requestId: string | null = null;
+
     try {
       const pipe = await this.getSummarizerPipe();
       const prompt = await this.fillPrompt('bestQuestion', { query, context });
+      
+      requestId = debugStore.logRequest(`${this.name}:bestQuestion`, this.summarizerModelName, { prompt: prompt.substring(0, 500) + "..." });
+
       const input = prompt.substring(0, 1024);
       const output = await pipe(input, {
         max_new_tokens: 150,
         min_new_tokens: 20,
         repetition_penalty: 2.0
       });
-      return output[0].summary_text;
+      const result = output[0].summary_text;
+      debugStore.updateResponse(requestId, result);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Local Best Question failed: ${err.message}`);
       throw err;
     }
   }
 
   async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
+    let requestId: string | null = null;
+
     // Local BART is mostly a summarizer, but we can try to use it for simple context-based Q&A.
     const recentHistory = history.slice(-2).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join("\n");
 
@@ -162,14 +190,18 @@ export class LocalProvider implements EmbeddingProvider, SummarizerProvider {
 
     const input = templateInput.substring(0, 1024);
     try {
+      requestId = debugStore.logRequest(`${this.name}:chat`, this.summarizerModelName, { prompt: input });
       const pipe = await this.getSummarizerPipe();
       const output = await pipe(input, {
         max_new_tokens: 150,
         min_new_tokens: 20,
         repetition_penalty: 2.0
       });
-      return output[0].summary_text;
+      const result = output[0].summary_text;
+      debugStore.updateResponse(requestId, result);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Local Response generation failed: ${err.message}`);
       throw err;
     }

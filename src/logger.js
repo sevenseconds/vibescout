@@ -12,6 +12,13 @@ class Logger extends EventEmitter {
   constructor() {
     super();
     this.level = LogLevel.INFO;
+    
+    // Pick up level from environment if available
+    const envLevel = process.env.LOG_LEVEL?.toUpperCase();
+    if (envLevel && LogLevel[envLevel] !== undefined) {
+      this.level = LogLevel[envLevel];
+    }
+    
     this.buffer = [];
     this.maxBufferSize = 100;
   }

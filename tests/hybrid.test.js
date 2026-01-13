@@ -15,6 +15,16 @@ vi.mock("../src/embeddings.js", () => ({
       }
       return new Array(384).fill(0.1);
     }),
+    generateEmbeddingsBatch: vi.fn(async (texts) => {
+      return Promise.all(texts.map(text => {
+        if (text.toLowerCase().includes("authentication") || 
+            text.toLowerCase().includes("sign in") || 
+            text.includes("ZYX_UNIQUE_KEYWORD")) {
+          return new Array(384).fill(0.9);
+        }
+        return new Array(384).fill(0.1);
+      }));
+    }),
     getModel: () => "mock-model",
     setModel: vi.fn()
   },

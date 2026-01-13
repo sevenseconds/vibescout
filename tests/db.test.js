@@ -14,13 +14,13 @@ describe("LanceDB Manager with Multi-Project Support", () => {
     const data1 = [
       {
         vector: new Array(384).fill(0.1),
-        projectName: "Proj-A",
+        projectname: "Proj-A",
         collection: "Work",
         name: "func1",
         type: "function",
-        filePath: "a.ts",
-        startLine: 1,
-        endLine: 5,
+        filepath: "a.ts",
+        startline: 1,
+        endline: 5,
         comments: "",
         content: "const a = 1;"
       }
@@ -29,13 +29,13 @@ describe("LanceDB Manager with Multi-Project Support", () => {
     const data2 = [
       {
         vector: new Array(384).fill(0.2),
-        projectName: "Proj-B",
+        projectname: "Proj-B",
         collection: "Personal",
         name: "func2",
         type: "function",
-        filePath: "b.ts",
-        startLine: 1,
-        endLine: 5,
+        filepath: "b.ts",
+        startline: 1,
+        endline: 5,
         comments: "",
         content: "const b = 2;"
       }
@@ -60,14 +60,14 @@ describe("LanceDB Manager with Multi-Project Support", () => {
     // Test Filtered Search
     const resultsWork = await search(new Array(384).fill(0.1), { collection: "Work" });
     expect(resultsWork.length).toBe(1);
-    expect(resultsWork[0].projectName).toBe("Proj-A");
+    expect(resultsWork[0].projectname).toBe("Proj-A");
 
     const resultsPersonal = await search(new Array(384).fill(0.1), { collection: "Personal" });
     expect(resultsPersonal.length).toBe(1);
-    expect(resultsPersonal[0].projectName).toBe("Proj-B");
+    expect(resultsPersonal[0].projectname).toBe("Proj-B");
 
     // Test specific project search
     const resultsProjA = await search(new Array(384).fill(0.1), { projectName: "Proj-A" });
-    expect(resultsProjA[0].projectName).toBe("Proj-A");
+    expect(resultsProjA[0].projectname).toBe("Proj-A");
   });
 });

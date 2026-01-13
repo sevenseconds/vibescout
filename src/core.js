@@ -250,10 +250,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
     cwd: absolutePath,
     dot: true,
     nodir: true,
-    ignore: {
-      // Use patterns from .gitignore/.vibeignore during file system traversal
-      child: globIgnorePatterns
-    },
+    ignore: globIgnorePatterns,
     maxDepth: 30 // Limit traversal depth
   });
 

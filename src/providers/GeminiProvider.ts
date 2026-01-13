@@ -1,6 +1,7 @@
 import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
 import { loadConfig } from "../config.js";
+import { debugStore } from "../debug.js";
 
 export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
   name: string = "gemini";
@@ -48,7 +49,6 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
     try {
@@ -86,7 +86,6 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string } = {}): Promise<string> {
-    const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
     try {
@@ -136,7 +135,6 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateBestQuestion(query: string, context: string): Promise<string> {
-    const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
     try {
@@ -178,7 +176,6 @@ export class GeminiProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
-    const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
     try {

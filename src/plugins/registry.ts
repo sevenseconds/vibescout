@@ -6,6 +6,7 @@
 
 import { discoverPlugins, loadPlugin } from './loader.js';
 import { createSandboxedPlugin, DEFAULT_SANDBOX_CONFIG } from './sandbox.js';
+import { debugStore } from '../debug.js';
 import type {
   VibeScoutPlugin,
   PluginInfo,
@@ -131,6 +132,7 @@ export class PluginRegistry {
       const context: PluginContext = {
         config: this.config,
         logger: this.createPluginLogger(info.name),
+        debugStore,
         registerExtractor: (extractor: ExtractorPlugin) => this.registerExtractor(extractor),
         registerProvider: (provider: ProviderPlugin) => this.registerProvider(provider),
         registerCommand: (command: CommandPlugin) => this.registerCommand(command),

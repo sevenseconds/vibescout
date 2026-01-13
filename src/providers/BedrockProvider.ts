@@ -2,6 +2,8 @@ import { EmbeddingProvider, SummarizerProvider, ChatMessage } from "./base.js";
 import { logger } from "../logger.js";
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { fromIni } from "@aws-sdk/credential-providers";
+import { debugStore } from "../debug.js";
+import { loadConfig } from "../config.js";
 
 export class BedrockProvider implements EmbeddingProvider, SummarizerProvider {
   name: string = "bedrock";
@@ -20,7 +22,6 @@ export class BedrockProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   private async fillPrompt(templateName: string, placeholders: Record<string, string>) {
-    const { loadConfig } = await import("../config.js");
     const config = await loadConfig();
     let template = "";
 
@@ -56,12 +57,17 @@ export class BedrockProvider implements EmbeddingProvider, SummarizerProvider {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
+    let requestId: string | null = null;
+    
     try {
       // Support for Amazon Titan or Cohere models
       const isTitan = this.modelName.includes("titan");
-      const body = isTitan 
-        ? JSON.stringify({ inputText: text })
-        : JSON.stringify({ texts: [text], input_type: "search_document" });
+      const payload = isTitan 
+        ? { inputText: text }
+        : { texts: [text], input_type: "search_document" };
+      const body = JSON.stringify(payload);
+
+      requestId = debugStore.logRequest(`${this.name}:embed`, this.modelName, payload);
 
       const command = new InvokeModelCommand({
         modelId: this.modelName,
@@ -72,16 +78,18 @@ export class BedrockProvider implements EmbeddingProvider, SummarizerProvider {
 
       const response = await this.client.send(command);
       const data = JSON.parse(new TextDecoder().decode(response.body));
+      const result = isTitan ? data.embedding : data.embeddings[0];
 
-      return isTitan ? data.embedding : data.embeddings[0];
+      debugStore.updateResponse(requestId, `[Embedding Vector: size ${result.length}]`);
+      return result;
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Bedrock Embedding failed: ${err.message}`);
       throw err;
     }
   }
 
   async summarize(text: string, options: { fileName?: string; projectName?: string; type?: 'parent' | 'chunk'; parentName?: string; promptTemplate?: string; sectionName?: string } = {}): Promise<string> {
-    const { debugStore } = await import("../debug.js");
     let requestId: string | null = null;
 
     try {
@@ -101,15 +109,16 @@ export class BedrockProvider implements EmbeddingProvider, SummarizerProvider {
       const prompt = await this.fillPrompt(templateName, templateVars);
 
       // Formulate the message for Bedrock
-      const body = JSON.stringify({
+      const payload = {
         anthropic_version: "bedrock-2023-05-31",
         max_tokens: 250,
         messages: [
           { role: "user", content: prompt }
         ]
-      });
+      };
+      const body = JSON.stringify(payload);
 
-      requestId = debugStore?.logRequest?.(`${this.name}:summarize`, this.modelName, body);
+      requestId = debugStore.logRequest(`${this.name}:summarize`, this.modelName, payload);
 
       const command = new InvokeModelCommand({
         modelId: this.modelName,
@@ -122,32 +131,39 @@ export class BedrockProvider implements EmbeddingProvider, SummarizerProvider {
       const data = JSON.parse(new TextDecoder().decode(response.body));
       const result = data.content ? data.content[0].text : data.generation || data.results[0].outputText;
 
-      if (debugStore) debugStore.updateResponse(requestId, result);
+      debugStore.updateResponse(requestId, result);
       return result.trim();
     } catch (err: any) {
-      if (requestId && debugStore) debugStore.updateError(requestId, err.message);
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Bedrock Summarization failed: ${err.message}`);
       throw err;
     }
   }
 
   async generateResponse(prompt: string, context: string, history: ChatMessage[] = []): Promise<string> {
+    let requestId: string | null = null;
+
     try {
       // Formulate prompt for Claude or Llama on Bedrock
       const historyText = history.map(m => `${m.role === 'user' ? 'Human' : 'Assistant'}: ${m.content}`).join("\n\n");
-      const fullPrompt = `Context:\n${context}\n\n${historyText}\n\nHuman: ${prompt}\n\nAssistant:`;
+      const userPrompt = await this.fillPrompt('chatResponse', {
+        query: prompt,
+        context,
+        history: historyText || "(No previous conversation)"
+      });
 
       // Assuming Claude 3 / Llama 3 format for simplicity
-      const body = JSON.stringify({
+      const payload = {
         anthropic_version: "bedrock-2023-05-31",
         max_tokens: 500,
         messages: [
-          { role: "user", content: `Context:\n${context}\n\nQuestion: ${prompt}` }
+          { role: "user", content: userPrompt }
         ]
-      });
+      };
+      const body = JSON.stringify(payload);
 
-      // Note: Bedrock body formats vary by model. 
-      // This implementation defaults to Claude 3 Messages API style.
+      requestId = debugStore.logRequest(this.name, this.modelName, payload);
+
       const command = new InvokeModelCommand({
         modelId: this.modelName,
         contentType: "application/json",
@@ -157,9 +173,12 @@ export class BedrockProvider implements EmbeddingProvider, SummarizerProvider {
 
       const response = await this.client.send(command);
       const data = JSON.parse(new TextDecoder().decode(response.body));
+      const result = data.content ? data.content[0].text : data.generation || data.results[0].outputText;
 
-      return data.content ? data.content[0].text : data.generation || data.results[0].outputText;
+      debugStore.updateResponse(requestId, result);
+      return result.trim();
     } catch (err: any) {
+      if (requestId) debugStore.updateError(requestId, err.message);
       logger.error(`Bedrock Response failed: ${err.message}`);
       return "Bedrock failed to generate response.";
     }

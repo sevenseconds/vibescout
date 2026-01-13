@@ -5,12 +5,15 @@ class DebugStore {
   }
 
   logRequest(provider, model, payload, response = null, error = null) {
+    // Deep clone and truncate large strings in payload to prevent UI lag
+    const truncatedPayload = this._truncateValue(payload);
+
     const entry = {
       id: Math.random().toString(36).substring(7),
       timestamp: new Date().toISOString(),
       provider,
       model,
-      payload,
+      payload: truncatedPayload,
       response,
       error
     };
@@ -22,10 +25,28 @@ class DebugStore {
     return entry.id;
   }
 
+  _truncateValue(val, depth = 0) {
+    if (depth > 5) return "[Max Depth]";
+    if (typeof val === 'string') {
+      return val.length > 5000 ? val.substring(0, 5000) + "... [truncated]" : val;
+    }
+    if (Array.isArray(val)) {
+      return val.map(item => this._truncateValue(item, depth + 1));
+    }
+    if (typeof val === 'object' && val !== null) {
+      const result = {};
+      for (const key in val) {
+        result[key] = this._truncateValue(val[key], depth + 1);
+      }
+      return result;
+    }
+    return val;
+  }
+
   updateResponse(id, response) {
     const entry = this.requests.find(r => r.id === id);
     if (entry) {
-      entry.response = response;
+      entry.response = this._truncateValue(response);
     }
   }
 

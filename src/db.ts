@@ -114,11 +114,12 @@ export async function createOrUpdateTable(data: VectorResult[], modelName: strin
   }, 'database');
 }
 
+let isCreatingDepTable = false;
+
 export async function updateDependencies(filePath: string, projectName: string, collection: string, metadata: any) {
   const db = await getMetaDb();
   const depTableName = "dependencies";
-  const tables = await db.tableNames();
-
+  
   const record = {
     filepath: filePath,
     projectname: projectName,
@@ -127,22 +128,62 @@ export async function updateDependencies(filePath: string, projectName: string, 
     exports: JSON.stringify(metadata.exports)
   };
 
-  if (tables.includes(depTableName)) {
-    const table = await db.openTable(depTableName);
-    await table.delete(`filepath = '${filePath}'`);
-    await table.add([record]);
-  } else {
-    try {
-      await db.createTable(depTableName, [record]);
-    } catch (err: any) {
-      if (err.message.includes("already exists")) {
+  // Helper to wait if table is being created
+  const waitForTable = async () => {
+    let attempts = 0;
+    while (isCreatingDepTable && attempts < 10) {
+      await new Promise(r => setTimeout(r, 100));
+      attempts++;
+    }
+  };
+
+  try {
+    const tables = await db.tableNames();
+    if (tables.includes(depTableName)) {
+      const table = await db.openTable(depTableName);
+      await table.delete(`filepath = '${filePath}'`);
+      await table.add([record]);
+    } else {
+      if (isCreatingDepTable) {
+        await waitForTable();
+        // Check again after waiting
+        const tablesRetry = await db.tableNames();
+        if (tablesRetry.includes(depTableName)) {
+          const table = await db.openTable(depTableName);
+          await table.delete(`filepath = '${filePath}'`);
+          await table.add([record]);
+          return;
+        }
+      }
+
+      isCreatingDepTable = true;
+      try {
+        await db.createTable(depTableName, [record]);
+      } catch (err: any) {
+        if (err.message.includes("already exists")) {
+          const table = await db.openTable(depTableName);
+          await table.delete(`filepath = '${filePath}'`);
+          await table.add([record]);
+        } else {
+          throw err;
+        }
+      } finally {
+        isCreatingDepTable = false;
+      }
+    }
+  } catch (err: any) {
+    // If we get "Table not found" it might be because of a race, try one more time
+    if (err.message.includes("not found")) {
+      await new Promise(r => setTimeout(r, 200));
+      const tables = await db.tableNames();
+      if (tables.includes(depTableName)) {
         const table = await db.openTable(depTableName);
         await table.delete(`filepath = '${filePath}'`);
         await table.add([record]);
-      } else {
-        throw err;
+        return;
       }
     }
+    throw err;
   }
 }
 

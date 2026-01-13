@@ -7,6 +7,8 @@
 import { ProviderPlugin, PluginContext } from '../../../types.js';
 import { BedrockLLMProvider } from './provider.js';
 
+let pluginContext: PluginContext;
+
 const plugin: ProviderPlugin = {
   name: 'bedrock-llm-assume-role',
   version: '1.0.0',
@@ -71,6 +73,7 @@ const plugin: ProviderPlugin = {
    * Initialize the plugin and register as provider
    */
   initialize(context: PluginContext) {
+    pluginContext = context;
     context.registerProvider(this);
   },
 
@@ -87,7 +90,7 @@ const plugin: ProviderPlugin = {
       sourceProfile: config.sourceProfile,
       roleArn: config.roleArn,
       ssoSession: config.ssoSession
-    });
+    }, pluginContext?.debugStore);
   },
 
   /**

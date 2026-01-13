@@ -83,6 +83,15 @@ export interface PluginContext {
     error(message: string, ...args: any[]): void;
   };
 
+  /** Debug store for AI activity inspection */
+  debugStore?: {
+    logRequest(provider: string, model: string, payload: any, response?: any, error?: string | null): string;
+    updateResponse(id: string, response: any): void;
+    updateError(id: string, error: string): void;
+    getRequests(): any[];
+    clear(): void;
+  };
+
   /** Register a new code extractor */
   registerExtractor(extractor: ExtractorPlugin): void;
 
