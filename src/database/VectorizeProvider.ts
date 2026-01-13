@@ -111,22 +111,22 @@ export class VectorizeProvider implements VectorDBProvider {
       // NEW: Git filters
       if (options.authors && options.authors.length > 0) {
         results = results.filter(r =>
-          r.lastCommitAuthor && options.authors!.includes(r.lastCommitAuthor)
+          r.last_commit_author && options.authors!.includes(r.last_commit_author)
         );
       }
       if (options.dateFrom) {
         results = results.filter(r =>
-          r.lastCommitDate && r.lastCommitDate >= options.dateFrom!
+          r.last_commit_date && r.last_commit_date >= options.dateFrom!
         );
       }
       if (options.dateTo) {
         results = results.filter(r =>
-          r.lastCommitDate && r.lastCommitDate <= options.dateTo!
+          r.last_commit_date && r.last_commit_date <= options.dateTo!
         );
       }
       if (options.churnLevels && options.churnLevels.length > 0) {
         results = results.filter(r =>
-          r.churnLevel && options.churnLevels!.includes(r.churnLevel)
+          r.churn_level && options.churnLevels!.includes(r.churn_level)
         );
       }
 

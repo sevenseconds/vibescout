@@ -39,6 +39,7 @@ export class LanceDBProvider implements VectorDBProvider {
       try {
         await table.add(data);
       } catch (err: any) {
+        // Handle category field migration (legacy)
         if (err.message.includes("Found field not in schema: category")) {
           logger.info("[DB] Missing 'category' field detected. Performing automatic schema migration...");
 
@@ -59,6 +60,65 @@ export class LanceDBProvider implements VectorDBProvider {
           logger.info(`[DB] Schema migration complete. Migrated ${migratedData.length} records.`);
           return;
         }
+
+        // Handle git metadata camelCase to snake_case migration
+        if (err.message && (
+          err.message.includes("last_commit_author") ||
+          err.message.includes("last_commit_date") ||
+          err.message.includes("churn_level") ||
+          err.message.includes("commit_count_6m")
+        )) {
+          logger.info("[DB] Git metadata columns need migration from camelCase to snake_case. Performing automatic schema migration...");
+
+          // 1. Fetch all existing data
+          const allData = await table.query().toArray();
+
+          // 2. Migrate camelCase to snake_case
+          const migratedData = allData.map(row => {
+            const newRow: any = { ...row };
+
+            // Map camelCase to snake_case if camelCase fields exist
+            if (row.lastCommitAuthor !== undefined) {
+              newRow.last_commit_author = row.lastCommitAuthor;
+              delete newRow.lastCommitAuthor;
+            }
+            if (row.lastCommitEmail !== undefined) {
+              newRow.last_commit_email = row.lastCommitEmail;
+              delete newRow.lastCommitEmail;
+            }
+            if (row.lastCommitDate !== undefined) {
+              newRow.last_commit_date = row.lastCommitDate;
+              delete newRow.lastCommitDate;
+            }
+            if (row.lastCommitHash !== undefined) {
+              newRow.last_commit_hash = row.lastCommitHash;
+              delete newRow.lastCommitHash;
+            }
+            if (row.lastCommitMessage !== undefined) {
+              newRow.last_commit_message = row.lastCommitMessage;
+              delete newRow.lastCommitMessage;
+            }
+            if (row.commitCount6m !== undefined) {
+              newRow.commit_count_6m = row.commitCount6m;
+              delete newRow.commitCount6m;
+            }
+            if (row.churnLevel !== undefined) {
+              newRow.churn_level = row.churnLevel;
+              delete newRow.churnLevel;
+            }
+
+            return newRow;
+          });
+
+          // 3. Drop and recreate table with correct schema
+          await db.dropTable(tableName);
+          const newTable = await db.createTable(tableName, [...migratedData, ...data]);
+          await newTable.createIndex("content", { config: lancedb.Index.fts() });
+
+          logger.info(`[DB] Git metadata schema migration complete. Migrated ${migratedData.length} records.`);
+          return;
+        }
+
         throw err;
       }
     } else {

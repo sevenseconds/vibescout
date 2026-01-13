@@ -185,17 +185,16 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
 
-  try {
-    if (indexingProgress.active) {
-      profileEnd('index_folder', { status: 'error', error: 'Already indexing' });
-      return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
-    }
+  if (indexingProgress.active) {
+    profileEnd('index_folder', { status: 'error', error: 'Already indexing' });
+    return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
+  }
 
-    // 1. If force, clear the existing data for this project first
-    if (force) {
-      logger.info(`[Force Re-index] Clearing existing data for ${derivedProjectName}...`);
-      await deleteProject(derivedProjectName);
-    }
+  // 1. If force, clear the existing data for this project first
+  if (force) {
+    logger.info(`[Force Re-index] Clearing existing data for ${derivedProjectName}...`);
+    await deleteProject(derivedProjectName);
+  }
 
   const { filter: ig, patterns: ignorePatterns } = await getIgnoreFilter(absolutePath);
 
@@ -445,14 +444,14 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 content: block.content,
                 summary,
 
-                // Add git metadata (always store if available)
-                lastCommitAuthor: gitInfo?.author,
-                lastCommitEmail: gitInfo?.email,
-                lastCommitDate: gitInfo?.date,
-                lastCommitHash: gitInfo?.hash,
-                lastCommitMessage: gitInfo?.message,
-                commitCount6m: gitInfo?.commitCount6m,
-                churnLevel: gitInfo?.churnLevel
+                // Add git metadata (always store if available) - MUST use snake_case for LanceDB
+                last_commit_author: gitInfo?.author,
+                last_commit_email: gitInfo?.email,
+                last_commit_date: gitInfo?.date,
+                last_commit_hash: gitInfo?.hash,
+                last_commit_message: gitInfo?.message,
+                commit_count_6m: gitInfo?.commitCount6m,
+                churn_level: gitInfo?.churnLevel
               });
             }
 
@@ -804,14 +803,14 @@ export async function indexSingleFile(filePath, projectName, collection, summari
           content: block.content,
           summary,
 
-          // Add git metadata (always store if available)
-          lastCommitAuthor: gitInfo?.author,
-          lastCommitEmail: gitInfo?.email,
-          lastCommitDate: gitInfo?.date,
-          lastCommitHash: gitInfo?.hash,
-          lastCommitMessage: gitInfo?.message,
-          commitCount6m: gitInfo?.commitCount6m,
-          churnLevel: gitInfo?.churnLevel
+          // Add git metadata (always store if available) - MUST use snake_case for LanceDB
+          last_commit_author: gitInfo?.author,
+          last_commit_email: gitInfo?.email,
+          last_commit_date: gitInfo?.date,
+          last_commit_hash: gitInfo?.hash,
+          last_commit_message: gitInfo?.message,
+          commit_count_6m: gitInfo?.commitCount6m,
+          churn_level: gitInfo?.churnLevel
         });
       }
 

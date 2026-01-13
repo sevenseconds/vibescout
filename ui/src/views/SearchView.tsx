@@ -24,14 +24,14 @@ interface SearchResult {
   rerankScore: number;
   score?: number;  // Normalized score from API (same as rerankScore)
 
-  // Git metadata
-  lastCommitAuthor?: string;
-  lastCommitEmail?: string;
-  lastCommitDate?: string;
-  lastCommitHash?: string;
-  lastCommitMessage?: string;
-  commitCount6m?: number;
-  churnLevel?: 'low' | 'medium' | 'high';
+  // Git metadata (snake_case to match backend/LanceDB)
+  last_commit_author?: string;
+  last_commit_email?: string;
+  last_commit_date?: string;
+  last_commit_hash?: string;
+  last_commit_message?: string;
+  commit_count_6m?: number;
+  churn_level?: 'low' | 'medium' | 'high';
 }
 
 interface SearchViewProps {
@@ -547,34 +547,34 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat, 
                               </span>
 
                               {/* Git Info */}
-                              {result.lastCommitAuthor && (
+                              {result.last_commit_author && (
                                 <>
                                   <span className="w-1 h-1 rounded-full bg-border" />
-                                  <span className="text-[10px] text-muted-foreground font-medium" title={`Author: ${result.lastCommitAuthor}`}>
-                                    👤 {result.lastCommitAuthor}
+                                  <span className="text-[10px] text-muted-foreground font-medium" title={`Author: ${result.last_commit_author}`}>
+                                    👤 {result.last_commit_author}
                                   </span>
                                 </>
                               )}
-                              {result.lastCommitDate && (
+                              {result.last_commit_date && (
                                 <>
                                   <span className="w-1 h-1 rounded-full bg-border" />
-                                  <span className="text-[10px] text-muted-foreground font-medium" title={`Last modified: ${new Date(result.lastCommitDate).toLocaleDateString()}`}>
-                                    📅 {new Date(result.lastCommitDate).toLocaleDateString()}
+                                  <span className="text-[10px] text-muted-foreground font-medium" title={`Last modified: ${new Date(result.last_commit_date).toLocaleDateString()}`}>
+                                    📅 {new Date(result.last_commit_date).toLocaleDateString()}
                                   </span>
                                 </>
                               )}
-                              {result.churnLevel && (
+                              {result.churn_level && (
                                 <>
                                   <span className="w-1 h-1 rounded-full bg-border" />
                                   <span className={cn(
                                     "text-[10px] font-bold px-2 py-0.5 rounded",
-                                    result.churnLevel === 'low' ? 'bg-green-500/20 text-green-400' :
-                                    result.churnLevel === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                    result.churn_level === 'low' ? 'bg-green-500/20 text-green-400' :
+                                    result.churn_level === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
                                     'bg-red-500/20 text-red-400'
                                   )}
-                                  title={`Churn: ${result.churnLevel} (${result.commitCount6m || 0} commits in 6 months)`}
+                                  title={`Churn: ${result.churn_level} (${result.commit_count_6m || 0} commits in 6 months)`}
                                   >
-                                    {result.churnLevel} churn
+                                    {result.churn_level} churn
                                   </span>
                                 </>
                               )}

@@ -14,14 +14,14 @@ export interface VectorResult {
   rerankScore?: number; // Reranked score after applying reranker model
   vector?: number[];
 
-  // Git metadata fields
-  lastCommitAuthor?: string;
-  lastCommitEmail?: string;
-  lastCommitDate?: string;
-  lastCommitHash?: string;
-  lastCommitMessage?: string;
-  commitCount6m?: number;
-  churnLevel?: 'low' | 'medium' | 'high';
+  // Git metadata fields (snake_case to match LanceDB column naming convention)
+  last_commit_author?: string;
+  last_commit_email?: string;
+  last_commit_date?: string;
+  last_commit_hash?: string;
+  last_commit_message?: string;
+  commit_count_6m?: number;
+  churn_level?: 'low' | 'medium' | 'high';
 }
 
 export interface SearchOptions {
