@@ -219,7 +219,7 @@ async function main() {
       const outputDir = opts.profileOutput || config.profiling?.outputDir || "~/.vibescout/profiles";
       const categorySampling = config.profiling?.categorySampling || {};
 
-      configureProfiler({
+      await configureProfiler({
         enabled: true,
         samplingRate,
         outputDir,

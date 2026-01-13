@@ -1016,7 +1016,7 @@ app.get("/api/profiling/status", async (c) => {
   try {
     const { isProfilerEnabled, getProfilerStats } = await import("./profiler-api.js");
     const enabled = isProfilerEnabled();
-    const stats = getProfilerStats();
+    const stats = await getProfilerStats();
 
     return c.json({
       enabled,

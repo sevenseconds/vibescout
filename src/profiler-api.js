@@ -109,7 +109,7 @@ export async function profileAsync(name, fn, metadata = {}, category = null) {
   }
 
   // SLOW PATH: Only executed when enabled
-  const profiler = getProfiler();
+  const profiler = await getProfiler();
   if (profiler) {
     return await profiler.trackAsync(name, fn, metadata, category);
   } else {
@@ -175,7 +175,7 @@ export async function startProfiling(samplingRate = 1.0, categories = null) {
  * @returns {Promise<object|null>} Trace info or null if no data
  */
 export async function stopProfiling() {
-  const profiler = getProfiler();
+  const profiler = await getProfiler();
   if (profiler) {
     const traceInfo = await profiler.exportTrace();
     setProfilerEnabled(false);
