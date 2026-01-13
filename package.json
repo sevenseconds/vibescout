@@ -38,6 +38,14 @@
     "lancedb",
     "transformers"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sevenseconds/vibescout.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sevenseconds/vibescout/issues"
+  },
+  "homepage": "https://github.com/sevenseconds/vibescout#readme",
   "author": "",
   "license": "MIT",
   "type": "module",
