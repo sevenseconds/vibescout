@@ -551,7 +551,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 /**
  * Shared search logic that returns raw result objects
  */
-export async function searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels) {
+export async function searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore = 0.4) {
   const currentModel = embeddingManager.getModel();
   const storedModel = await getStoredModel();
 
@@ -572,24 +572,77 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
     dateTo,
     churnLevels
   });
-  return await rerankerManager.rerank(query, rawResults, 10);
+  const reranked = await rerankerManager.rerank(query, rawResults, 10);
+
+  // Filter results by minimum confidence score (use rerankScore if available, otherwise base score)
+  return reranked.filter(r => (r.rerankScore || r.score || 0) >= minScore);
 }
 
 /**
  * Tool: search_code (MCP Wrapper)
  */
-export async function handleSearchCode(query, collection, projectName, categories = ['code'], fileTypes, authors, dateFrom, dateTo, churnLevels) {
-  const results = await searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels);
+export async function handleSearchCode(query, collection, projectName, categories = ['code'], fileTypes, authors, dateFrom, dateTo, churnLevels, minScore) {
+  const results = await searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore);
 
-  const formattedResults = results.map(r =>
-    `[Score: ${r.rerankScore.toFixed(4)}] [Project: ${r.projectname}] [Category: ${r.category}]
-File: ${r.filepath} (${r.startline}-${r.endline})
-Summary: ${r.summary || "N/A"}
----
-`
-  ).join("\n\n");
+  // Fetch dependencies for each result
+  const resultsWithDeps = await Promise.all(results.map(async (r) => {
+    try {
+      const deps = await getFileDependencies(r.filepath);
+      return { ...r, dependencies: deps };
+    } catch {
+      // If we can't get dependencies, just return the result without them
+      return { ...r, dependencies: null };
+    }
+  }));
 
-  return { content: [{ type: "text", text: formattedResults || "No matches found." }] };
+  const formattedResults = resultsWithDeps.map((r, idx) => {
+    let output = `## Result ${idx + 1}
+
+**File:** \`${r.filepath}\`
+**Lines:** ${r.startline}-${r.endline}
+**Project:** ${r.projectname}
+**Category:** ${r.category}
+**Score:** ${r.rerankScore.toFixed(4)}
+
+### Summary
+${r.summary || "No summary available"}
+
+### Code
+\`\`\`
+${r.content}
+\`\`\`
+`;
+
+    // Add dependencies if available
+    if (r.dependencies && (r.dependencies.imports?.length > 0 || r.dependencies.exports?.length > 0)) {
+      output += `### Dependencies\n`;
+
+      if (r.dependencies.imports && r.dependencies.imports.length > 0) {
+        output += `**Imports:**\n`;
+        r.dependencies.imports.forEach(imp => {
+          output += ` - \`${imp.name}\` from \`${imp.source}\`\n`;
+        });
+        output += `\n`;
+      }
+
+      if (r.dependencies.exports && r.dependencies.exports.length > 0) {
+        output += `**Exports:**\n`;
+        r.dependencies.exports.forEach(exp => {
+          output += ` - \`${exp.name}\` (${exp.type})\n`;
+        });
+        output += `\n`;
+      }
+    }
+
+    output += `---`;
+    return output;
+  }).join("\n\n");
+
+  const header = resultsWithDeps.length > 0
+    ? `# Search Results for: "${query}"\n\nFound ${resultsWithDeps.length} result(s)\n\n${formattedResults}`
+    : `# Search Results for: "${query}"\n\nNo matches found.`;
+
+  return { content: [{ type: "text", text: header }] };
 }
 
 /**

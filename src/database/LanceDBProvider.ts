@@ -108,10 +108,18 @@ export class LanceDBProvider implements VectorDBProvider {
       query = query.where(whereClause);
     }
 
-    const results = await query.toArray() as unknown as VectorResult[];
+    const results = await query.toArray();
+
+    // Map LanceDB results to VectorResult and calculate similarity score
+    // LanceDB returns _distance field (lower is better), convert to score (higher is better)
+    // For cosine distance: score = 1 - (distance / 2) gives us 0-1 range
+    const resultsWithScore = results.map((r: any) => ({
+      ...r,
+      score: r._distance !== undefined ? Math.max(0, 1 - r._distance / 2) : 0
+    })) as VectorResult[];
 
     // File type filtering (must be post-filter since it's a pattern match on filepath)
-    let filtered = results;
+    let filtered = resultsWithScore;
     if (options.fileTypes && options.fileTypes.length > 0) {
       filtered = filtered.filter(r => {
         const path = r.filepath.toLowerCase();
@@ -172,12 +180,18 @@ export class LanceDBProvider implements VectorDBProvider {
     const ftsResults = await ftsQuery.toArray();
 
     const seen = new Set();
-    const combined = [...ftsResults, ...vectorResults].filter(item => {
-      const id = `${item.filepath}-${item.startline}-${item.name}`;
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    }) as unknown as VectorResult[];
+    const combined = [...ftsResults, ...vectorResults]
+      .filter(item => {
+        const id = `${item.filepath}-${item.startline}-${item.name}`;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      })
+      .map((r: any) => ({
+        ...r,
+        // Add score from vector distance (FTS results won't have _distance, default to 0.5)
+        score: r._distance !== undefined ? Math.max(0, 1 - r._distance / 2) : 0.5
+      })) as VectorResult[];
 
     // File type filtering (must be post-filter since it's a pattern match on filepath)
     let filtered = combined;

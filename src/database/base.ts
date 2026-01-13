@@ -10,7 +10,8 @@ export interface VectorResult {
   comments: string;
   content: string;
   summary?: string;
-  rerankScore?: number;
+  score?: number; // Base similarity score from vector search (0-1, higher is better)
+  rerankScore?: number; // Reranked score after applying reranker model
   vector?: number[];
 
   // Git metadata fields

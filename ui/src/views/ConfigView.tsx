@@ -59,6 +59,9 @@ interface Config {
     storeAsMetadata: boolean;
     churnWindow: number;
   };
+  search?: {
+    minScore: number;
+  };
 }
 
 export default function ConfigView() {
@@ -486,139 +489,189 @@ export default function ConfigView() {
                   <h3 className="font-bold tracking-tight text-lg text-foreground">System Preferences</h3>
                 </div>
               </div>
-              <div className="p-8 space-y-6">
-                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-sm text-foreground">AI Summarization</h4>
-                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Generate searchable summaries for code blocks</p>
-                  </div>
-                  <button 
-                    onClick={async () => {
-                      if (!config) return;
-                      const newSummarize = !config.summarize;
-                      // Update local state and immediately save for this toggle
-                      const newConfig = { ...config, summarize: newSummarize };
-                      setConfig(newConfig);
-                      setSaving(true);
-                      try {
-                        await axios.post('/api/config', newConfig);
-                        setSaveStatus('success');
-                        setTimeout(() => setSaveStatus('idle'), 3000);
-                      } finally {
-                        setSaving(false);
-                      }
-                    }} 
-                    className={cn(
-                      "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
-                      config?.summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
-                    )}
-                  >
-                    {config?.summarize ? "Enabled" : "Disabled"}
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-foreground">Offline Mode</h4>
-                      <Shield size={14} className="text-primary" />
+              <div className="p-8">
+                {/* 2-column grid for desktop, 1-column for mobile */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* AI Summarization */}
+                  <div className="flex flex-col justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-sm text-foreground">AI Summarization</h4>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Generate searchable summaries for code blocks</p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Disable remote model downloads (Local Provider only)</p>
+                    <button
+                      onClick={async () => {
+                        if (!config) return;
+                        const newSummarize = !config.summarize;
+                        // Update local state and immediately save for this toggle
+                        const newConfig = { ...config, summarize: newSummarize };
+                        setConfig(newConfig);
+                        setSaving(true);
+                        try {
+                          await axios.post('/api/config', newConfig);
+                          setSaveStatus('success');
+                          setTimeout(() => setSaveStatus('idle'), 3000);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      className={cn(
+                        "mt-3 px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                        config?.summarize ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                      )}
+                    >
+                      {config?.summarize ? "Enabled" : "Disabled"}
+                    </button>
                   </div>
-                  <button 
-                    onClick={async () => {
-                      if (!config) return;
-                      const newOffline = !config.offline;
-                      const newConfig = { ...config, offline: newOffline };
-                      setConfig(newConfig);
-                      setSaving(true);
-                      try {
-                        await axios.post('/api/config', newConfig);
-                        setSaveStatus('success');
-                        setTimeout(() => setSaveStatus('idle'), 3000);
-                      } finally {
-                        setSaving(false);
-                      }
-                    }} 
-                    className={cn(
-                      "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
-                      config?.offline ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
-                    )}
-                  >
-                    {config?.offline ? "Offline" : "Online"}
-                  </button>
+
+                  {/* Offline Mode */}
+                  <div className="flex flex-col justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm text-foreground">Offline Mode</h4>
+                        <Shield size={14} className="text-primary" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Disable remote model downloads (Local Provider only)</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!config) return;
+                        const newOffline = !config.offline;
+                        const newConfig = { ...config, offline: newOffline };
+                        setConfig(newConfig);
+                        setSaving(true);
+                        try {
+                          await axios.post('/api/config', newConfig);
+                          setSaveStatus('success');
+                          setTimeout(() => setSaveStatus('idle'), 3000);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      className={cn(
+                        "mt-3 px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                        config?.offline ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                      )}
+                    >
+                      {config?.offline ? "Offline" : "Online"}
+                    </button>
+                  </div>
+
+                  {/* AI Reranker */}
+                  <div className="flex flex-col justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm text-foreground">AI Reranker</h4>
+                        <Zap size={14} className="text-primary" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Use a second-pass model to re-sort results for extreme accuracy</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!config) return;
+                        const newUseReranker = !config.useReranker;
+                        const newConfig = { ...config, useReranker: newUseReranker };
+                        setConfig(newConfig);
+                        setSaving(true);
+                        try {
+                          await axios.post('/api/config', newConfig);
+                          setSaveStatus('success');
+                          setTimeout(() => setSaveStatus('idle'), 3000);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      className={cn(
+                        "mt-3 px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
+                        config?.useReranker ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
+                      )}
+                    >
+                      {config?.useReranker ? "Active" : "Disabled"}
+                    </button>
+                  </div>
+
+                  {/* File Path Privacy */}
+                  <div className="flex flex-col justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm text-foreground">File Path Privacy</h4>
+                        <Globe size={14} className="text-primary" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Exclude directory paths from embeddings (reduces accuracy)</p>
+                    </div>
+                    <div className="flex bg-secondary rounded-lg p-1 border border-border mt-3">
+                      <button
+                        onClick={() => {
+                          const newConfig = { ...config, embedFilePath: 'full' };
+                          setConfig(newConfig as Config);
+                          setSaving(true);
+                          axios.post('/api/config', newConfig).finally(() => setSaving(false));
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-md text-[10px] font-bold transition-all",
+                          (config?.embedFilePath || 'full') === 'full' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Full Path
+                      </button>
+                      <button
+                        onClick={() => {
+                          const newConfig = { ...config, embedFilePath: 'name' };
+                          setConfig(newConfig as Config);
+                          setSaving(true);
+                          axios.post('/api/config', newConfig).finally(() => setSaving(false));
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-md text-[10px] font-bold transition-all",
+                          config?.embedFilePath === 'name' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Name Only
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
-                  <div className="space-y-1">
+                {/* Minimum Confidence Score - Full width */}
+                <div className="md:col-span-2 flex flex-col items-start justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                  <div className="space-y-1 w-full">
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-foreground">AI Reranker</h4>
+                      <h4 className="font-bold text-sm text-foreground">Minimum Confidence Score</h4>
                       <Zap size={14} className="text-primary" />
                     </div>
-                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Use a second-pass model to re-sort results for extreme accuracy</p>
+                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Filter search results by confidence threshold (0-100%)</p>
                   </div>
-                  <button 
-                    onClick={async () => {
-                      if (!config) return;
-                      const newUseReranker = !config.useReranker;
-                      const newConfig = { ...config, useReranker: newUseReranker };
-                      setConfig(newConfig);
-                      setSaving(true);
-                      try {
-                        await axios.post('/api/config', newConfig);
-                        setSaveStatus('success');
-                        setTimeout(() => setSaveStatus('idle'), 3000);
-                      } finally {
-                        setSaving(false);
-                      }
-                    }} 
-                    className={cn(
-                      "px-6 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] border transition-all",
-                      config?.useReranker ? "bg-primary/10 border-primary text-primary" : "bg-secondary border-border text-muted-foreground"
-                    )}
-                  >
-                    {config?.useReranker ? "Active" : "Disabled"}
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-foreground">File Path Privacy</h4>
-                      <Globe size={14} className="text-primary" />
+                  <div className="flex items-center gap-4 w-full mt-3">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={Math.round(((config?.search?.minScore ?? 0.4) * 100))}
+                      onChange={(e) => {
+                        const newMinScore = parseInt(e.target.value) / 100;
+                        const newConfig = {
+                          ...config,
+                          search: {
+                            ...config?.search,
+                            minScore: newMinScore
+                          }
+                        };
+                        setConfig(newConfig as Config);
+                        setSaving(true);
+                        axios.post('/api/config', newConfig).finally(() => setSaving(false));
+                      }}
+                      className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="px-4 py-1.5 bg-background rounded-lg border border-border min-w-[70px] text-center">
+                      <span className="text-sm font-bold text-foreground">{Math.round(((config?.search?.minScore ?? 0.4) * 100))}%</span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Exclude directory paths from embeddings (reduces accuracy)</p>
                   </div>
-                  <div className="flex bg-secondary rounded-lg p-1 border border-border">
-                    <button 
-                      onClick={() => {
-                        const newConfig = { ...config, embedFilePath: 'full' };
-                        setConfig(newConfig as Config);
-                        setSaving(true);
-                        axios.post('/api/config', newConfig).finally(() => setSaving(false));
-                      }}
-                      className={cn(
-                        "px-3 py-1.5 rounded-md text-[10px] font-bold transition-all",
-                        (config?.embedFilePath || 'full') === 'full' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Full Path
-                    </button>
-                    <button 
-                      onClick={() => {
-                        const newConfig = { ...config, embedFilePath: 'name' };
-                        setConfig(newConfig as Config);
-                        setSaving(true);
-                        axios.post('/api/config', newConfig).finally(() => setSaving(false));
-                      }}
-                      className={cn(
-                        "px-3 py-1.5 rounded-md text-[10px] font-bold transition-all",
-                        config?.embedFilePath === 'name' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      Name Only
-                    </button>
-                  </div>
+                  <p className="text-[9px] text-muted-foreground mt-2">
+                    {(config?.search?.minScore ?? 0.4) < 0.3 ? "Very permissive - shows more results including lower confidence matches" :
+                     (config?.search?.minScore ?? 0.4) < 0.5 ? "Balanced - filters out very low confidence matches" :
+                     (config?.search?.minScore ?? 0.4) < 0.7 ? "Strict - only shows moderate to high confidence matches" :
+                     "Very strict - only shows high confidence matches"}
+                  </p>
                 </div>
               </div>
             </section>

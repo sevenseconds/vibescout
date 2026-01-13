@@ -22,6 +22,7 @@ interface SearchResult {
   summary?: string;
   content: string;
   rerankScore: number;
+  score?: number;  // Normalized score from API (same as rerankScore)
 
   // Git metadata
   lastCommitAuthor?: string;
@@ -530,6 +531,19 @@ export default function SearchView({ initialFilters, onFiltersClear, onAskChat, 
                               <span className="w-1 h-1 rounded-full bg-border" />
                               <span className="text-[10px] text-primary/70 font-black uppercase tracking-widest">
                                 {result.collection}/{result.projectname}
+                              </span>
+                              <span className="w-1 h-1 rounded-full bg-border" />
+                              <span className={cn(
+                                "text-[10px] font-bold px-2 py-0.5 rounded",
+                                (result.score || result.rerankScore) > 0.8
+                                  ? "bg-green-500/20 text-green-400"
+                                  : (result.score || result.rerankScore) > 0.6
+                                    ? "bg-yellow-500/20 text-yellow-400"
+                                    : "bg-red-500/20 text-red-400"
+                              )}
+                              title="Confidence score"
+                              >
+                                🔥 {Math.round((result.score || result.rerankScore) * 100)}% match
                               </span>
 
                               {/* Git Info */}

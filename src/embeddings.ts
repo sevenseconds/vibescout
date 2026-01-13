@@ -159,7 +159,11 @@ class RerankerManager {
 
   async rerank(query: string, documents: any[], topK: number = 5) {
     if (!this.enabled || documents.length === 0) {
-      return documents.slice(0, topK).map(d => ({ ...d, rerankScore: d.score || 0 }));
+      // Use score field as rerankScore when reranker is disabled
+      return documents
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, topK)
+        .map(d => ({ ...d, rerankScore: d.score || 0 }));
     }
 
     try {
@@ -168,21 +172,24 @@ class RerankerManager {
       for (const doc of documents) {
         const output = await pipe(query, { text_pair: doc.content });
         let score = output[0].score;
-        
+
         // Category-based boosting (prioritize code for 'vibe coding' experience)
         if (doc.category === 'code') {
           score *= 1.15; // 15% boost for code
         } else if (doc.category === 'documentation') {
           score *= 0.95; // 5% penalty for documentation to reduce noise
         }
-        
+
         results.push({ ...doc, rerankScore: score });
       }
       return results.sort((a, b) => b.rerankScore - a.rerankScore).slice(0, topK);
     } catch (err: any) {
       logger.warn(`[Reranker] Skipping AI reranking: ${err.message}`);
       // Fallback to original vector search order if reranker fails (e.g. offline and model not found)
-      return documents.slice(0, topK).map(d => ({ ...d, rerankScore: d.score || 0 }));
+      return documents
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, topK)
+        .map(d => ({ ...d, rerankScore: d.score || 0 }));
     }
   }
 }

@@ -91,7 +91,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "search_code",
-        description: "Search across knowledge base with reranking. Supports git-based filtering.",
+        description: "Search codebase and return matching code blocks with summaries, line numbers, and full context. Includes actual code content for immediate use. Supports filtering by project, collection, category, author, date range, and code churn level.",
         inputSchema: {
           type: "object",
           properties: {
@@ -125,6 +125,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "array",
               items: { type: "string", enum: ["low", "medium", "high"] },
               description: "Filter by code stability (low=stable, high=frequently changed)"
+            },
+            minScore: {
+              type: "number",
+              description: "Minimum confidence score (0-1). Default 0.4. Lower values return more results but may include less relevant matches. Use 0.2-0.3 for exploratory searches, 0.5-0.7 for specific queries.",
+              minimum: 0,
+              maximum: 1
             }
           },
           required: ["query"],
@@ -244,7 +250,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         args.authors,
         args.dateFrom,
         args.dateTo,
-        args.churnLevels
+        args.churnLevels,
+        args.minScore
       );
     }
     if (name === "move_project") {
@@ -640,8 +647,13 @@ app.post('/api/search', async (c) => {
     authors,
     dateFrom,
     dateTo,
-    churnLevels
+    churnLevels,
+    minScore  // Optional: override default minScore from config
   } = await c.req.json();
+
+  // Load config to get default minScore if not provided
+  const config = await loadConfig();
+  const effectiveMinScore = minScore !== undefined ? minScore : (config.search?.minScore || 0.4);
 
   const results = await searchCode(
     query,
@@ -652,10 +664,21 @@ app.post('/api/search', async (c) => {
     authors,
     dateFrom,
     dateTo,
-    churnLevels
+    churnLevels,
+    effectiveMinScore
   );
 
-  return c.json(results);
+  // Remove vectors from results (not needed by frontend) and ensure score is present
+  const cleanedResults = results.map(r => {
+    const { vector, ...rest } = r;
+    return {
+      ...rest,
+      // Use rerankScore if available, otherwise fall back to base score
+      score: r.rerankScore || r.score || 0
+    };
+  });
+
+  return c.json(cleanedResults);
 });
 
 app.post('/api/search/summarize', async (c) => {

@@ -98,6 +98,11 @@ const DEFAULT_CONFIG = {
 
   throttlingErrors: ["并发数过高", "1214", "1302", "1301", "429", "Rate limit", "too many requests"],
 
+  // Search configuration
+  search: {
+    minScore: 0.4  // Minimum confidence score (0-1) for search results. Default 0.4 = 40% confidence
+  },
+
   // Plugin configuration
   plugin: {
     enabled: true,           // Enable/disable plugin system
