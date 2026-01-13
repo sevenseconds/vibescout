@@ -13,6 +13,7 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 
 ### Search & Filtering
 - **Category Pre-Filtering**: Database-level filtering by Code/Docs for maximum performance (default: Code-only).
+- **Token Count Preview**: Preview search results before consuming tokens with two-phase search (MCP only).
 - **Git Metadata**: Enhanced search with author, date, churn level, and commit history.
 - **Dependencies Display**: View imports/exports for each search result with source tracking.
 - **Search Persistence**: Results persist across tab switches for seamless workflow.
@@ -26,6 +27,7 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 - **Sandboxed Execution**: Isolated worker threads for safe plugin operation.
 
 ### Advanced Features
+- **Two-Phase Search**: Preview search metadata before consuming tokens (MCP only).
 - **AI Smart Questions**: "Generate Best Question" analyzes code to suggest optimal chat starting points.
 - **Adaptive Concurrency**: Automatically detects provider rate limits and dynamically scales request rates.
 - **Real-time Activity (SSE)**: Instant system event streaming via Server-Sent Events.
@@ -91,6 +93,7 @@ See `/docs/` directory for:
 - `plugin-api.md` - API reference
 - `plugin-architecture.md` - Design patterns
 - `plugin-example.md` - Complete example
+- `two-phase-search.md` - Two-phase search with token count preview
 - `profiling-guide.md` - Performance profiling and optimization
 
 ## 🛠 Installation
@@ -131,6 +134,46 @@ vibescout reset
 # Or via npm
 npm run reset-db
 ```
+
+### Two-Phase Search (MCP Only)
+
+When using VibeScout with Claude Desktop, Cursor, or other MCP clients, you can preview search results before consuming tokens:
+
+**Phase 1: Preview Token Count**
+```json
+{
+  "name": "search_code",
+  "arguments": {
+    "query": "authentication flow",
+    "limit": 20,
+    "previewOnly": true
+  }
+}
+```
+
+This returns metadata without actual code:
+- Result count
+- Total tokens (from stored counts during indexing)
+- Average relevance score
+- Recommendation on whether to proceed
+
+**Phase 2: Fetch Results (if tokens are acceptable)**
+```json
+{
+  "name": "search_code",
+  "arguments": {
+    "query": "authentication flow",
+    "limit": 10,
+    "previewOnly": false
+  }
+}
+```
+
+**Benefits:**
+- Avoid unexpected token consumption
+- Adjust `limit` parameter based on preview
+- Use more specific filters if token count is high
+- Backward compatible: omit `previewOnly` for existing behavior
 
 ### Performance Profiling
 ```bash

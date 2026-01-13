@@ -25,6 +25,9 @@ export interface VectorResult {
 
   // File hash for change detection (snake_case to match LanceDB convention)
   file_hash?: string;
+
+  // Token count for preview metadata (snake_case to match LanceDB convention)
+  token_count?: number;
 }
 
 export interface SearchOptions {

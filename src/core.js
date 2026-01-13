@@ -28,6 +28,16 @@ const execAsync = promisify(exec);
 const CONCURRENCY_LIMIT = 16;
 
 /**
+ * Simple token counter for indexing
+ * Approximates tokens by character count (~4 chars per token works well for code)
+ */
+function countTokens(text) {
+  if (!text) return 0;
+  // Approximate tokens: ~4 characters per token (works for code)
+  return Math.ceil(text.length / 4);
+}
+
+/**
  * Get file type configuration for a given file path
  * Determines whether to summarize and which prompt to use
  */
@@ -487,7 +497,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 churn_level: gitInfo?.churnLevel,
 
                 // Add file hash for change detection
-                file_hash: hash
+                file_hash: hash,
+
+                // Add token count for preview metadata
+                token_count: countTokens(block.content)
               });
             }
 
@@ -604,7 +617,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 /**
  * Shared search logic that returns raw result objects
  */
-export async function searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore = 0.4) {
+export async function searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore = 0.4, limit = 10) {
   profileStart("search_code", { query, collection, projectName });
 
   try {
@@ -626,16 +639,16 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
         projectName,
         fileTypes,
         categories,
-        limit: 15,
+        limit,
         authors,
         dateFrom,
         dateTo,
         churnLevels
       });
-    }, { limit: 15 }, "database");
+    }, { limit }, "database");
 
     const reranked = await profileAsync("rerank_results", async () => {
-      return await rerankerManager.rerank(query, rawResults, 10);
+      return await rerankerManager.rerank(query, rawResults, limit);
     }, { resultCount: rawResults.length }, "search");
 
     // Filter results by minimum confidence score (use rerankScore if available, otherwise base score)
@@ -652,9 +665,48 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
 /**
  * Tool: search_code (MCP Wrapper)
  */
-export async function handleSearchCode(query, collection, projectName, categories = ["code"], fileTypes, authors, dateFrom, dateTo, churnLevels, minScore) {
-  const results = await searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore);
+export async function handleSearchCode(query, collection, projectName, categories = ["code"], fileTypes, authors, dateFrom, dateTo, churnLevels, minScore, limit, previewOnly = false) {
+  const results = await searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore, limit);
 
+  // Preview mode: return metadata only
+  if (previewOnly) {
+    // Sum token counts from stored values
+    const totalTokens = results.reduce((sum, r) => sum + (r.token_count || 0), 0);
+    const avgScore = results.length > 0
+      ? (results.reduce((sum, r) => sum + (r.rerankScore || r.score || 0), 0) / results.length).toFixed(4)
+      : 0;
+
+    const isHigh = totalTokens > 5000;
+    const suggestedLimit = Math.max(5, Math.floor(limit / 2));
+
+    const previewText = `# Search Preview for: "${query}"
+
+📊 **Metadata**
+- Results found: ${results.length}
+- Total tokens: ${totalTokens} (from stored counts)
+- Requested limit: ${limit}
+- Average score: ${avgScore}
+
+💡 **Recommendation**
+${isHigh
+  ? `High token count (${totalTokens} tokens). Consider reducing limit to ${suggestedLimit} or using more specific filters.`
+  : `Token count is reasonable (${totalTokens} tokens). Proceed with full results.`
+}
+
+🔄 **Next Steps**
+To get actual results, call \`search_code\` again with:
+- Same query: "${query}"
+- Same filters (collection, projectName, etc.)
+- \`previewOnly: false\` (or omit)
+- Optional: Adjust \`limit\` to ${suggestedLimit} if token count is high
+
+---
+*This preview consumed ~${Math.ceil(totalTokens / 10)} tokens. Full results would consume ~${totalTokens} tokens.*`;
+
+    return { content: [{ type: "text", text: previewText }] };
+  }
+
+  // Full results mode (existing behavior)
   // Fetch dependencies for each result
   const resultsWithDeps = await Promise.all(results.map(async (r) => {
     try {

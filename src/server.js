@@ -97,7 +97,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "search_code",
-        description: "Search codebase and return matching code blocks with summaries, line numbers, and full context. Includes actual code content for immediate use. Supports filtering by project, collection, category, author, date range, and code churn level.",
+        description: "Search codebase and return matching code blocks with summaries, line numbers, and full context. Includes actual code content for immediate use. Supports filtering by project, collection, category, author, date range, and code churn level. Use previewOnly=true to get metadata before fetching full results.",
         inputSchema: {
           type: "object",
           properties: {
@@ -137,6 +137,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: "Minimum confidence score (0-1). Default 0.4. Lower values return more results but may include less relevant matches. Use 0.2-0.3 for exploratory searches, 0.5-0.7 for specific queries.",
               minimum: 0,
               maximum: 1
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of results to return (default: 10). Use higher values (15-20) for comprehensive searches, lower values (5-8) for focused results.",
+              minimum: 1,
+              maximum: 50
+            },
+            previewOnly: {
+              type: "boolean",
+              description: "If true, returns only metadata (result count and total tokens from stored counts) without actual code content. Useful for estimating token usage before fetching full results. Default: false.",
+              default: false
             }
           },
           required: ["query"],
@@ -278,7 +289,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         args.dateFrom,
         args.dateTo,
         args.churnLevels,
-        args.minScore
+        args.minScore,
+        args.limit,
+        args.previewOnly  // Pass preview parameter
       );
     }
     else if (name === "move_project") {
@@ -718,7 +731,8 @@ app.post("/api/search", async (c) => {
     dateFrom,
     dateTo,
     churnLevels,
-    minScore  // Optional: override default minScore from config
+    minScore,  // Optional: override default minScore from config
+    limit      // Optional: override default limit
   } = await c.req.json();
 
   // Load config to get default minScore if not provided
@@ -735,7 +749,8 @@ app.post("/api/search", async (c) => {
     dateFrom,
     dateTo,
     churnLevels,
-    effectiveMinScore
+    effectiveMinScore,
+    limit
   );
 
   // Remove vectors from results (not needed by frontend) and ensure score is present
