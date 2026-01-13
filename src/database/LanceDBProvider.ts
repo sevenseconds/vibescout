@@ -121,16 +121,19 @@ export class LanceDBProvider implements VectorDBProvider {
         }
 
         // Handle token_count field migration (new field)
-        if (err.message.includes("Found field not in schema: token_count")) {
-          logger.info("[DB] Missing 'token_count' field detected. Performing automatic schema migration...");
+        if (err.message.includes("Found field not in schema: token_count") || 
+            err.message.includes("Found field not in schema: last_mtime")) {
+          logger.info("[DB] Schema needs updates for new fields. Performing automatic migration...");
 
           // 1. Fetch all existing data
           const allData = await table.query().toArray();
 
-          // 2. Add token_count to existing records (calculate on-the-fly for legacy data)
+          // 2. Add new fields to existing records
           const migratedData = allData.map(row => ({
             ...row,
-            token_count: row.token_count || Math.ceil((row.content?.length || 0) / 4)
+            token_count: row.token_count || Math.ceil((row.content?.length || 0) / 4),
+            last_mtime: row.last_mtime || 0,
+            last_size: row.last_size || 0
           }));
 
           // 3. Drop and recreate table with correct schema
@@ -138,7 +141,7 @@ export class LanceDBProvider implements VectorDBProvider {
           const newTable = await db.createTable(tableName, [...migratedData, ...data]);
           await newTable.createIndex("content", { config: lancedb.Index.fts() });
 
-          logger.info(`[DB] Token count schema migration complete. Migrated ${migratedData.length} records.`);
+          logger.info(`[DB] Schema migration complete. Migrated ${migratedData.length} records.`);
           return;
         }
 

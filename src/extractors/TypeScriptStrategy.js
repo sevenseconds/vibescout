@@ -9,7 +9,7 @@ const CHUNK_LINE_THRESHOLD = 50;
 export const TypeScriptStrategy = {
   extensions: [".ts", ".js", ".tsx", ".jsx"],
   
-  extract: async (code, filePath) => {
+  extract: async (code, filePath, options = {}) => {
     const tree = parser.parse(code);
     const blocks = [];
     const metadata = { imports: [], exports: [] };

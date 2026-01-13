@@ -288,6 +288,22 @@ export async function findSymbolUsages(symbolName: string) {
   }).map(row => ({ filePath: row.filepath, projectName: row.projectname, collection: row.collection }));
 }
 
+export async function getFileMetadata(filePath: string) {
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    const table = await p.getTable();
+    if (table) {
+      const results = await table.query()
+        .where(`filepath = '${filePath}'`)
+        .select(["file_hash", "last_mtime", "last_size"])
+        .limit(1)
+        .toArray();
+      return results.length > 0 ? results[0] : {};
+    }
+  }
+  return {};
+}
+
 export async function getFileHash(filePath: string) {
   // Query LanceDB for file_hash
   const p = getProvider();

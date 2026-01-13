@@ -152,53 +152,88 @@ export async function batchCollectGitInfo(
 ): Promise<Map<string, GitFileInfo>> {
   const gitInfoMap = new Map<string, GitFileInfo>();
 
-  logger.debug(`[Git] Collecting metadata for ${files.length} files...`);
+  logger.debug(`[Git] Batch collecting metadata for ${files.length} files in ${repoPath}`);
 
-  // Process files in parallel batches for better performance
-  const BATCH_SIZE = 50;
-  for (let i = 0; i < files.length; i += BATCH_SIZE) {
-    const batch = files.slice(i, i + BATCH_SIZE);
-
-    await Promise.all(
-      batch.map(async (file) => {
-        try {
-          // Convert absolute path to relative path from repo root
-          let relativePath: string;
-          try {
-            relativePath = path.relative(repoPath, file);
-          } catch (pathErr) {
-            logger.debug(`[Git] path.relative failed for ${file}: ${pathErr.message}`);
-            // Fallback: use basename if relative path fails
-            relativePath = path.basename(file);
-          }
-
-          // Additional safety: validate relative path
-          if (!relativePath || relativePath.startsWith('..')) {
-            logger.debug(`[Git] Invalid relative path for ${file}: ${relativePath}`);
-            return; // Skip this file
-          }
-
-          const gitInfo = await getFileGitInfo(repoPath, relativePath, churnWindow);
-          if (gitInfo) {
-            // Store with ABSOLUTE path as key (more reliable than relative paths)
-            gitInfoMap.set(file, gitInfo);
-          }
-        } catch (err) {
-          logger.debug(`[Git] Failed to process ${file}: ${err.message}`);
-          // Continue processing other files
+  try {
+    // 1. Get last commit info for ALL files in one go
+    // format: filepath|author|email|date|hash|subject
+    const logCommand = `git -C "${repoPath}" log --name-only --pretty=format:"%an|%ae|%aI|%h|%s"`;
+    const { stdout } = await execAsync(logCommand, { maxBuffer: 10 * 1024 * 1024 });
+    
+    const lines = stdout.split('\n');
+    const processedFiles = new Set<string>();
+    
+    let currentCommit: any = null;
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      
+      if (line.includes('|')) {
+        const [author, email, date, hash, ...msgParts] = line.split('|');
+        currentCommit = { author, email, date, hash, message: msgParts.join('|') };
+      } else {
+        // This is a filename
+        const relativePath = line.trim();
+        const absolutePath = path.join(repoPath, relativePath);
+        
+        // Only process the FIRST (newest) commit for each file
+        if (!processedFiles.has(absolutePath)) {
+          gitInfoMap.set(absolutePath, {
+            ...currentCommit,
+            commitCount6m: 0, // Will fill later
+            churnLevel: 'low'
+          });
+          processedFiles.add(absolutePath);
         }
-      })
-    );
-
-    // Log progress for large batches
-    if (files.length > BATCH_SIZE) {
-      const processed = Math.min(i + BATCH_SIZE, files.length);
-      logger.debug(`[Git] Processed ${processed}/${files.length} files`);
+      }
     }
+
+    // 2. Get commit counts for churn in one go
+    const churnCommand = `git -C "${repoPath}" log --since="${churnWindow} months ago" --name-only --pretty=format:""`;
+    const { stdout: churnStdout } = await execAsync(churnCommand, { maxBuffer: 10 * 1024 * 1024 });
+    
+    const fileCommitCounts = new Map<string, number>();
+    for (const file of churnStdout.split('\n')) {
+      const trimmed = file.trim();
+      if (!trimmed) continue;
+      const abs = path.join(repoPath, trimmed);
+      fileCommitCounts.set(abs, (fileCommitCounts.get(abs) || 0) + 1);
+    }
+
+    // 3. Merge churn data
+    for (const [absPath, info] of gitInfoMap.entries()) {
+      const count = fileCommitCounts.get(absPath) || 0;
+      info.commitCount6m = count;
+      info.churnLevel = calculateChurnLevel(count);
+    }
+
+  } catch (err: any) {
+    logger.warn(`[Git] Efficient batch collection failed, falling back to slow method: ${err.message}`);
+    // Fallback to the original slower method if something goes wrong
+    return await batchCollectGitInfoSlow(repoPath, files, churnWindow);
   }
 
-  logger.info(`[Git] Collected metadata for ${gitInfoMap.size}/${files.length} files`);
+  logger.info(`[Git] Collected metadata for ${gitInfoMap.size} files`);
+  return gitInfoMap;
+}
 
+/**
+ * Original slower method as fallback
+ */
+async function batchCollectGitInfoSlow(
+  repoPath: string,
+  files: string[],
+  churnWindow: number = 6
+): Promise<Map<string, GitFileInfo>> {
+  const gitInfoMap = new Map<string, GitFileInfo>();
+  const BATCH_SIZE = 20; // Reduced for fallback
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE);
+    await Promise.all(batch.map(async (file) => {
+      const relativePath = path.relative(repoPath, file);
+      const info = await getFileGitInfo(repoPath, relativePath, churnWindow);
+      if (info) gitInfoMap.set(file, info);
+    }));
+  }
   return gitInfoMap;
 }
 

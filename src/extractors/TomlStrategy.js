@@ -1,7 +1,6 @@
 export const TomlStrategy = {
   extensions: [".toml"],
-  
-  extract: async (code, filePath) => {
+  extract: async (code, filePath, options = {}) => {
     const lines = code.split("\n");
     const blocks = [];
     const metadata = { imports: [], exports: [] };

@@ -7,9 +7,10 @@ parser.setLanguage(Python);
 const CHUNK_LINE_THRESHOLD = 50;
 
 export const PythonStrategy = {
+
   extensions: [".py"],
-  
-  extract: async (code, filePath) => {
+
+  extract: async (code, filePath, options = {}) => {
     const tree = parser.parse(code);
     const blocks = [];
     const metadata = { imports: [], exports: [] };

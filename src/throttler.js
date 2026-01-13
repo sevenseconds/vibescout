@@ -124,7 +124,13 @@ const throttlers = new Map();
 
 export function getThrottler(providerName, errorPatterns = []) {
   if (!throttlers.has(providerName)) {
-    throttlers.set(providerName, new AdaptiveThrottler(providerName));
+    // Local models are very CPU intensive and already multi-threaded
+    // Higher concurrency for local models usually results in slower overall performance and 100% CPU usage
+    const isLocal = providerName === "local";
+    const initial = isLocal ? 1 : 16;
+    const max = isLocal ? 2 : 32;
+    
+    throttlers.set(providerName, new AdaptiveThrottler(providerName, initial, max));
   }
   const throttler = throttlers.get(providerName);
   // Always update patterns to stay in sync with latest config

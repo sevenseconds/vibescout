@@ -65,9 +65,18 @@ const DEFAULT_CONFIG = {
     docs: {
       extensions: [".md", ".mdx", ".txt", ".rst"],
       summarize: true,
+      chunking: "headings", // options: "headings", "paragraphs", "none"
       promptTemplate: "docSummarize",
       maxLength: 3000, // Truncate content before sending to AI
       description: "Documentation and text files"
+    },
+    // Special handling for changelogs (treat as single unit)
+    changelog: {
+      extensions: ["CHANGELOG.md", "CHANGES.md", "HISTORY.md"],
+      summarize: true,
+      chunking: "none", // Don't split into sections
+      promptTemplate: "docSummarize",
+      description: "Changelog files"
     },
     // Config files - skip summarization (just embed)
     config: {

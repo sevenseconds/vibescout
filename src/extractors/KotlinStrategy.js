@@ -7,9 +7,10 @@ parser.setLanguage(Kotlin);
 const CHUNK_LINE_THRESHOLD = 50;
 
 export const KotlinStrategy = {
+
   extensions: [".kt", ".kts"],
-  
-  extract: async (code, filePath) => {
+
+  extract: async (code, filePath, options = {}) => {
     const tree = parser.parse(code);
     const blocks = [];
     const metadata = { imports: [], exports: [] };

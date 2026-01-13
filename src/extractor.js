@@ -81,15 +81,15 @@ function findStrategyForExtension(ext) {
  * Strategy Context: Decides which extractor to use based on file extension.
  * Supports built-in strategies and plugin strategies.
  */
-export async function extractCodeBlocks(filePath) {
+export async function extractCodeBlocks(filePath, options = {}) {
   const ext = path.extname(filePath).toLowerCase();
-  const code = await fs.readFile(filePath, "utf-8");
+  const code = options.code || await fs.readFile(filePath, "utf-8");
 
   // Find the matching strategy (plugins can override built-in)
   const strategy = findStrategyForExtension(ext);
 
   if (strategy) {
-    return strategy.extract(code, filePath);
+    return strategy.extract(code, filePath, options);
   }
 
   // Default fallback for unknown files: Index as a single block if text

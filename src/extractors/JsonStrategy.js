@@ -5,9 +5,10 @@ const parser = new Parser();
 parser.setLanguage(Json);
 
 export const JsonStrategy = {
+
   extensions: [".json"],
-  
-  extract: async (code, filePath) => {
+
+  extract: async (code, filePath, options = {}) => {
     const tree = parser.parse(code);
     const blocks = [];
     const metadata = { imports: [], exports: [] };

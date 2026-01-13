@@ -12,11 +12,55 @@ try {
 export const MarkdownStrategy = {
   extensions: [".md"],
 
-  extract: async (code, filePath) => {
+  extract: async (code, filePath, options = {}) => {
     const blocks = [];
     const metadata = { imports: [], exports: [] };
     const lines = code.split("\n");
+    const chunking = options.chunking || 'headings';
 
+    // 1. No Chunking: Treat the entire file as a single block
+    if (chunking === 'none') {
+      if (code.trim().length > 0) {
+        blocks.push({
+          name: `Doc: ${path.basename(filePath)}`,
+          type: "documentation",
+          category: "documentation",
+          startLine: 1,
+          endLine: lines.length,
+          comments: "",
+          content: code,
+          filePath
+        });
+      }
+      return { blocks, metadata };
+    }
+
+    // 2. Paragraph Chunking: Split by double newlines
+    if (chunking === 'paragraphs') {
+      const paragraphs = code.split(/\n\s*\n/);
+      let currentLine = 1;
+      
+      for (let i = 0; i < paragraphs.length; i++) {
+        const content = paragraphs[i].trim();
+        if (!content) continue;
+        
+        const paraLines = content.split('\n').length;
+        blocks.push({
+          name: `Doc: ${path.basename(filePath)} (Para ${i + 1})`,
+          type: "documentation",
+          category: "documentation",
+          startLine: currentLine,
+          endLine: currentLine + paraLines - 1,
+          comments: "",
+          content: content,
+          filePath
+        });
+        currentLine += paraLines + 1; // +1 for the gap
+      }
+      return { blocks, metadata };
+    }
+
+    // 3. Headings Chunking (Default): Split by markdown headers
     try {
       const tree = parser.parse(code);
       function traverse(node) {

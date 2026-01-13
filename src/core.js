@@ -14,6 +14,7 @@ import {
   hybridSearch,
   getStoredModel,
   getFileHash,
+  getFileMetadata,
   bulkUpdateFileHashes,
   updateFileHash,
   deleteFileData,
@@ -25,7 +26,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 const execAsync = promisify(exec);
 
-const CONCURRENCY_LIMIT = 16;
+const CONCURRENCY_LIMIT = 8;
 
 /**
  * Simple token counter for indexing
@@ -359,9 +360,30 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
         indexingProgress.currentFiles.push(file);
 
         try {
+          const stats = await fs.stat(filePath);
+          const mtime = stats.mtimeMs;
+          const size = stats.size;
+          
+          // Fast check using mtime and size before reading content
+          // We still use hash for final confirmation if needed, but mtime/size catch 99% of cases
+          const { file_hash: existingHash, last_mtime: storedMtime, last_size: storedSize } = await getFileMetadata(filePath);
+
+          if (storedMtime === mtime && storedSize === size && existingHash) {
+            skipped++;
+            indexingProgress.skippedFiles++;
+            indexingProgress.processedFiles++;
+            if (task) task.progress.processedFiles++;
+
+            // Remove from currentFiles and add to completed
+            indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
+            indexingProgress.completedFiles.unshift({ file, status: "skipped" });
+            if (indexingProgress.completedFiles.length > 20) indexingProgress.completedFiles.pop();
+
+            return;
+          }
+
           const content = await fs.readFile(filePath, "utf-8");
           const hash = crypto.createHash("md5").update(content).digest("hex");
-          const existingHash = await getFileHash(filePath);
 
           if (existingHash === hash) {
             skipped++;
@@ -379,10 +401,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
           if (existingHash) await deleteFileData(filePath);
 
-          const { blocks, metadata } = await extractCodeBlocks(filePath);
-          await updateDependencies(filePath, derivedProjectName, collection, metadata);
-
-          // Get file type configuration to determine if/how to summarize
+          // Get file type configuration to determine if/how to summarize or chunk
           const fileTypeConfig = await getFileTypeConfig(filePath);
 
           // Skip files marked as "index: false" (like lock files)
@@ -390,6 +409,11 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
             logger.info(`[Index] Skipping ${file} (file type '${fileTypeConfig.typeName}' is configured to not index)`);
             return;
           }
+
+          const { blocks, metadata } = await extractCodeBlocks(filePath, { 
+            chunking: fileTypeConfig.chunking 
+          });
+          await updateDependencies(filePath, derivedProjectName, collection, metadata);
 
           if (blocks.length > 0) {
             const parentSummaries = new Map();
@@ -495,6 +519,8 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
                 // Add file hash for change detection
                 file_hash: hash,
+                last_mtime: mtime,
+                last_size: size,
 
                 // Add token count for preview metadata
                 token_count: countTokens(block.content)
@@ -559,7 +585,11 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       const workers = new Array(CONCURRENCY_LIMIT).fill(null).map(async () => {
         while (queue.length > 0 && !isShuttingDown) {
           const file = queue.shift();
-          if (file) await processFile(file);
+          if (file) {
+            await processFile(file);
+            // Small break to yield to other tasks and let CPU breathe
+            await new Promise(r => setTimeout(r, 10));
+          }
         }
       });
 
