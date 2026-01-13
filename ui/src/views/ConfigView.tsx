@@ -47,6 +47,7 @@ interface Config {
   fileTypes: Record<string, {
     extensions: string[];
     summarize: boolean;
+    chunking?: "headings" | "paragraphs" | "none";
     promptTemplate?: string;
     maxLength?: number;
     index?: boolean;
@@ -629,49 +630,49 @@ export default function ConfigView() {
                       </button>
                     </div>
                   </div>
-                </div>
 
-                {/* Minimum Confidence Score - Full width */}
-                <div className="md:col-span-2 flex flex-col items-start justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
-                  <div className="space-y-1 w-full">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-foreground">Minimum Confidence Score</h4>
-                      <Zap size={14} className="text-primary" />
+                  {/* Minimum Confidence Score - Full width */}
+                  <div className="md:col-span-2 flex flex-col items-start justify-between p-4 bg-secondary/30 rounded-2xl border border-border/50 transition-all hover:border-primary/30 group">
+                    <div className="space-y-1 w-full">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm text-foreground">Minimum Confidence Score</h4>
+                        <Zap size={14} className="text-primary" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Filter search results by confidence threshold (0-100%)</p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Filter search results by confidence threshold (0-100%)</p>
-                  </div>
-                  <div className="flex items-center gap-4 w-full mt-3">
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={Math.round(((config?.search?.minScore ?? 0.4) * 100))}
-                      onChange={(e) => {
-                        const newMinScore = parseInt(e.target.value) / 100;
-                        const newConfig = {
-                          ...config,
-                          search: {
-                            ...config?.search,
-                            minScore: newMinScore
-                          }
-                        };
-                        setConfig(newConfig as Config);
-                        setSaving(true);
-                        axios.post('/api/config', newConfig).finally(() => setSaving(false));
-                      }}
-                      className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                    />
-                    <div className="px-4 py-1.5 bg-background rounded-lg border border-border min-w-[70px] text-center">
-                      <span className="text-sm font-bold text-foreground">{Math.round(((config?.search?.minScore ?? 0.4) * 100))}%</span>
+                    <div className="flex items-center gap-4 w-full mt-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={Math.round(((config?.search?.minScore ?? 0.4) * 100))}
+                        onChange={(e) => {
+                          const newMinScore = parseInt(e.target.value) / 100;
+                          const newConfig = {
+                            ...config,
+                            search: {
+                              ...config?.search,
+                              minScore: newMinScore
+                            }
+                          };
+                          setConfig(newConfig as Config);
+                          setSaving(true);
+                          axios.post('/api/config', newConfig).finally(() => setSaving(false));
+                        }}
+                        className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                      />
+                      <div className="px-4 py-1.5 bg-background rounded-lg border border-border min-w-[70px] text-center">
+                        <span className="text-sm font-bold text-foreground">{Math.round(((config?.search?.minScore ?? 0.4) * 100))}%</span>
+                      </div>
                     </div>
+                    <p className="text-[9px] text-muted-foreground mt-2">
+                      {(config?.search?.minScore ?? 0.4) < 0.3 ? "Very permissive - shows more results including lower confidence matches" :
+                       (config?.search?.minScore ?? 0.4) < 0.5 ? "Balanced - filters out very low confidence matches" :
+                       (config?.search?.minScore ?? 0.4) < 0.7 ? "Strict - only shows moderate to high confidence matches" :
+                       "Very strict - only shows high confidence matches"}
+                    </p>
                   </div>
-                  <p className="text-[9px] text-muted-foreground mt-2">
-                    {(config?.search?.minScore ?? 0.4) < 0.3 ? "Very permissive - shows more results including lower confidence matches" :
-                     (config?.search?.minScore ?? 0.4) < 0.5 ? "Balanced - filters out very low confidence matches" :
-                     (config?.search?.minScore ?? 0.4) < 0.7 ? "Strict - only shows moderate to high confidence matches" :
-                     "Very strict - only shows high confidence matches"}
-                  </p>
                 </div>
               </div>
             </section>
@@ -929,26 +930,56 @@ export default function ConfigView() {
                       </div>
                     </div>
 
-                    {typeConfig.summarize && typeConfig.index !== false && (
-                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/50">
+                    {typeConfig.index !== false && (
+                      <div className={cn("grid gap-4 pt-4 border-t border-border/50", typeConfig.summarize ? "grid-cols-2" : "grid-cols-1")}>
+                        {/* Chunking Strategy - Always show if indexing is enabled */}
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Prompt Template</label>
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Chunking Strategy</label>
                           <select
-                            value={typeConfig.promptTemplate || 'summarize'}
+                            value={typeConfig.chunking || (typeId === 'docs' || typeId === 'changelog' ? 'headings' : 'granular')}
                             onChange={(e) => {
                               const newFileTypes = { ...config.fileTypes };
-                              newFileTypes[typeId] = { ...typeConfig, promptTemplate: e.target.value };
+                              newFileTypes[typeId] = { ...typeConfig, chunking: e.target.value as any };
                               updateConfig('fileTypes', newFileTypes);
                             }}
                             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"
                           >
-                            <option value="summarize">Code Analysis</option>
-                            <option value="docSummarize">Documentation Summary</option>
-                            <option value="chunkSummarize">Chunk Analysis</option>
+                            {/* Options for Documentation types */}
+                            {(typeId === 'docs' || typeId === 'changelog') ? (
+                              <>
+                                <option value="headings">Headings (Split by headers)</option>
+                                <option value="paragraphs">Paragraphs (Split by empty lines)</option>
+                              </>
+                            ) : (
+                              /* Options for Code types */
+                              <>
+                                <option value="granular">Granular (Functions & Classes)</option>
+                              </>
+                            )}
+                            <option value="none">None (Treat as single unit)</option>
                           </select>
                         </div>
 
-                        {typeConfig.maxLength !== undefined && (
+                        {typeConfig.summarize && (
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Prompt Template</label>
+                            <select
+                              value={typeConfig.promptTemplate || 'summarize'}
+                              onChange={(e) => {
+                                const newFileTypes = { ...config.fileTypes };
+                                newFileTypes[typeId] = { ...typeConfig, promptTemplate: e.target.value };
+                                updateConfig('fileTypes', newFileTypes);
+                              }}
+                              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary transition-all"
+                            >
+                              <option value="summarize">Code Analysis</option>
+                              <option value="docSummarize">Documentation Summary</option>
+                              <option value="chunkSummarize">Chunk Analysis</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {typeConfig.summarize && typeConfig.maxLength !== undefined && (
                           <div className="space-y-2">
                             <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Max Content Length</label>
                             <input

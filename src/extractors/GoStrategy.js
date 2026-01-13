@@ -14,6 +14,24 @@ export const GoStrategy = {
     const tree = parser.parse(code);
     const blocks = [];
     const metadata = { imports: [], exports: [] };
+    const lines = code.split("\n");
+    const chunking = options.chunking || 'granular';
+
+    // 1. No Chunking: Treat the entire file as a single unit
+    if (chunking === 'none') {
+      if (code.trim().length > 0) {
+        blocks.push({
+          name: path.basename(filePath),
+          type: "file",
+          category: "code",
+          startLine: 1,
+          endLine: lines.length,
+          comments: "",
+          content: code,
+          filePath
+        });
+      }
+    }
 
     function getComments(node) {
       const commentNodes = [];
@@ -54,7 +72,7 @@ export const GoStrategy = {
         }
       }
 
-      if (name) {
+      if (name && chunking === 'granular') {
         const startLine = node.startPosition.row + 1;
         const endLine = node.endPosition.row + 1;
         const lineCount = endLine - startLine;

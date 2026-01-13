@@ -4,6 +4,23 @@ export const DartStrategy = {
     const lines = code.split("\n");
     const blocks = [];
     const metadata = { imports: [], exports: [] };
+    const chunking = options.chunking || 'granular';
+
+    // 1. No Chunking: Treat the entire file as a single unit
+    if (chunking === 'none') {
+      if (code.trim().length > 0) {
+        blocks.push({
+          name: path.basename(filePath),
+          type: "file",
+          category: "code",
+          startLine: 1,
+          endLine: lines.length,
+          comments: "",
+          content: code,
+          filePath
+        });
+      }
+    }
 
     // Regex-based extraction for Dart
     const importRegex = /import\s+['"]([^'"]+)['"]/g;
@@ -26,7 +43,7 @@ export const DartStrategy = {
       
       // Class detection
       const classMatch = /class\s+([a-zA-Z0-9_]+)/.exec(line);
-      if (classMatch && !line.startsWith("//") && !line.startsWith("/*")) {
+      if (classMatch && !line.startsWith("//") && !line.startsWith("/*") && chunking === 'granular') {
         const name = classMatch[1];
         blocks.push({
           name,
@@ -42,7 +59,7 @@ export const DartStrategy = {
 
       // Method/Function detection (Basic)
       const funcMatch = /(?:void|[a-zA-Z0-9_<>]+\?*)\s+([a-zA-Z0-9_]+)\s*\([^)]*\)\s*\{/.exec(line);
-      if (funcMatch && !line.includes("class") && !line.startsWith("//")) {
+      if (funcMatch && !line.includes("class") && !line.startsWith("//") && chunking === 'granular') {
         const name = funcMatch[1];
         if (["if", "for", "while", "switch", "catch"].includes(name)) continue;
         
