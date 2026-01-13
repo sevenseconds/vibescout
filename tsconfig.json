@@ -6,12 +6,12 @@
     "allowJs": true,
     "checkJs": false,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "tests"]
+  "include": ["common/src/**/*", "cli/src/**/*", "cli/bin/**/*"],
+  "exclude": ["node_modules", "common/tests", "cli/tests"]
 }

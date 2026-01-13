@@ -2,30 +2,32 @@
   "name": "@sevenseconds/vibescout",
   "version": "0.2.24",
   "description": "A high-performance local MCP server for semantic code search, summarization, and RAG.",
-  "main": "src/index.js",
+  "main": "common/src/db.ts",
   "bin": {
-    "vibescout": "bin/vibescout.js"
+    "vibescout": "cli/bin/vibescout.js"
   },
   "files": [
-    "bin",
-    "src",
+    "cli",
+    "common",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "start": "npx tsx src/index.js",
-    "test": "vitest run --fileParallelism=false",
+    "start": "npx tsx cli/src/index.js",
+    "test": "vitest run common/tests --fileParallelism=false",
     "lint": "eslint .",
-    "build:ui": "cd ui && npm run build && rm -rf ../src/ui-dist && cp -r dist ../src/ui-dist",
+    "build:ui": "cd ui && npm run build && rm -rf ../dist/ui && mkdir -p ../dist/ui && cp -r dist/* ../dist/ui",
+    "build:server": "tsc",
+    "build": "npm run build:ui && npm run build:server",
     "dev:client": "cd ui && npm run dev",
-    "dev:server": "npx tsx src/index.js ui --port 3002",
+    "dev:server": "npx tsx cli/src/index.js ui --port 3000",
     "dev:ui": "npm run dev:server & npm run dev:client",
     "dev": "npm run dev:ui",
-    "reset-db": "npx tsx src/index.js reset --force",
-    "plugin:list": "npx tsx src/index.js plugin list",
-    "plugin:info": "npx tsx src/index.js plugin info",
-    "prepublishOnly": "npm run build:ui",
-    "version": "npm run build:ui && git add -f src/ui-dist",
+    "reset-db": "npx tsx cli/src/index.js reset --force",
+    "plugin:list": "npx tsx cli/src/index.js plugin list",
+    "plugin:info": "npx tsx cli/src/index.js plugin info",
+    "prepublishOnly": "npm run build",
+    "version": "npm run build && git add -f dist/ui",
     "release": "npm version patch && npm publish"
   },
   "keywords": [
@@ -88,6 +90,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.0.5",
     "eslint": "^9.39.2",
     "vitest": "^4.0.16"

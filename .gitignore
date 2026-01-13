@@ -1,6 +1,8 @@
 node_modules
 .lancedb
+.lancedb_test
 .DS_Store
 *.log
-src/ui-dist
+dist/
+common/src/ui-dist/
 .gemini-clipboard/
