@@ -975,7 +975,7 @@ app.post("/api/profiling/start", async (c) => {
     const { samplingRate, categories } = await c.req.json();
 
     const { startProfiling } = await import("./profiler-api.js");
-    startProfiling(samplingRate || 1.0, categories);
+    await startProfiling(samplingRate || 1.0, categories);
 
     return c.json({ success: true, message: "Profiling started" });
   } catch (error) {
@@ -1046,6 +1046,28 @@ app.get("/api/profiling/download", async (c) => {
     return c.json(JSON.parse(traceContent));
   } catch (error) {
     logger.error(`[Profiling] Failed to download trace: ${error.message}`);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
+// Delete trace file
+app.delete("/api/profiling/traces", async (c) => {
+  try {
+    const id = c.req.query("id");
+    if (!id) {
+      return c.json({ error: "Trace file ID required" }, 400);
+    }
+
+    const tracePath = path.join(os.homedir(), ".vibescout", "profiles", `${id}.json`);
+
+    if (!await fs.pathExists(tracePath)) {
+      return c.json({ error: "Trace file not found" }, 404);
+    }
+
+    await fs.remove(tracePath);
+    return c.json({ success: true, message: "Trace file deleted" });
+  } catch (error) {
+    logger.error(`[Profiling] Failed to delete trace: ${error.message}`);
     return c.json({ success: false, error: error.message }, 500);
   }
 });

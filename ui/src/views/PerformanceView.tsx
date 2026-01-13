@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Activity, Play, Square, Download, Trash2, Settings, BarChart3 } from 'lucide-react';
 import axios from 'axios';
+import { notify } from '../utils/events';
 
 interface TraceFile {
   filename: string;
@@ -64,9 +65,10 @@ export default function PerformanceView() {
       });
       setIsProfiling(true);
       await fetchStatus();
-    } catch (error) {
-      console.error('Failed to start profiling:', error);
-      alert('Failed to start profiling. Check console for details.');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message;
+      console.error('Failed to start profiling:', errorMsg, error);
+      notify('error', `Failed to start profiling: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -81,11 +83,12 @@ export default function PerformanceView() {
       await fetchTraces();
 
       if (data.success) {
-        alert(`Profiling stopped! Collected ${data.trace.eventCount} events.`);
+        notify('success', `Profiling stopped! Collected ${data.trace.eventCount} events.`);
       }
-    } catch (error) {
-      console.error('Failed to stop profiling:', error);
-      alert('Failed to stop profiling. Check console for details.');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message;
+      console.error('Failed to stop profiling:', errorMsg, error);
+      notify('error', `Failed to stop profiling: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -103,23 +106,26 @@ export default function PerformanceView() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download trace:', error);
-      alert('Failed to download trace file.');
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message;
+      console.error('Failed to download trace:', errorMsg, error);
+      notify('error', `Failed to download trace: ${errorMsg}`);
     }
   };
 
-  const deleteTrace = async (_id: string) => {
+  const deleteTrace = async (id: string) => {
     if (!confirm('Are you sure you want to delete this trace file?')) {
       return;
     }
 
     try {
-      // TODO: Implement delete endpoint and use _id parameter
-      // For now just refresh the list
+      await axios.delete(`/api/profiling/traces?id=${id}`);
+      notify('success', 'Trace file deleted successfully');
       await fetchTraces();
-    } catch (error) {
-      console.error('Failed to delete trace:', error);
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message;
+      console.error('Failed to delete trace:', errorMsg, error);
+      notify('error', `Failed to delete trace: ${errorMsg}`);
     }
   };
 

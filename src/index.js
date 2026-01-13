@@ -737,7 +737,7 @@ async function main() {
       console.log(`Operation: ${operation}`);
       console.log(`Sampling rate: ${Math.round(parseFloat(options.sampling) * 100)}%`);
 
-      startProfiling(parseFloat(options.sampling));
+      await startProfiling(parseFloat(options.sampling));
 
       try {
         if (operation === "index") {
