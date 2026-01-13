@@ -29,16 +29,15 @@ export function isProfilerEnabled() {
  * Configure profiler with options
  * @param {object} options - Configuration options
  */
-export function configureProfiler(options) {
+export async function configureProfiler(options) {
   if (options.enabled) {
     setProfilerEnabled(true);
 
     // Lazy load profiler only when configuring
     if (!profilerInstance) {
-      import('./profiler.js').then(module => {
-        profilerInstance = module.profiler;
-        profilerInstance.configure(options);
-      });
+      const module = await import("./profiler.js");
+      profilerInstance = module.profiler;
+      profilerInstance.configure(options);
     } else {
       profilerInstance.configure(options);
     }
@@ -49,12 +48,12 @@ export function configureProfiler(options) {
  * Get profiler instance (lazy loaded)
  * @returns {Profiler|null} Profiler instance or null if disabled
  */
-function getProfiler() {
+async function getProfiler() {
   if (!profilerEnabled) return null;
 
   if (!profilerInstance) {
-    // Lazy load on first use
-    const module = require('./profiler.js');
+    // Lazy load on first use - use dynamic import for ES modules
+    const module = await import("./profiler.js");
     profilerInstance = module.profiler;
   }
 
@@ -67,12 +66,12 @@ function getProfiler() {
  * @param {object} metadata - Additional metadata
  * @param {string} category - Operation category (e.g., 'indexing', 'search')
  */
-export function profileStart(name, metadata = {}, category = null) {
+export async function profileStart(name, metadata = {}, category = null) {
   // FAST PATH: Single boolean check, returns immediately if disabled
   if (!profilerEnabled) return;
 
   // SLOW PATH: Only executed when enabled
-  const profiler = getProfiler();
+  const profiler = await getProfiler();
   if (profiler) {
     profiler.start(name, metadata, category);
   }
@@ -84,12 +83,12 @@ export function profileStart(name, metadata = {}, category = null) {
  * @param {object} metadata - Additional metadata
  * @param {string} category - Operation category
  */
-export function profileEnd(name, metadata = {}, category = null) {
+export async function profileEnd(name, metadata = {}, category = null) {
   // FAST PATH: Single boolean check
   if (!profilerEnabled) return;
 
   // SLOW PATH: Only executed when enabled
-  const profiler = getProfiler();
+  const profiler = await getProfiler();
   if (profiler) {
     profiler.end(name, metadata, category);
   }
@@ -124,12 +123,12 @@ export async function profileAsync(name, fn, metadata = {}, category = null) {
  * @param {object} metadata - Additional metadata
  * @param {string} category - Event category
  */
-export function profileMark(name, metadata = {}, category = null) {
+export async function profileMark(name, metadata = {}, category = null) {
   // FAST PATH: Single boolean check
   if (!profilerEnabled) return;
 
   // SLOW PATH: Only executed when enabled
-  const profiler = getProfiler();
+  const profiler = await getProfiler();
   if (profiler) {
     profiler.mark(name, metadata, category);
   }
@@ -142,12 +141,12 @@ export function profileMark(name, metadata = {}, category = null) {
  * @param {object} metadata - Additional metadata
  * @param {string} category - Counter category
  */
-export function profileCounter(name, value = 1, metadata = {}, category = null) {
+export async function profileCounter(name, value = 1, metadata = {}, category = null) {
   // FAST PATH: Single boolean check
   if (!profilerEnabled) return;
 
   // SLOW PATH: Only executed when enabled
-  const profiler = getProfiler();
+  const profiler = await getProfiler();
   if (profiler) {
     profiler.counter(name, value, metadata, category);
   }
@@ -158,10 +157,10 @@ export function profileCounter(name, value = 1, metadata = {}, category = null) 
  * @param {number} samplingRate - Sampling rate (0.0-1.0)
  * @param {Array<string>} categories - Categories to profile
  */
-export function startProfiling(samplingRate = 1.0, categories = null) {
+export async function startProfiling(samplingRate = 1.0, categories = null) {
   setProfilerEnabled(true);
 
-  const profiler = getProfiler();
+  const profiler = await getProfiler();
   if (profiler) {
     profiler.configure({
       enabled: true,
@@ -187,10 +186,10 @@ export async function stopProfiling() {
 
 /**
  * Get current profiler statistics
- * @returns {object} Profiler stats
+ * @returns {Promise<object>} Profiler stats
  */
-export function getProfilerStats() {
-  const profiler = getProfiler();
+export async function getProfilerStats() {
+  const profiler = await getProfiler();
   if (profiler) {
     return profiler.getStats();
   }
@@ -204,8 +203,8 @@ export function getProfilerStats() {
 /**
  * Clear profiler buffer
  */
-export function clearProfiler() {
-  const profiler = getProfiler();
+export async function clearProfiler() {
+  const profiler = await getProfiler();
   if (profiler) {
     profiler.clear();
   }

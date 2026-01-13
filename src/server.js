@@ -6,10 +6,10 @@ import {
 import path from "path";
 import fs from "fs-extra";
 import os from "os";
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger as honoLogger } from 'hono/logger';
-import { streamSSE } from 'hono/streaming';
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger as honoLogger } from "hono/logger";
+import { streamSSE } from "hono/streaming";
 import { glob } from "glob";
 import { logger } from "./logger.js";
 import { profileStart, profileEnd } from "./profiler-api.js";
@@ -17,12 +17,17 @@ import {
   handleIndexFolder,
   handleSearchCode,
   searchCode,
-    chatWithCode,
-    openFile,
-    indexingProgress,
-    pauseIndexing,
-    resetIndexingProgress
-  } from "./core.js";
+  chatWithCode,
+  openFile,
+  indexingProgress,
+  pauseIndexing,
+  resetIndexingProgress
+} from "./core.js";
+import {
+  getTaskQueue,
+  TaskType,
+  TaskPriority
+} from "./task-queue.js";
 import {
   listKnowledgeBase,
   clearDatabase,
@@ -42,8 +47,8 @@ import { watchProject, unwatchProject, initWatcher } from "./watcher.js";
 import { embeddingManager, summarizerManager } from "./embeddings.js";
 import { loadConfig, saveConfig } from "./config.js";
 import { createRequire } from "module";
-import { getRegistry } from './plugins/registry.js';
-import { discoverPlugins, ensurePluginsDir, getPluginsDir } from './plugins/loader.js';
+import { getRegistry } from "./plugins/registry.js";
+import { discoverPlugins, ensurePluginsDir, getPluginsDir } from "./plugins/loader.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json");
@@ -225,14 +230,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
-  profileStart('mcp_tool', { toolName: name });
+  profileStart("mcp_tool", { toolName: name });
 
   try {
     let result;
 
     if (name === "index_folder") {
+      const queue = await getTaskQueue();
       const shouldSummarize = args.summarize !== undefined ? args.summarize : true;
-      result = await handleIndexFolder(args.folderPath, args.projectName, args.collection, shouldSummarize, !!args.background);
+
+      // Always queue (background mode by default for MCP)
+      const taskId = queue.addTask(TaskType.INDEX_FOLDER, {
+        folderPath: args.folderPath,
+        projectName: args.projectName,
+        collection: args.collection,
+        summarize: shouldSummarize,
+        force: false
+      }, args.background ? TaskPriority.LOW : TaskPriority.MEDIUM);
+
+      result = {
+        content: [{
+          type: "text",
+          text: `Indexing queued (task: ${taskId}). Use get_indexing_status to check progress.`
+        }]
+      };
     }
     else if (name === "get_indexing_status") {
       const { active, projectName, totalFiles, processedFiles, status } = indexingProgress;
@@ -306,11 +327,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       throw new Error(`Unknown tool: ${name}`);
     }
 
-    profileEnd('mcp_tool', { toolName: name, status: 'success' });
+    profileEnd("mcp_tool", { toolName: name, status: "success" });
     return result;
   } catch (error) {
     logger.error(`Tool execution error: ${error.message}`);
-    profileEnd('mcp_tool', { toolName: name, status: 'error', error: error.message });
+    profileEnd("mcp_tool", { toolName: name, status: "error", error: error.message });
     return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
   }
 });
@@ -319,95 +340,108 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 export const app = new Hono();
 
 // Pipe Hono request logs to our custom logger at DEBUG level
-app.use('*', honoLogger((str) => logger.debug(`[API] ${str}`)));
-app.use('*', cors());
+app.use("*", honoLogger((str) => logger.debug(`[API] ${str}`)));
+app.use("*", cors());
 
 // API Routes
-app.get('/api/kb', async (c) => {
+app.get("/api/kb", async (c) => {
   const kb = await listKnowledgeBase();
   return c.json(kb);
 });
 
-app.delete('/api/projects', async (c) => {
-  const projectName = c.req.query('projectName');
-  if (!projectName) return c.json({ error: 'projectName required' }, 400);
+app.delete("/api/projects", async (c) => {
+  const projectName = c.req.query("projectName");
+  if (!projectName) return c.json({ error: "projectName required" }, 400);
   await deleteProject(projectName);
   return c.json({ success: true });
 });
 
-app.get('/api/projects/root', async (c) => {
-  const projectName = c.req.query('projectName');
-  if (!projectName) return c.json({ error: 'projectName required' }, 400);
+app.get("/api/projects/root", async (c) => {
+  const projectName = c.req.query("projectName");
+  if (!projectName) return c.json({ error: "projectName required" }, 400);
   
   const files = await getProjectFiles(); // This returns all known files
   // Heuristic: filter for files belonging to this project
   // Since we don't have a direct map yet, we'll try to find any file path that likely belongs
   // Alternatively, we could update listKnowledgeBase to provide paths
   const sampleFile = files.find(f => f.includes(projectName));
-  if (!sampleFile) return c.json({ error: 'Project files not found' }, 404);
+  if (!sampleFile) return c.json({ error: "Project files not found" }, 404);
   
   const rootPath = path.dirname(sampleFile);
   return c.json({ rootPath });
 });
 
-app.get('/api/projects/framework', async (c) => {
-  const projectName = c.req.query('projectName');
-  const collection = c.req.query('collection') || 'default';
+app.get("/api/projects/framework", async (c) => {
+  const projectName = c.req.query("projectName");
+  const collection = c.req.query("collection") || "default";
 
-  if (!projectName) return c.json({ error: 'projectName required' }, 400);
+  if (!projectName) return c.json({ error: "projectName required" }, 400);
 
   try {
-    const { getProjectFiles } = await import('./db.js');
+    const { getProjectFiles } = await import("./db.js");
     const files = await getProjectFiles();
 
     // Find a file belonging to this project and collection
     const sampleFile = files.find(f => {
-      const parts = f.split('/');
+      const parts = f.split("/");
       const idx = parts.indexOf(collection);
       const nameIdx = parts.indexOf(projectName);
       return idx !== -1 && nameIdx !== -1 && idx < nameIdx;
     });
 
-    if (!sampleFile) return c.json({ error: 'Project files not found' }, 404);
+    if (!sampleFile) return c.json({ error: "Project files not found" }, 404);
 
     const projectPath = path.dirname(sampleFile);
 
     // Detect framework
-    const { detectFramework } = await import('./framework-detection.js');
+    const { detectFramework } = await import("./framework-detection.js");
     const detection = await detectFramework(projectPath);
 
     return c.json(detection);
   } catch (error) {
-    logger.error('[API] Error detecting framework:', error.message);
+    logger.error("[API] Error detecting framework:", error.message);
     return c.json({ error: error.message }, 500);
   }
 });
 
-app.post('/api/index', async (c) => {
+app.post("/api/index", async (c) => {
   const { folderPath, projectName, collection, summarize, force } = await c.req.json();
   // Read from config if summarize not explicitly provided in request
   const config = await loadConfig();
   const shouldSummarize = summarize !== undefined ? summarize : (config.summarize ?? true);
-  handleIndexFolder(folderPath, projectName, collection || "default", shouldSummarize, true, !!force)
-    .catch(err => logger.error(`Background indexing error: ${err.message}`));
-  return c.json({ success: true, message: "Indexing started in background" });
+
+  // Queue the indexing task (non-blocking)
+  const queue = await getTaskQueue();
+  const taskId = queue.addTask(TaskType.INDEX_FOLDER, {
+    folderPath,
+    projectName,
+    collection: collection || "default",
+    summarize: shouldSummarize,
+    force: !!force
+  }, TaskPriority.LOW);
+
+  return c.json({
+    success: true,
+    taskId,
+    message: "Indexing queued"
+  });
 });
 
-app.get('/api/index/status', (c) => c.json(indexingProgress));
+app.get("/api/index/status", (c) => c.json(indexingProgress));
 
-app.post('/api/index/pause', (c) => {
+app.post("/api/index/pause", (c) => {
   pauseIndexing(true);
   return c.json({ success: true });
 });
 
-app.post('/api/index/resume', (c) => {
+app.post("/api/index/resume", (c) => {
   pauseIndexing(false);
   return c.json({ success: true });
 });
 
-app.post('/api/index/retry', async (c) => {
+app.post("/api/index/retry", async (c) => {
   const { failedPaths, projectName, collection } = indexingProgress;
-  if (!failedPaths || failedPaths.length === 0) return c.json({ error: 'No failed files to retry' }, 400);
+  if (!failedPaths || failedPaths.length === 0) return c.json({ error: "No failed files to retry" }, 400);
 
   // Read summarize setting from config if not stored in progress
   const config = await loadConfig();
@@ -449,56 +483,77 @@ app.post('/api/index/retry', async (c) => {
   return c.json({ success: true, message: "Retry started in background" });
 });
 
-app.post('/api/index/reset', (c) => {
+app.post("/api/index/reset", (c) => {
   resetIndexingProgress();
   return c.json({ success: true, message: "Indexing progress reset" });
 });
 
-app.get('/api/logs', (c) => c.json(logger.getRecentLogs()));
+// Task queue endpoints
+app.get("/api/queue/status", async (c) => {
+  const queue = await getTaskQueue();
+  return c.json(queue.getStats());
+});
 
-app.get('/api/logs/stream', async (c) => {
+app.post("/api/queue/cancel", async (c) => {
+  const { taskId } = await c.req.json();
+  if (!taskId) {
+    return c.json({ error: "taskId is required" }, 400);
+  }
+
+  const queue = await getTaskQueue();
+  const cancelled = queue.cancelTask(taskId);
+
+  return c.json({
+    success: cancelled,
+    message: cancelled ? "Task cancelled" : "Task not found or cannot be cancelled"
+  });
+});
+
+app.get("/api/logs", (c) => c.json(logger.getRecentLogs()));
+
+app.get("/api/logs/stream", async (c) => {
   return streamSSE(c, async (stream) => {
     const onLog = async (log) => {
       await stream.writeSSE({
         data: JSON.stringify(log),
-        event: 'log',
+        event: "log",
       });
     };
 
-    logger.on('log', onLog);
+    logger.on("log", onLog);
 
     // Keep-alive heartbeat
     const heartbeat = setInterval(async () => {
-      await stream.writeSSE({ data: 'ping', event: 'ping' });
+      await stream.writeSSE({ data: "ping", event: "ping" });
     }, 30000);
 
-    c.req.raw.signal.addEventListener('abort', () => {
-      logger.off('log', onLog);
+    c.req.raw.signal.addEventListener("abort", () => {
+      logger.off("log", onLog);
       clearInterval(heartbeat);
     });
 
     // Initial sync of existing buffer
     const recent = logger.getRecentLogs();
     for (const log of recent) {
-      await stream.writeSSE({ data: JSON.stringify(log), event: 'log' });
+      await stream.writeSSE({ data: JSON.stringify(log), event: "log" });
     }
   });
 });
 
-app.get('/api/models/ollama', async (c) => {
+app.get("/api/models/ollama", async (c) => {
   const config = await loadConfig();
-  const url = c.req.query('url') || config.ollamaUrl;
+  const url = c.req.query("url") || config.ollamaUrl;
   try {
     const response = await fetch(`${url}/api/tags`);
-    if (!response.ok) throw new Error('Ollama not reachable');
+    if (!response.ok) throw new Error("Ollama not reachable");
     const data = await response.json();
     return c.json(data.models || []);
   } catch (err) {
-    return c.json({ error: 'Ollama not running or unreachable' }, 500);
+    return c.json({ error: "Ollama not running or unreachable" }, 500);
   }
 });
 
-app.post('/api/test/embedding', async (c) => {
+app.post("/api/test/embedding", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
     let manager = embeddingManager;
@@ -532,7 +587,7 @@ app.post('/api/test/embedding', async (c) => {
   }
 });
 
-app.post('/api/test/llm', async (c) => {
+app.post("/api/test/llm", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
     let manager = summarizerManager;
@@ -566,19 +621,19 @@ app.post('/api/test/llm', async (c) => {
   }
 });
 
-app.post('/api/test/summarize-file', async (c) => {
+app.post("/api/test/summarize-file", async (c) => {
   try {
-    let { folderPath, type = 'code', customPrompt } = await c.req.json();
-    if (!folderPath) return c.json({ error: 'Folder path required' }, 400);
+    let { folderPath, type = "code", customPrompt } = await c.req.json();
+    if (!folderPath) return c.json({ error: "Folder path required" }, 400);
 
     // Expand tilde
-    if (folderPath.startsWith('~/') || folderPath === '~') {
+    if (folderPath.startsWith("~/") || folderPath === "~") {
       folderPath = path.join(os.homedir(), folderPath.slice(1));
     }
 
-    const patterns = type === 'docs' 
-      ? ['**/*.md', '**/*.txt', 'README.md'] 
-      : ['**/*.ts', '**/*.js', '**/*.py', '**/*.go', '**/*.java', '**/*.cpp'];
+    const patterns = type === "docs" 
+      ? ["**/*.md", "**/*.txt", "README.md"] 
+      : ["**/*.ts", "**/*.js", "**/*.py", "**/*.go", "**/*.java", "**/*.cpp"];
     
     // Find a random file
     const absolutePath = path.resolve(folderPath);
@@ -590,20 +645,20 @@ app.post('/api/test/summarize-file', async (c) => {
     const files = await glob(patterns, { 
       cwd: absolutePath, 
       nodir: true, 
-      ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+      ignore: ["**/node_modules/**", "**/dist/**", "**/.git/**"],
       maxDepth: 5 
     });
 
     if (files.length === 0) {
       const allFiles = await fs.readdir(absolutePath);
-      logger.warn(`[Test] No matching files found in ${absolutePath}. Directory contains: ${allFiles.slice(0, 5).join(', ')}...`);
+      logger.warn(`[Test] No matching files found in ${absolutePath}. Directory contains: ${allFiles.slice(0, 5).join(", ")}...`);
       return c.json({ error: `No ${type} files (e.g. .ts, .js, .md) found in ${absolutePath}. Found: ${allFiles.length} items.` }, 404);
     }
 
     // Pick a random file
     const randomFile = files[Math.floor(Math.random() * files.length)];
     const filePath = path.join(absolutePath, randomFile);
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await fs.readFile(filePath, "utf-8");
 
     // If custom prompt provided, verify we can use it
     let templateName = undefined;
@@ -612,9 +667,9 @@ app.post('/api/test/summarize-file', async (c) => {
       // This is a bit of a hack: we save it as a special key 'test_custom'
       const config = await loadConfig();
       if (!config.prompts) config.prompts = {};
-      config.prompts['test_custom'] = customPrompt;
+      config.prompts["test_custom"] = customPrompt;
       await saveConfig(config);
-      templateName = 'test_custom';
+      templateName = "test_custom";
     }
 
     const summary = await summarizerManager.summarize(content.substring(0, 10000), {
@@ -625,7 +680,7 @@ app.post('/api/test/summarize-file', async (c) => {
 
     return c.json({
       file: randomFile,
-      content: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+      content: content.substring(0, 500) + (content.length > 500 ? "..." : ""),
       summary
     });
   } catch (err) {
@@ -634,25 +689,25 @@ app.post('/api/test/summarize-file', async (c) => {
   }
 });
 
-app.get('/api/debug/requests', async (c) => {
+app.get("/api/debug/requests", async (c) => {
   const { debugStore } = await import("./debug.js");
   return c.json(debugStore.getRequests());
 });
 
-app.delete('/api/debug/requests', async (c) => {
+app.delete("/api/debug/requests", async (c) => {
   const { debugStore } = await import("./debug.js");
   debugStore.clear();
   return c.json({ success: true });
 });
 
-app.get('/api/deps', async (c) => {
-  const filePath = c.req.query('filePath');
-  if (!filePath) return c.json({ error: 'filePath required' }, 400);
+app.get("/api/deps", async (c) => {
+  const filePath = c.req.query("filePath");
+  if (!filePath) return c.json({ error: "filePath required" }, 400);
   const deps = await getFileDependencies(path.resolve(filePath));
   return c.json(deps);
 });
 
-app.post('/api/search', async (c) => {
+app.post("/api/search", async (c) => {
   const {
     query,
     collection,
@@ -696,7 +751,7 @@ app.post('/api/search', async (c) => {
   return c.json(cleanedResults);
 });
 
-app.post('/api/search/summarize', async (c) => {
+app.post("/api/search/summarize", async (c) => {
   const { query, results } = await c.req.json();
   
   const context = results.slice(0, 5).map(r => 
@@ -707,10 +762,10 @@ app.post('/api/search/summarize', async (c) => {
   return c.json({ summary });
 });
 
-app.post('/api/prompts/generate', async (c) => {
+app.post("/api/prompts/generate", async (c) => {
   const { description, target } = await c.req.json();
   
-  const placeholders = target === 'doc' 
+  const placeholders = target === "doc" 
     ? `{{content}} - The documentation content
 {{fileName}} - The name of the file
 {{sectionName}} - The specific section name (if available)`
@@ -718,7 +773,7 @@ app.post('/api/prompts/generate', async (c) => {
 {{fileName}} - The name of the file
 {{projectName}} - The project name`;
 
-  const systemPrompt = `You are a prompt engineering expert for ${target === 'doc' ? 'documentation' : 'code'} analysis. 
+  const systemPrompt = `You are a prompt engineering expert for ${target === "doc" ? "documentation" : "code"} analysis. 
 The user wants a summarization prompt template for a tool called VibeScout.
 You must use these exact placeholders in your generated template:
 ${placeholders}
@@ -732,7 +787,7 @@ Return ONLY the prompt text, no preamble or explanation.`;
   return c.json({ prompt: generated });
 });
 
-app.post('/api/chat', async (c) => {
+app.post("/api/chat", async (c) => {
   const { query, collection, projectName, fileTypes, categories } = await c.req.json();
   const history = await getChatMessages();
   const response = await chatWithCode(query, collection, projectName, history, fileTypes, categories);
@@ -743,17 +798,17 @@ app.post('/api/chat', async (c) => {
   return c.json({ response });
 });
 
-app.get('/api/chat', async (c) => {
+app.get("/api/chat", async (c) => {
   const messages = await getChatMessages();
   return c.json(messages);
 });
 
-app.delete('/api/chat', async (c) => {
+app.delete("/api/chat", async (c) => {
   await clearChatMessages();
   return c.json({ success: true });
 });
 
-app.get('/api/stats', async (c) => {
+app.get("/api/stats", async (c) => {
   const kb = await listKnowledgeBase();
   const projectCount = Object.values(kb).reduce((acc, p) => acc + p.length, 0);
   return c.json({
@@ -763,94 +818,94 @@ app.get('/api/stats', async (c) => {
   });
 });
 
-app.get('/api/files/read', async (c) => {
-  const filePath = c.req.query('path');
-  if (!filePath) return c.json({ error: 'path required' }, 400);
+app.get("/api/files/read", async (c) => {
+  const filePath = c.req.query("path");
+  if (!filePath) return c.json({ error: "path required" }, 400);
 
   try {
-    const content = await fs.readFile(path.resolve(filePath), 'utf-8');
+    const content = await fs.readFile(path.resolve(filePath), "utf-8");
     return c.json({ content });
   } catch (err) {
-    return c.json({ error: 'Failed to read file' }, 500);
+    return c.json({ error: "Failed to read file" }, 500);
   }
 });
 
-app.post('/api/dependencies/batch', async (c) => {
+app.post("/api/dependencies/batch", async (c) => {
   const { filePaths } = await c.req.json();
-  if (!Array.isArray(filePaths)) return c.json({ error: 'filePaths must be an array' }, 400);
+  if (!Array.isArray(filePaths)) return c.json({ error: "filePaths must be an array" }, 400);
 
   try {
-    const { getBatchDependencies } = await import('./db.js');
+    const { getBatchDependencies } = await import("./db.js");
     const dependencies = await getBatchDependencies(filePaths);
     return c.json(dependencies);
   } catch (error) {
-    logger.error('[API] Error fetching batch dependencies:', error.message);
+    logger.error("[API] Error fetching batch dependencies:", error.message);
     return c.json({ error: error.message }, 500);
   }
 });
 
-app.post('/api/open', async (c) => {
+app.post("/api/open", async (c) => {
   const { filePath, line } = await c.req.json();
   await openFile(filePath, line);
   return c.json({ success: true });
 });
 
-app.get('/api/dialog/directory', async (c) => {
+app.get("/api/dialog/directory", async (c) => {
   const platform = process.platform;
-  const { exec } = await import('child_process');
-  const { promisify } = await import('util');
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
   const execAsync = promisify(exec);
 
   try {
-    if (platform === 'darwin') {
+    if (platform === "darwin") {
       // macOS AppleScript - returns POSIX path
-      const script = 'osascript -e "POSIX path of (choose folder with prompt \\"Select Project Folder\\")"';
+      const script = "osascript -e \"POSIX path of (choose folder with prompt \\\"Select Project Folder\\\")\"";
       const { stdout } = await execAsync(script);
       return c.json({ path: stdout.trim() });
-    } else if (platform === 'win32') {
+    } else if (platform === "win32") {
       // Windows PowerShell
-      const script = 'powershell -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; if($f.ShowDialog() -eq \\"OK\\"){ $f.SelectedPath }"';
+      const script = "powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; if($f.ShowDialog() -eq \\\"OK\\\"){ $f.SelectedPath }\"";
       const { stdout } = await execAsync(script);
       return c.json({ path: stdout.trim() });
     }
     
-    return c.json({ error: 'Unsupported platform for native dialog' }, 400);
+    return c.json({ error: "Unsupported platform for native dialog" }, 400);
   } catch (err) {
     // Check if user cancelled (usually non-zero exit code)
-    if (err.message?.includes('User canceled')) {
+    if (err.message?.includes("User canceled")) {
       return c.json({ path: null });
     }
     logger.error(`Dialog error: ${err.message}`);
-    return c.json({ error: 'Failed to open dialog or cancelled' }, 500);
+    return c.json({ error: "Failed to open dialog or cancelled" }, 500);
   }
 });
 
-app.get('/api/fs/home', (c) => {
+app.get("/api/fs/home", (c) => {
   return c.json({ path: os.homedir() });
 });
 
-app.get('/api/fs/ls', async (c) => {
-  const root = c.req.query('path');
-  if (!root) return c.json({ error: 'path required' }, 400);
+app.get("/api/fs/ls", async (c) => {
+  const root = c.req.query("path");
+  if (!root) return c.json({ error: "path required" }, 400);
 
   try {
     const entries = await fs.readdir(root, { withFileTypes: true });
     const dirs = entries
-      .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+      .filter(e => e.isDirectory() && !e.name.startsWith("."))
       .map(e => e.name)
       .sort();
     return c.json(dirs);
   } catch (err) {
-    return c.json({ error: 'Failed to read directory' }, 500);
+    return c.json({ error: "Failed to read directory" }, 500);
   }
 });
 
-app.get('/api/config', async (c) => {
+app.get("/api/config", async (c) => {
   const config = await loadConfig();
   return c.json(config);
 });
 
-app.post('/api/config', async (c) => {
+app.post("/api/config", async (c) => {
   const newConfig = await c.req.json();
   await saveConfig(newConfig);
 
@@ -882,8 +937,8 @@ app.post('/api/config', async (c) => {
     awsProfile: newConfig.awsProfile
   };
 
-        await embeddingManager.setProvider(providerConfig, newConfig.throttlingErrors);
-        await summarizerManager.setProvider(llmConfig, newConfig.throttlingErrors);
+  await embeddingManager.setProvider(providerConfig, newConfig.throttlingErrors);
+  await summarizerManager.setProvider(llmConfig, newConfig.throttlingErrors);
   await initDB({
     type: newConfig.dbProvider || "local",
     accountId: newConfig.cloudflareAccountId,
@@ -900,14 +955,14 @@ app.post('/api/config', async (c) => {
 // ============================================================================
 
 // Start profiling session
-app.post('/api/profiling/start', async (c) => {
+app.post("/api/profiling/start", async (c) => {
   try {
     const { samplingRate, categories } = await c.req.json();
 
-    const { startProfiling } = await import('./profiler-api.js');
+    const { startProfiling } = await import("./profiler-api.js");
     startProfiling(samplingRate || 1.0, categories);
 
-    return c.json({ success: true, message: 'Profiling started' });
+    return c.json({ success: true, message: "Profiling started" });
   } catch (error) {
     logger.error(`[Profiling] Failed to start: ${error.message}`);
     return c.json({ success: false, error: error.message }, 500);
@@ -915,13 +970,13 @@ app.post('/api/profiling/start', async (c) => {
 });
 
 // Stop profiling and get trace
-app.post('/api/profiling/stop', async (c) => {
+app.post("/api/profiling/stop", async (c) => {
   try {
-    const { stopProfiling } = await import('./profiler-api.js');
+    const { stopProfiling } = await import("./profiler-api.js");
     const traceInfo = await stopProfiling();
 
     if (!traceInfo) {
-      return c.json({ success: false, error: 'No profiling data collected' }, 400);
+      return c.json({ success: false, error: "No profiling data collected" }, 400);
     }
 
     return c.json({
@@ -933,7 +988,7 @@ app.post('/api/profiling/stop', async (c) => {
         startTime: traceInfo.startTime,
         endTime: traceInfo.endTime
       },
-      message: 'Profiling stopped'
+      message: "Profiling stopped"
     });
   } catch (error) {
     logger.error(`[Profiling] Failed to stop: ${error.message}`);
@@ -942,9 +997,9 @@ app.post('/api/profiling/stop', async (c) => {
 });
 
 // Check profiling status
-app.get('/api/profiling/status', async (c) => {
+app.get("/api/profiling/status", async (c) => {
   try {
-    const { isProfilerEnabled, getProfilerStats } = await import('./profiler-api.js');
+    const { isProfilerEnabled, getProfilerStats } = await import("./profiler-api.js");
     const enabled = isProfilerEnabled();
     const stats = getProfilerStats();
 
@@ -959,20 +1014,20 @@ app.get('/api/profiling/status', async (c) => {
 });
 
 // Download trace file
-app.get('/api/profiling/download', async (c) => {
+app.get("/api/profiling/download", async (c) => {
   try {
-    const id = c.req.query('id');
+    const id = c.req.query("id");
     if (!id) {
-      return c.json({ error: 'Trace file ID required' }, 400);
+      return c.json({ error: "Trace file ID required" }, 400);
     }
 
-    const tracePath = path.join(os.homedir(), '.vibescout', 'profiles', `${id}.json`);
+    const tracePath = path.join(os.homedir(), ".vibescout", "profiles", `${id}.json`);
 
     if (!await fs.pathExists(tracePath)) {
-      return c.json({ error: 'Trace file not found' }, 404);
+      return c.json({ error: "Trace file not found" }, 404);
     }
 
-    const traceContent = await fs.readFile(tracePath, 'utf-8');
+    const traceContent = await fs.readFile(tracePath, "utf-8");
     return c.json(JSON.parse(traceContent));
   } catch (error) {
     logger.error(`[Profiling] Failed to download trace: ${error.message}`);
@@ -981,9 +1036,9 @@ app.get('/api/profiling/download', async (c) => {
 });
 
 // List available trace files
-app.get('/api/profiling/traces', async (c) => {
+app.get("/api/profiling/traces", async (c) => {
   try {
-    const profilesDir = path.join(os.homedir(), '.vibescout', 'profiles');
+    const profilesDir = path.join(os.homedir(), ".vibescout", "profiles");
 
     if (!await fs.pathExists(profilesDir)) {
       return c.json({ traces: [] });
@@ -993,18 +1048,18 @@ app.get('/api/profiling/traces', async (c) => {
     const traces = [];
 
     for (const file of files) {
-      if (file.endsWith('.json')) {
+      if (file.endsWith(".json")) {
         const filePath = path.join(profilesDir, file);
         const stats = await fs.stat(filePath);
 
         // Read the trace file to get metadata
         try {
-          const content = await fs.readFile(filePath, 'utf-8');
+          const content = await fs.readFile(filePath, "utf-8");
           const trace = JSON.parse(content);
 
           traces.push({
             filename: file,
-            id: file.replace('.json', ''),
+            id: file.replace(".json", ""),
             size: stats.size,
             created: stats.mtime,
             eventCount: trace.metadata?.eventCount || 0,
@@ -1033,9 +1088,9 @@ app.get('/api/profiling/traces', async (c) => {
 // ============================================================================
 
 // List available provider plugins
-app.get('/api/plugins/providers', async (c) => {
+app.get("/api/plugins/providers", async (c) => {
   const registry = getRegistry();
-  const plugins = registry.getProvidersByType('llm');
+  const plugins = registry.getProvidersByType("llm");
 
   return c.json({
     plugins: plugins.map(p => ({
@@ -1048,30 +1103,30 @@ app.get('/api/plugins/providers', async (c) => {
 });
 
 // Get plugin config schema
-app.get('/api/plugins/providers/:name/schema', async (c) => {
+app.get("/api/plugins/providers/:name/schema", async (c) => {
   const registry = getRegistry();
-  const pluginName = c.req.param('name');
-  const plugin = registry.getProvider(pluginName, 'llm');
+  const pluginName = c.req.param("name");
+  const plugin = registry.getProvider(pluginName, "llm");
 
   if (!plugin) {
-    return c.json({ error: 'Plugin not found' }, 404);
+    return c.json({ error: "Plugin not found" }, 404);
   }
 
   return c.json(plugin.configSchema || { fields: [] });
 });
 
 // Test plugin connection
-app.post('/api/plugins/providers/:name/test', async (c) => {
+app.post("/api/plugins/providers/:name/test", async (c) => {
   const registry = getRegistry();
-  const pluginName = c.req.param('name');
-  const plugin = registry.getProvider(pluginName, 'llm');
+  const pluginName = c.req.param("name");
+  const plugin = registry.getProvider(pluginName, "llm");
 
   if (!plugin) {
-    return c.json({ error: 'Plugin not found' }, 404);
+    return c.json({ error: "Plugin not found" }, 404);
   }
 
   if (!plugin.testConnection) {
-    return c.json({ error: 'Test not supported by this plugin' }, 400);
+    return c.json({ error: "Test not supported by this plugin" }, 400);
   }
 
   try {
@@ -1080,22 +1135,22 @@ app.post('/api/plugins/providers/:name/test', async (c) => {
     return c.json({ success: true });
   } catch (error) {
     logger.error(`[PluginAPI] Connection test failed for ${pluginName}:`, error);
-    return c.json({ error: error.message || 'Connection test failed' }, 400);
+    return c.json({ error: error.message || "Connection test failed" }, 400);
   }
 });
 
-app.get('/api/watchers', async (c) => {
+app.get("/api/watchers", async (c) => {
   const watchers = await getWatchList();
   return c.json(watchers);
 });
 
-app.post('/api/watchers', async (c) => {
+app.post("/api/watchers", async (c) => {
   const { folderPath, projectName, collection } = await c.req.json();
   await watchProject(folderPath, projectName, collection);
   return c.json({ success: true });
 });
 
-app.put('/api/watchers/update', async (c) => {
+app.put("/api/watchers/update", async (c) => {
   const { folderpath, newPath, collection } = await c.req.json();
 
   try {
@@ -1105,7 +1160,7 @@ app.put('/api/watchers/update', async (c) => {
     const watcherIndex = watchersList.findIndex(w => w.folderPath === folderpath);
 
     if (watcherIndex === -1) {
-      return c.json({ error: 'Watcher not found' }, 404);
+      return c.json({ error: "Watcher not found" }, 404);
     }
 
     const watcher = watchersList[watcherIndex];
@@ -1123,12 +1178,12 @@ app.put('/api/watchers/update', async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
-    logger.error('[API] Error updating watcher:', error.message);
+    logger.error("[API] Error updating watcher:", error.message);
     return c.json({ error: error.message }, 500);
   }
 });
 
-app.delete('/api/watchers/all', async (c) => {
+app.delete("/api/watchers/all", async (c) => {
   const watchersList = await getWatchList();
   for (const w of watchersList) {
     await unwatchProject(w.folderPath, w.projectName);
@@ -1136,10 +1191,10 @@ app.delete('/api/watchers/all', async (c) => {
   return c.json({ success: true });
 });
 
-app.delete('/api/watchers', async (c) => {
-  const folderPath = c.req.query('folderPath');
-  const projectName = c.req.query('projectName');
-  if (!folderPath) return c.json({ error: 'folderPath required' }, 400);
+app.delete("/api/watchers", async (c) => {
+  const folderPath = c.req.query("folderPath");
+  const projectName = c.req.query("projectName");
+  if (!folderPath) return c.json({ error: "folderPath required" }, 400);
   await unwatchProject(folderPath, projectName);
   return c.json({ success: true });
 });
@@ -1147,13 +1202,13 @@ app.delete('/api/watchers', async (c) => {
 // Helper function to match static imports (relative paths) to absolute file paths
 function matchImportToFile(importSource, targetFilePath) {
   // Normalize the import source (remove './' and '../')
-  const normalizedImport = importSource.replace(/^\.\.?\//g, '');
+  const normalizedImport = importSource.replace(/^\.\.?\//g, "");
 
   // Split into segments
-  const importSegments = normalizedImport.split('/').filter(s => s);
+  const importSegments = normalizedImport.split("/").filter(s => s);
 
   // Common extensions to try
-  const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '.dart', '.java', '.kt', '.go', '.py'];
+  const extensions = ["", ".ts", ".tsx", ".js", ".jsx", ".dart", ".java", ".kt", ".go", ".py"];
 
   // Check if file path ends with the import pattern
   for (const ext of extensions) {
@@ -1162,11 +1217,11 @@ function matchImportToFile(importSource, targetFilePath) {
 
     // Also check for barrel imports (index files)
     const barrelPaths = [
-      normalizedImport + '/index' + ext,
-      normalizedImport + '/index.ts',
-      normalizedImport + '/index.tsx',
-      normalizedImport + '/index.js',
-      normalizedImport + '/index.jsx'
+      normalizedImport + "/index" + ext,
+      normalizedImport + "/index.ts",
+      normalizedImport + "/index.tsx",
+      normalizedImport + "/index.js",
+      normalizedImport + "/index.jsx"
     ];
 
     for (const barrel of barrelPaths) {
@@ -1175,11 +1230,11 @@ function matchImportToFile(importSource, targetFilePath) {
   }
 
   // Fallback: check if path segments match
-  const fileSegments = targetFilePath.split('/').filter(s => s);
+  const fileSegments = targetFilePath.split("/").filter(s => s);
   if (importSegments.length > fileSegments.length) return false;
 
   // Check if the last N segments match (allowing for extension differences)
-  const fileBasename = fileSegments[fileSegments.length - 1].replace(/\.[^.]+$/, ''); // remove extension
+  const fileBasename = fileSegments[fileSegments.length - 1].replace(/\.[^.]+$/, ""); // remove extension
   const importBasename = importSegments[importSegments.length - 1];
 
   if (fileBasename === importBasename) {
@@ -1201,11 +1256,11 @@ function matchImportToFile(importSource, targetFilePath) {
 function resolveRuntimePath(runtimePath, deps) {
   // runtimePath: "controllers.User" or "integrations.stripe.webhooks.Handler"
   // Convert dot notation to file path
-  const segments = runtimePath.split('.');
-  const directPath = segments.join('/');      // "controllers/User"
-  const indexPath = directPath + '/index';    // "controllers/User/index"
+  const segments = runtimePath.split(".");
+  const directPath = segments.join("/");      // "controllers/User"
+  const indexPath = directPath + "/index";    // "controllers/User/index"
 
-  const extensions = ['.js', '.ts', '.jsx', '.tsx'];  // JavaScript only
+  const extensions = [".js", ".ts", ".jsx", ".tsx"];  // JavaScript only
 
   // Try both direct file and index file
   for (const variation of [directPath, indexPath]) {
@@ -1216,7 +1271,7 @@ function resolveRuntimePath(runtimePath, deps) {
       const match = deps.find(d => {
         if (!d.filepath) return false; // Skip records with undefined filepath
         // Check if file path ends with X/Y/Z.ext
-        return d.filepath.endsWith('/' + testPath) || d.filepath.endsWith(testPath);
+        return d.filepath.endsWith("/" + testPath) || d.filepath.endsWith(testPath);
       });
 
       if (match) return match.filepath;
@@ -1227,7 +1282,7 @@ function resolveRuntimePath(runtimePath, deps) {
 }
 
 // Plugin Management API
-app.get('/api/plugins', async (c) => {
+app.get("/api/plugins", async (c) => {
   try {
     const plugins = await discoverPlugins();
     const registry = getRegistry();
@@ -1253,20 +1308,20 @@ app.get('/api/plugins', async (c) => {
 
     return c.json(enrichedPlugins);
   } catch (error) {
-    logger.error('[Plugin API] Error listing plugins:', error.message);
+    logger.error("[Plugin API] Error listing plugins:", error.message);
     return c.json({ error: error.message }, 500);
   }
 });
 
-app.get('/api/plugins/:name', async (c) => {
-  const name = c.req.param('name');
+app.get("/api/plugins/:name", async (c) => {
+  const name = c.req.param("name");
 
   try {
     const plugins = await discoverPlugins();
     const plugin = plugins.find(p => p.name === name);
 
     if (!plugin) {
-      return c.json({ error: 'Plugin not found' }, 404);
+      return c.json({ error: "Plugin not found" }, 404);
     }
 
     const registry = getRegistry();
@@ -1287,8 +1342,8 @@ app.get('/api/plugins/:name', async (c) => {
   }
 });
 
-app.post('/api/plugins/:name/enable', async (c) => {
-  const name = c.req.param('name');
+app.post("/api/plugins/:name/enable", async (c) => {
+  const name = c.req.param("name");
 
   try {
     const config = await loadConfig();
@@ -1314,8 +1369,8 @@ app.post('/api/plugins/:name/enable', async (c) => {
   }
 });
 
-app.post('/api/plugins/:name/disable', async (c) => {
-  const name = c.req.param('name');
+app.post("/api/plugins/:name/disable", async (c) => {
+  const name = c.req.param("name");
 
   try {
     const config = await loadConfig();
@@ -1343,30 +1398,30 @@ app.post('/api/plugins/:name/disable', async (c) => {
   }
 });
 
-app.post('/api/plugins/install', async (c) => {
-  const contentType = c.req.header('content-type');
+app.post("/api/plugins/install", async (c) => {
+  const contentType = c.req.header("content-type");
 
   // Handle file upload (ZIP)
-  if (contentType?.includes('multipart/form-data')) {
+  if (contentType?.includes("multipart/form-data")) {
     try {
       const formData = await c.req.formData();
-      const file = formData.get('file');
+      const file = formData.get("file");
 
       if (!file) {
-        return c.json({ error: 'No file uploaded' }, 400);
+        return c.json({ error: "No file uploaded" }, 400);
       }
 
-      const { getPluginsDir, ensurePluginsDir } = await import('./plugins/loader.js');
+      const { getPluginsDir, ensurePluginsDir } = await import("./plugins/loader.js");
       await ensurePluginsDir();
       const pluginsDir = getPluginsDir();
 
       // Extract ZIP
-      const AdmZip = (await import('adm-zip')).default;
+      const AdmZip = (await import("adm-zip")).default;
       const buffer = Buffer.from(await file.arrayBuffer());
       const zip = new AdmZip(buffer);
 
       // Create plugin directory from file name
-      const pluginName = file.name.replace('.zip', '');
+      const pluginName = file.name.replace(".zip", "");
       const pluginPath = path.join(pluginsDir, pluginName);
 
       await fs.ensureDir(pluginPath);
@@ -1379,37 +1434,37 @@ app.post('/api/plugins/install', async (c) => {
         message: `Plugin ${pluginName} installed successfully from ZIP`
       });
     } catch (error) {
-      logger.error('[Plugin API] Error installing plugin from ZIP:', error.message);
+      logger.error("[Plugin API] Error installing plugin from ZIP:", error.message);
       return c.json({ error: error.message }, 500);
     }
   }
 
   // Handle JSON payload (npm or GitHub)
-  const { name, version = 'latest', url, source = 'npm' } = await c.req.json();
+  const { name, version = "latest", url, source = "npm" } = await c.req.json();
 
-  if (source === 'npm' && !name) {
-    return c.json({ error: 'Plugin name required for npm installation' }, 400);
+  if (source === "npm" && !name) {
+    return c.json({ error: "Plugin name required for npm installation" }, 400);
   }
-  if (source === 'github' && !url) {
-    return c.json({ error: 'GitHub URL required for GitHub installation' }, 400);
+  if (source === "github" && !url) {
+    return c.json({ error: "GitHub URL required for GitHub installation" }, 400);
   }
 
   try {
-    const { exec } = await import('child_process');
-    const util = await import('util');
+    const { exec } = await import("child_process");
+    const util = await import("util");
     const execAsync = util.promisify(exec);
-    const { getPluginsDir, ensurePluginsDir } = await import('./plugins/loader.js');
+    const { getPluginsDir, ensurePluginsDir } = await import("./plugins/loader.js");
 
     await ensurePluginsDir();
     const pluginsDir = getPluginsDir();
 
-    if (source === 'npm') {
+    if (source === "npm") {
       // Install from npm
-      const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
-      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      const pluginName = name.startsWith("vibescout-plugin-") ? name : `vibescout-plugin-${name}`;
+      const cmd = process.platform === "win32" ? "npm.cmd" : "npm";
 
       // Build install command with version
-      const versionSuffix = version && version !== 'latest' ? `@${version}` : '';
+      const versionSuffix = version && version !== "latest" ? `@${version}` : "";
       const { stdout, stderr } = await execAsync(`${cmd} install -g ${pluginName}${versionSuffix}`);
 
       logger.info(`[Plugin API] Installed ${pluginName}${versionSuffix} from npm:`, stdout);
@@ -1419,15 +1474,15 @@ app.post('/api/plugins/install', async (c) => {
         message: `Plugin ${pluginName}${versionSuffix} installed successfully`,
         output: stdout
       });
-    } else if (source === 'github') {
+    } else if (source === "github") {
       // Parse GitHub URL
       const urlMatch = url.match(/github\.com\/([^\/]+)\/([^\/\.]+)/);
       if (!urlMatch) {
-        return c.json({ error: 'Invalid GitHub URL. Expected: https://github.com/user/repo' }, 400);
+        return c.json({ error: "Invalid GitHub URL. Expected: https://github.com/user/repo" }, 400);
       }
 
       const [, owner, repo] = urlMatch;
-      const pluginName = repo.startsWith('vibescout-plugin-') ? repo : `vibescout-plugin-${repo}`;
+      const pluginName = repo.startsWith("vibescout-plugin-") ? repo : `vibescout-plugin-${repo}`;
       const cloneUrl = `https://github.com/${owner}/${repo}.git`;
       const pluginPath = path.join(pluginsDir, pluginName);
 
@@ -1445,7 +1500,7 @@ app.post('/api/plugins/install', async (c) => {
       return c.json({ error: `Unknown installation source: ${source}` }, 400);
     }
   } catch (error) {
-    logger.error(`[Plugin API] Error installing plugin:`, error.message);
+    logger.error("[Plugin API] Error installing plugin:", error.message);
     return c.json({
       error: error.message,
       output: error.stdout || error.stderr
@@ -1453,16 +1508,16 @@ app.post('/api/plugins/install', async (c) => {
   }
 });
 
-app.delete('/api/plugins/:name', async (c) => {
-  const name = c.req.param('name');
+app.delete("/api/plugins/:name", async (c) => {
+  const name = c.req.param("name");
 
   try {
-    const { exec } = await import('child_process');
-    const util = await import('util');
+    const { exec } = await import("child_process");
+    const util = await import("util");
     const execAsync = util.promisify(exec);
 
-    const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
-    const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const pluginName = name.startsWith("vibescout-plugin-") ? name : `vibescout-plugin-${name}`;
+    const cmd = process.platform === "win32" ? "npm.cmd" : "npm";
     const { stdout, stderr } = await execAsync(`${cmd} uninstall -g ${pluginName}`);
 
     logger.info(`[Plugin API] Uninstalled ${pluginName}:`, stdout);
@@ -1488,10 +1543,10 @@ app.delete('/api/plugins/:name', async (c) => {
   }
 });
 
-app.get('/api/plugins/dir/info', async (c) => {
+app.get("/api/plugins/dir/info", async (c) => {
   try {
     const pluginsDir = getPluginsDir();
-    const { stat } = await import('fs-extra');
+    const { stat } = await import("fs-extra");
 
     const dirExists = await stat(pluginsDir).then(() => true).catch(() => false);
 
@@ -1504,13 +1559,13 @@ app.get('/api/plugins/dir/info', async (c) => {
   }
 });
 
-app.post('/api/plugins/dir/create', async (c) => {
+app.post("/api/plugins/dir/create", async (c) => {
   try {
     await ensurePluginsDir();
     const pluginsDir = getPluginsDir();
     return c.json({
       success: true,
-      message: 'Plugins directory created',
+      message: "Plugins directory created",
       path: pluginsDir
     });
   } catch (error) {
@@ -1518,7 +1573,7 @@ app.post('/api/plugins/dir/create', async (c) => {
   }
 });
 
-app.get('/api/graph', async (c) => {
+app.get("/api/graph", async (c) => {
   const rawDeps = await getAllDependencies();
   const nodes = [];
   const links = [];
@@ -1574,7 +1629,7 @@ app.get('/api/graph', async (c) => {
       let target;
 
       // Check if this is a runtime dependency (dot notation without ./ or ../)
-      if (imp.runtime || (!imp.source.startsWith('.') && !imp.source.startsWith('/'))) {
+      if (imp.runtime || (!imp.source.startsWith(".") && !imp.source.startsWith("/"))) {
         // Runtime dependency - resolve dot notation to file path
         const targetPath = resolveRuntimePath(imp.source, deps);
         target = targetPath ? deps.find(other => other.filepath === targetPath) : null;
@@ -1595,7 +1650,7 @@ app.get('/api/graph', async (c) => {
           links.push({
             source: d.filepath,
             target: target.filepath,
-            type: imp.runtime ? 'runtime' : 'static'  // Optional: for styling
+            type: imp.runtime ? "runtime" : "static"  // Optional: for styling
           });
         }
       }

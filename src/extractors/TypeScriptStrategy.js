@@ -119,10 +119,10 @@ export const TypeScriptStrategy = {
         const fullText = node.text;
 
         // Only process if this starts with 'app.' and has at least 3 parts (app.X.Y)
-        if (fullText.startsWith('app.')) {
+        if (fullText.startsWith("app.")) {
           // Skip if parent is also a member_expression starting with 'app.' (avoid duplicates from nested nodes)
           const parent = node.parent;
-          if (parent && parent.type === "member_expression" && parent.text.startsWith('app.')) {
+          if (parent && parent.type === "member_expression" && parent.text.startsWith("app.")) {
             // Skip this node, let the parent handle it
             for (let i = 0; i < node.childCount; i++) traverse(node.child(i));
             return;
@@ -130,14 +130,14 @@ export const TypeScriptStrategy = {
 
           // Match: app.X.Y.Z where we extract everything after 'app.'
           const pathAfterApp = fullText.slice(4); // Remove 'app.'
-          const segments = pathAfterApp.split('.');
+          const segments = pathAfterApp.split(".");
 
           // We need at least 3 segments total: X.Y.method (e.g., controllers.User.getUserById)
           if (segments.length >= 3) {
             // Module path: all segments except the last one (which is the method/symbol)
             // For app.controllers.User.getUserById: controllers.User
             // For app.integrations.stripe.webhooks.Handler.process: integrations.stripe.webhooks.Handler
-            const modulePath = segments.slice(0, -1).join('.');
+            const modulePath = segments.slice(0, -1).join(".");
             const symbol = segments[segments.length - 1];
 
             // Add to imports with symbol tracking (deduplicate)

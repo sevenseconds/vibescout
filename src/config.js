@@ -131,19 +131,27 @@ const DEFAULT_CONFIG = {
     }
   },
 
+  // Task queue configuration
+  queue: {
+    maxConcurrentIndexingTasks: 2,  // Max concurrent indexing operations (multiple projects)
+    maxFileWorkers: 16,              // Workers per indexing operation
+    maxRetries: 3,                   // Auto-retry attempts for failed files
+    retryDelay: 1000                 // Initial retry delay in milliseconds (exponential backoff)
+  },
+
   prompts: {
     summarizeTemplates: [
-      { id: 'default', name: 'Architect Summary', text: "Act as a Senior Software Architect. Analyze the following code and provide: 1. A high-level overview of the purpose. 2. Key logic flow. 3. Potential edge cases or security risks. \n\nFile: {{fileName}}\nProject: {{projectName}}\n\nHere is the code:\n{{code}}" },
-      { id: 'detailed', name: 'Detailed Analysis', text: "Provide a detailed technical analysis of this code, focusing on its role in the system and potential edge cases.\n\nFile: {{fileName}}\nProject: {{projectName}}\n\nCode:\n{{code}}" }
+      { id: "default", name: "Architect Summary", text: "Act as a Senior Software Architect. Analyze the following code and provide: 1. A high-level overview of the purpose. 2. Key logic flow. 3. Potential edge cases or security risks. \n\nFile: {{fileName}}\nProject: {{projectName}}\n\nHere is the code:\n{{code}}" },
+      { id: "detailed", name: "Detailed Analysis", text: "Provide a detailed technical analysis of this code, focusing on its role in the system and potential edge cases.\n\nFile: {{fileName}}\nProject: {{projectName}}\n\nCode:\n{{code}}" }
     ],
-    activeSummarizeId: 'default',
+    activeSummarizeId: "default",
     chunkSummarize: "Summarize this specific logic block within a function. Focus on what this part specifically achieves.\n\nFile: {{fileName}}\nContext: {{parentName}}\n\nCode:\n{{code}}",
     // Documentation templates for markdown files
     docSummarizeTemplates: [
-      { id: 'default', name: 'Concise Summary', text: "Summarize this documentation section concisely in 1-2 sentences. Focus on: What topic does this cover? What are the key points or instructions?\n\nFile: {{fileName}}\nSection: {{sectionName}}\n\nContent:\n{{content}}" },
-      { id: 'detailed', name: 'Detailed Analysis', text: "Provide a detailed analysis of this documentation section. Cover: 1. The main topic and purpose. 2. Key information and instructions. 3. Any important notes or warnings.\n\nFile: {{fileName}}\nSection: {{sectionName}}\n\nContent:\n{{content}}" }
+      { id: "default", name: "Concise Summary", text: "Summarize this documentation section concisely in 1-2 sentences. Focus on: What topic does this cover? What are the key points or instructions?\n\nFile: {{fileName}}\nSection: {{sectionName}}\n\nContent:\n{{content}}" },
+      { id: "detailed", name: "Detailed Analysis", text: "Provide a detailed analysis of this documentation section. Cover: 1. The main topic and purpose. 2. Key information and instructions. 3. Any important notes or warnings.\n\nFile: {{fileName}}\nSection: {{sectionName}}\n\nContent:\n{{content}}" }
     ],
-    activeDocSummarizeId: 'default',
+    activeDocSummarizeId: "default",
     bestQuestion: "I have searched my codebase for \"{{query}}\". \nBased on the code snippets found below, what is the most insightful and technically accurate question I should ask a chat assistant to understand how this specific logic is implemented and how it relates to my query?\n\nProvide only the question text, no preamble.\n\nContext:\n{{context}}",
     // Chat response prompt for code assistant
     chatResponse: "You are an expert code assistant helping a developer understand their codebase. Use the provided code context and conversation history to answer questions accurately and concisely.\n\nConversation History:\n{{history}}\n\nRelevant Code Context:\n{{context}}\n\nUser Question: {{query}}\n\nProvide a helpful, technically accurate answer. If the context doesn't contain enough information, say so. Use code examples when helpful."
@@ -169,7 +177,7 @@ export async function loadConfig() {
 
       // Sanitize: Ensure .svg is not in web extensions (fix for legacy configs)
       if (config.fileTypes?.web?.extensions) {
-        config.fileTypes.web.extensions = config.fileTypes.web.extensions.filter(ext => ext !== '.svg');
+        config.fileTypes.web.extensions = config.fileTypes.web.extensions.filter(ext => ext !== ".svg");
       }
 
       return config;

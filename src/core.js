@@ -46,7 +46,7 @@ async function getFileTypeConfig(filePath) {
           }
         } else {
           // Full filename match (e.g., package-lock.json)
-          if (filePath.endsWith('/' + ext) || filePath.endsWith('//' + ext) || filePath === ext) {
+          if (filePath.endsWith("/" + ext) || filePath.endsWith("//" + ext) || filePath === ext) {
             return { typeName, ...typeConfig };
           }
         }
@@ -93,7 +93,19 @@ async function getIgnoreFilter(folderPath) {
 
   const patterns = [...defaultPatterns];
 
-  const ignoreFiles = [".gitignore", ".vibeignore"];
+  const ignoreFiles = [
+    // Standard version control
+    ".gitignore",
+    // VibeScout specific
+    ".vibeignore",
+    ".vibescoutignore",
+    // AI editor ignore files
+    ".cursorignore",
+    ".cursorindexingignore",
+    ".copilotignore",
+    ".geminiignore",
+    ".aicodeignore"
+  ];
   for (const file of ignoreFiles) {
     const filePath = path.join(folderPath, file);
     if (await fs.pathExists(filePath)) {
@@ -178,15 +190,15 @@ export function pauseIndexing(paused) {
  * @param {boolean} background - If true, return immediately and index in background
  * @param {boolean} force - If true, clear existing index and re-scan everything
  */
-export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false, force = false) {
-  profileStart('index_folder', { folderPath, projectName, collection });
+export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false, force = false, task = null) {
+  profileStart("index_folder", { folderPath, projectName, collection });
 
   const config = await loadConfig();
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
 
   if (indexingProgress.active) {
-    profileEnd('index_folder', { status: 'error', error: 'Already indexing' });
+    profileEnd("index_folder", { status: "error", error: "Already indexing" });
     return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
   }
 
@@ -246,7 +258,15 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   isShuttingDown = false;
   isPaused = false;
 
-  // Update progress state
+  // Update progress state (use task if provided, otherwise use global indexingProgress)
+  if (task) {
+    task.progress.totalFiles = filesOnDisk.length;
+    task.progress.processedFiles = 0;
+    task.progress.failedFiles = 0;
+    task.failedPaths = [];
+    task.projectName = derivedProjectName;
+  }
+
   indexingProgress = {
     active: true,
     projectName: derivedProjectName,
@@ -308,9 +328,21 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 
       const processFile = async (file, attempt = 1) => {
         if (isShuttingDown) return;
+        if (task && task.cancelRequested) {
+          logger.info(`[Indexing] Task cancellation detected: ${task.id}`);
+          indexingProgress.active = false;
+          indexingProgress.status = "cancelled";
+          return;
+        }
 
         // Wait if paused
         while (isPaused && !isShuttingDown) {
+          if (task && task.cancelRequested) {
+            logger.info(`[Indexing] Task cancellation detected during pause: ${task.id}`);
+            indexingProgress.active = false;
+            indexingProgress.status = "cancelled";
+            return;
+          }
           await new Promise(r => setTimeout(r, 500));
         }
 
@@ -328,6 +360,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
             skipped++;
             indexingProgress.skippedFiles++;
             indexingProgress.processedFiles++;
+            if (task) task.progress.processedFiles++;
 
             // Remove from currentFiles and add to completed
             indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
@@ -401,9 +434,9 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                     ? await summarizerManager.summarize(block.content, {
                       fileName: file,
                       projectName: derivedProjectName,
-                      type: 'chunk',
+                      type: "chunk",
                       parentName: block.parentName,
-                      promptTemplate: fileTypeConfig.promptTemplate || 'summarize'
+                      promptTemplate: fileTypeConfig.promptTemplate || "summarize"
                     })
                     : parentSummaries.get(block.name) || "";
                 } catch (summaryErr) {
@@ -413,17 +446,17 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
               }
 
               const contextPrefix = summary ? `Context: ${summary}\n\n` : "";
-              const fileNameForEmbed = (config.embedFilePath === 'name') ? path.basename(file) : file;
+              const fileNameForEmbed = (config.embedFilePath === "name") ? path.basename(file) : file;
 
               // Get git info for this file (lookup by absolute path)
               const gitInfo = gitInfoMap.get(filePath);
 
               // Build git context for embedding (if enabled)
-              let gitContext = '';
+              let gitContext = "";
               if (gitInfo && gitConfig.embedInVector) {
-                const dateText = new Date(gitInfo.date).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short'
+                const dateText = new Date(gitInfo.date).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short"
                 });
                 gitContext = `Last Modified: ${dateText} by ${gitInfo.author}\nChurn: ${gitInfo.churnLevel}\n`;
               }
@@ -436,7 +469,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 projectname: derivedProjectName,
                 name: block.name,
                 type: block.type,
-                category: block.category || (file.endsWith('.md') ? 'documentation' : 'code'),
+                category: block.category || (file.endsWith(".md") ? "documentation" : "code"),
                 filepath: filePath,
                 startline: block.startLine,
                 endline: block.endLine,
@@ -451,7 +484,10 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
                 last_commit_hash: gitInfo?.hash,
                 last_commit_message: gitInfo?.message,
                 commit_count_6m: gitInfo?.commitCount6m,
-                churn_level: gitInfo?.churnLevel
+                churn_level: gitInfo?.churnLevel,
+
+                // Add file hash for change detection
+                file_hash: hash
               });
             }
 
@@ -475,6 +511,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           }
           hashUpdates.push({ filePath, hash });
           indexingProgress.processedFiles++;
+          if (task) task.progress.processedFiles++;
 
           // Remove from currentFiles and add to completed
           indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
@@ -496,6 +533,11 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
           indexingProgress.processedFiles++;
           indexingProgress.failedPaths.push(filePath);
           indexingProgress.lastError = err.message;
+          if (task) {
+            task.progress.failedFiles++;
+            task.progress.processedFiles++;
+            task.failedPaths.push(filePath);
+          }
 
           // Remove from currentFiles and add to completed as failed
           indexingProgress.currentFiles = indexingProgress.currentFiles.filter(f => f !== file);
@@ -512,22 +554,23 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       });
 
       await Promise.all(workers);
-      if (hashUpdates.length > 0) await bulkUpdateFileHashes(hashUpdates);
+      // Note: file_hash is now stored inline with the data, no separate update needed
+      // if (hashUpdates.length > 0) await bulkUpdateFileHashes(hashUpdates);
 
       indexingProgress.active = false;
       if (isShuttingDown) {
         indexingProgress.status = "stopped";
         logger.info(`[Shutdown] Indexing for "${derivedProjectName}" stopped gracefully.`);
-        profileEnd('index_folder', { status: 'stopped', totalIndexed, skipped, pruned });
+        profileEnd("index_folder", { status: "stopped", totalIndexed, skipped, pruned });
       } else {
         if (indexingProgress.failedFiles > 0) {
           indexingProgress.status = "completed_with_errors";
           logger.warn(`[Success] Indexing complete for "${derivedProjectName}" with ${indexingProgress.failedFiles} errors.`);
-          profileEnd('index_folder', { status: 'completed_with_errors', totalIndexed, skipped, pruned, errors: indexingProgress.failedFiles });
+          profileEnd("index_folder", { status: "completed_with_errors", totalIndexed, skipped, pruned, errors: indexingProgress.failedFiles });
         } else {
           indexingProgress.status = "completed";
           logger.info(`[Success] Indexing complete for "${derivedProjectName}". Indexed: ${totalIndexed} blocks, Skipped: ${skipped}, Pruned: ${pruned}.`);
-          profileEnd('index_folder', { status: 'completed', totalIndexed, skipped, pruned });
+          profileEnd("index_folder", { status: "completed", totalIndexed, skipped, pruned });
         }
       }
 
@@ -536,7 +579,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       indexingProgress.active = false;
       indexingProgress.status = `error: ${err.message}`;
       indexingProgress.lastError = err.message;
-      profileEnd('index_folder', { status: 'error', error: err.message });
+      profileEnd("index_folder", { status: "error", error: err.message });
       throw err;
     }
   };
@@ -544,14 +587,14 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   if (background) {
     // Fire and forget
     runIndexing().catch(console.error);
-    profileEnd('index_folder', { status: 'background', fileCount: filesOnDisk.length });
+    profileEnd("index_folder", { status: "background", fileCount: filesOnDisk.length });
     return {
       content: [{ type: "text", text: `Started background indexing for "${derivedProjectName}" (${filesOnDisk.length} files). You can check progress using "get_indexing_status".` }],
     };
   } else {
     // Wait for completion
     const result = await runIndexing();
-    profileEnd('index_folder', { status: 'success', ...result });
+    profileEnd("index_folder", { status: "success", ...result });
     return {
       content: [{ type: "text", text: `Sync complete. Indexed: ${result.totalIndexed} blocks, Skipped: ${result.skipped}, Pruned: ${result.pruned}.` }],
     };
@@ -562,7 +605,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
  * Shared search logic that returns raw result objects
  */
 export async function searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore = 0.4) {
-  profileStart('search_code', { query, collection, projectName });
+  profileStart("search_code", { query, collection, projectName });
 
   try {
     const currentModel = embeddingManager.getModel();
@@ -573,11 +616,11 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
       await embeddingManager.setModel(storedModel);
     }
 
-    const queryVector = await profileAsync('query_embedding', async () => {
+    const queryVector = await profileAsync("query_embedding", async () => {
       return await embeddingManager.generateEmbedding(query);
-    }, { queryLength: query.length }, 'embedding');
+    }, { queryLength: query.length }, "embedding");
 
-    const rawResults = await profileAsync('db_search', async () => {
+    const rawResults = await profileAsync("db_search", async () => {
       return await hybridSearch(query, queryVector, {
         collection,
         projectName,
@@ -589,19 +632,19 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
         dateTo,
         churnLevels
       });
-    }, { limit: 15 }, 'database');
+    }, { limit: 15 }, "database");
 
-    const reranked = await profileAsync('rerank_results', async () => {
+    const reranked = await profileAsync("rerank_results", async () => {
       return await rerankerManager.rerank(query, rawResults, 10);
-    }, { resultCount: rawResults.length }, 'search');
+    }, { resultCount: rawResults.length }, "search");
 
     // Filter results by minimum confidence score (use rerankScore if available, otherwise base score)
     const filtered = reranked.filter(r => (r.rerankScore || r.score || 0) >= minScore);
-    profileEnd('search_code', { resultCount: filtered.length });
+    profileEnd("search_code", { resultCount: filtered.length });
 
     return filtered;
   } catch (error) {
-    profileEnd('search_code', { status: 'error', error: error.message });
+    profileEnd("search_code", { status: "error", error: error.message });
     throw error;
   }
 }
@@ -609,7 +652,7 @@ export async function searchCode(query, collection, projectName, fileTypes, cate
 /**
  * Tool: search_code (MCP Wrapper)
  */
-export async function handleSearchCode(query, collection, projectName, categories = ['code'], fileTypes, authors, dateFrom, dateTo, churnLevels, minScore) {
+export async function handleSearchCode(query, collection, projectName, categories = ["code"], fileTypes, authors, dateFrom, dateTo, churnLevels, minScore) {
   const results = await searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore);
 
   // Fetch dependencies for each result
@@ -643,26 +686,26 @@ ${r.content}
 
     // Add dependencies if available
     if (r.dependencies && (r.dependencies.imports?.length > 0 || r.dependencies.exports?.length > 0)) {
-      output += `### Dependencies\n`;
+      output += "### Dependencies\n";
 
       if (r.dependencies.imports && r.dependencies.imports.length > 0) {
-        output += `**Imports:**\n`;
+        output += "**Imports:**\n";
         r.dependencies.imports.forEach(imp => {
           output += ` - \`${imp.name}\` from \`${imp.source}\`\n`;
         });
-        output += `\n`;
+        output += "\n";
       }
 
       if (r.dependencies.exports && r.dependencies.exports.length > 0) {
-        output += `**Exports:**\n`;
+        output += "**Exports:**\n";
         r.dependencies.exports.forEach(exp => {
           output += ` - \`${exp.name}\` (${exp.type})\n`;
         });
-        output += `\n`;
+        output += "\n";
       }
     }
 
-    output += `---`;
+    output += "---";
     return output;
   }).join("\n\n");
 
@@ -778,11 +821,11 @@ export async function indexSingleFile(filePath, projectName, collection, summari
         const fileNameForEmbed = path.basename(filePath);
 
         // Build git context for embedding (if enabled)
-        let gitContext = '';
+        let gitContext = "";
         if (gitInfo && gitConfig.embedInVector) {
-          const dateText = new Date(gitInfo.date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short'
+          const dateText = new Date(gitInfo.date).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short"
           });
           gitContext = `Last Modified: ${dateText} by ${gitInfo.author}\nChurn: ${gitInfo.churnLevel}\n`;
         }
@@ -810,7 +853,10 @@ export async function indexSingleFile(filePath, projectName, collection, summari
           last_commit_hash: gitInfo?.hash,
           last_commit_message: gitInfo?.message,
           commit_count_6m: gitInfo?.commitCount6m,
-          churn_level: gitInfo?.churnLevel
+          churn_level: gitInfo?.churnLevel,
+
+          // Add file hash for change detection
+          file_hash: hash
         });
       }
 
@@ -820,7 +866,8 @@ export async function indexSingleFile(filePath, projectName, collection, summari
       }
       await createOrUpdateTable(dataToInsert, embeddingManager.getModel());
     }
-    await updateFileHash(filePath, hash);
+    // Note: file_hash is now stored inline with the data, no separate update needed
+    // await updateFileHash(filePath, hash);
   } catch (err) {
     logger.error(`[Watcher] Error: ${err.message}`);
   }

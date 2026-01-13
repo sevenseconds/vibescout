@@ -23,7 +23,7 @@ const entryPath = resolve(__dirname, "../src/index.js");
 
 const child = spawn(tsxPath, [entryPath, ...process.argv.slice(2)], {
   stdio: "inherit",
-  shell: process.platform === 'win32' // Use shell on windows for better compatibility with PATH resolution
+  shell: process.platform === "win32" // Use shell on windows for better compatibility with PATH resolution
 });
 
 child.on("exit", (code) => {

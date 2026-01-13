@@ -738,8 +738,8 @@ export default function KBView({ onExplore }: KBViewProps) {
             <StatCard label="System Status" value={indexProgress?.active ? "Indexing" : stats.status} isStatus active={indexProgress?.active} icon={ActivityIcon} color="green" />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Watched Folders Section */}
+          <div className="grid grid-cols-1 gap-8">
+            {/* Managed Projects Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between px-2">
                 <div className="flex items-center gap-3">
@@ -763,7 +763,7 @@ export default function KBView({ onExplore }: KBViewProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 {/* Combine projects from KB and Watchers for a unified view */}
                 {(() => {
                   const allProjectNames = new Set([

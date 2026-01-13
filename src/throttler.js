@@ -63,11 +63,11 @@ export class AdaptiveThrottler {
     // Robustly turn error into a searchable string without crashing on circular refs
     let searchableText = "";
     
-    if (typeof err === 'string') {
+    if (typeof err === "string") {
       searchableText = err;
     } else {
       // Manually pick common error fields (message/stack are non-enumerable in many JS engines)
-      searchableText = `${err.message || ''} ${err.stack || ''} ${err.code || ''}`;
+      searchableText = `${err.message || ""} ${err.stack || ""} ${err.code || ""}`;
       
       // Add any extra enumerable properties (like the raw JSON body we often put in messages)
       try {

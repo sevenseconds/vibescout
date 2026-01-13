@@ -17,7 +17,7 @@ const DB_ROOT = isTest
   : (process.env.VIBESCOUT_DB_PATH || GLOBAL_DATA_DIR);
 
 export const DB_PATH = DB_ROOT;
-const HASH_FILE = path.join(DB_PATH, "hashes.json");
+// const HASH_FILE = path.join(DB_PATH, "hashes.json"); // DEPRECATED: Hashes now stored in LanceDB
 
 let activeMetaDb: lancedb.Connection | null = null;
 let vectorProvider: VectorDBProvider | null = null;
@@ -74,17 +74,18 @@ export async function getTable() {
   return null;
 }
 
-async function loadHashes() {
-  if (await fs.pathExists(HASH_FILE)) {
-    return await fs.readJson(HASH_FILE);
-  }
-  return {};
-}
-
-async function saveHashes(hashes: any) {
-  await fs.ensureDir(DB_PATH);
-  await fs.writeJson(HASH_FILE, hashes);
-}
+// DEPRECATED: Hash functions now use LanceDB instead of JSON file
+// async function loadHashes() {
+//   if (await fs.pathExists(HASH_FILE)) {
+//     return await fs.readJson(HASH_FILE);
+//   }
+//   return {};
+// }
+//
+// async function saveHashes(hashes: any) {
+//   await fs.ensureDir(DB_PATH);
+//   await fs.writeJson(HASH_FILE, hashes);
+// }
 
 export async function createOrUpdateTable(data: VectorResult[], modelName: string) {
   return profileAsync('db_create_or_update_table', async () => {
@@ -247,22 +248,50 @@ export async function findSymbolUsages(symbolName: string) {
 }
 
 export async function getFileHash(filePath: string) {
-  const hashes = await loadHashes();
-  return hashes[filePath] || null;
+  // Query LanceDB for file_hash
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    const table = await p.getTable();
+    if (table) {
+      const results = await table.query()
+        .where(`filepath = '${filePath}'`)
+        .select(["file_hash"])
+        .limit(1)
+        .toArray();
+      return results.length > 0 ? results[0].file_hash : null;
+    }
+  }
+  return null;
 }
 
 export async function updateFileHash(filePath: string, hash: string) {
-  const hashes = await loadHashes();
-  hashes[filePath] = hash;
-  await saveHashes(hashes);
+  // Update file_hash in LanceDB
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    const table = await p.getTable();
+    if (table) {
+      await table.update({
+        values: { file_hash: `'${hash}'` },
+        where: `filepath = '${filePath}'`
+      });
+    }
+  }
 }
 
 export async function bulkUpdateFileHashes(updates: { filePath: string, hash: string }[]) {
-  const hashes = await loadHashes();
-  for (const { filePath, hash } of updates) {
-    hashes[filePath] = hash;
+  // Bulk update file_hash in LanceDB
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    const table = await p.getTable();
+    if (table) {
+      for (const { filePath, hash } of updates) {
+        await table.update({
+          values: { file_hash: `'${hash}'` },
+          where: `filepath = '${filePath}'`
+        });
+      }
+    }
   }
-  await saveHashes(hashes);
 }
 
 export async function deleteFileData(filePath: string) {
@@ -275,9 +304,8 @@ export async function deleteFileData(filePath: string) {
     await depTable.delete(`filepath = '${filePath}'`);
   }
 
-  const hashes = await loadHashes();
-  delete hashes[filePath];
-  await saveHashes(hashes);
+  // Note: file_hash is automatically deleted from LanceDB when record is deleted
+  // No separate hash cleanup needed
 }
 
 export async function hybridSearch(queryText: string, embedding: number[], options = {}) {
@@ -414,26 +442,36 @@ export async function clearChatMessages() {
 }
 
 export async function getProjectFiles() {
-  const hashes = await loadHashes();
-  return Object.keys(hashes);
+  // Get all file paths from LanceDB (instead of hashes.json)
+  const p = getProvider();
+  if (p instanceof LanceDBProvider) {
+    const table = await p.getTable();
+    if (table) {
+      const allRecords = await table.query().select(["filepath"]).toArray();
+      return allRecords.map(r => r.filepath);
+    }
+  }
+  return [];
 }
 
 export async function compactDatabase() {
   const p = getProvider();
-  const hashes = await loadHashes();
-  const filePaths = Object.keys(hashes);
   let pruned = 0;
 
-  for (const filePath of filePaths) {
-    if (!(await fs.pathExists(filePath))) {
-      await deleteFileData(filePath);
-      pruned++;
-    }
-  }
-
+  // Get all file paths from LanceDB (instead of hashes.json)
   if (p instanceof LanceDBProvider) {
     const table = await p.getTable();
     if (table) {
+      const allRecords = await table.query().select(["filepath"]).toArray();
+      const filePaths = allRecords.map(r => r.filepath);
+
+      for (const filePath of filePaths) {
+        if (!(await fs.pathExists(filePath))) {
+          await deleteFileData(filePath);
+          pruned++;
+        }
+      }
+
       try {
         await table.cleanupOldVersions();
         await table.compactFiles();
@@ -477,23 +515,8 @@ export async function deleteProject(projectName: string) {
     }
   }
 
-  // 4. Clear file hashes so it can be re-indexed
-  if (projectFiles.length > 0) {
-    try {
-      const hashes = await loadHashes();
-      let clearedCount = 0;
-      for (const fp of projectFiles) {
-        if (hashes[fp]) {
-          delete hashes[fp];
-          clearedCount++;
-        }
-      }
-      await saveHashes(hashes);
-      logger.debug(`[DB] Successfully cleared ${clearedCount} file hashes for ${projectName}.`);
-    } catch (err: any) {
-      logger.error(`[DB] Failed to clear hashes for ${projectName}: ${err.message}`);
-    }
-  }
+  // Note: file_hash is automatically deleted from LanceDB when project is deleted
+  // No separate hash cleanup needed anymore
 }
 
 export async function clearDatabase() {

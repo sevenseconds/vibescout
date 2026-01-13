@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from "events";
 
 export const LogLevel = {
   DEBUG: 0,
@@ -22,7 +22,7 @@ class Logger extends EventEmitter {
 
   _log(levelName, message, ...args) {
     const timestamp = new Date().toISOString();
-    const formattedMessage = message + (args.length ? ' ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ') : '');
+    const formattedMessage = message + (args.length ? " " + args.map(a => typeof a === "object" ? JSON.stringify(a) : a).join(" ") : "");
     
     const logEntry = {
       timestamp,
@@ -35,32 +35,32 @@ class Logger extends EventEmitter {
       this.buffer.shift();
     }
 
-    this.emit('log', logEntry);
+    this.emit("log", logEntry);
 
     console.error(`[${levelName}] ${message}`, ...args);
   }
 
   debug(message, ...args) {
     if (this.level <= LogLevel.DEBUG) {
-      this._log('DEBUG', message, ...args);
+      this._log("DEBUG", message, ...args);
     }
   }
 
   info(message, ...args) {
     if (this.level <= LogLevel.INFO) {
-      this._log('INFO', message, ...args);
+      this._log("INFO", message, ...args);
     }
   }
 
   warn(message, ...args) {
     if (this.level <= LogLevel.WARN) {
-      this._log('WARN', message, ...args);
+      this._log("WARN", message, ...args);
     }
   }
 
   error(message, ...args) {
     if (this.level <= LogLevel.ERROR) {
-      this._log('ERROR', message, ...args);
+      this._log("ERROR", message, ...args);
     }
   }
 

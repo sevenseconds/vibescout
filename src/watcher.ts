@@ -7,16 +7,22 @@ import { handleIndexFolder, indexSingleFile } from "./core.js";
 import { getWatchList, deleteFileData, addToWatchList, removeFromWatchList } from "./db.js";
 import { loadConfig } from "./config.js";
 import { glob } from "glob";
+import { getTaskQueue, TaskType, TaskPriority } from "./task-queue.js";
 
 // EMFILE-safe file count check - stops early to avoid hitting limits
 async function countFilesRecursively(dirPath: string, maxFiles: number = 3000): Promise<number> {
   try {
+    // Get ignore patterns for this directory (formatted for glob/chokidar)
+    const ignorePatterns = await getIgnorePatterns(dirPath);
+
     const files = await glob('**/*', {
       cwd: dirPath,
       nodir: true,
       absolute: false,
-      maxDepth: 10 // Shallow depth to avoid scanning too deep
+      maxDepth: 10, // Shallow depth to avoid scanning too deep
+      ignore: ignorePatterns // Glob's ignore option accepts minimatch patterns
     });
+
     return files.length;
   } catch (err) {
     // If glob fails (likely EMFILE), assume it's a large project
@@ -51,7 +57,19 @@ async function getIgnorePatterns(folderPath: string): Promise<string[]> {
 
   const patterns = [...defaultPatterns];
 
-  const ignoreFiles = [".gitignore", ".vibeignore"];
+  const ignoreFiles = [
+    // Standard version control
+    ".gitignore",
+    // VibeScout specific
+    ".vibeignore",
+    ".vibescoutignore",
+    // AI editor ignore files
+    ".cursorignore",
+    ".cursorindexingignore",
+    ".copilotignore",
+    ".geminiignore",
+    ".aicodeignore"
+  ];
   for (const file of ignoreFiles) {
     const filePath = path.join(folderPath, file);
     if (await fs.pathExists(filePath)) {
@@ -67,15 +85,33 @@ async function getIgnorePatterns(folderPath: string): Promise<string[]> {
         if (trimmed && !trimmed.startsWith('#')) {
           // Convert gitignore pattern to chokidar pattern
           let pattern = trimmed;
+
+          // Remove trailing slash if present for consistent processing
+          if (pattern.endsWith('/')) {
+            pattern = pattern.slice(0, -1);
+          }
+
           // Ensure pattern starts with **/ for chokidar
-          if (!pattern.startsWith('**/') && !pattern.startsWith('*')) {
+          if (!pattern.startsWith('**/') && !pattern.startsWith('*') && !pattern.startsWith('/')) {
             pattern = '**/' + pattern;
           }
-          // Ensure pattern ends with /** for directories (not files)
+
+          // Add patterns for both the directory and its contents
+          // For directories, add both pattern and pattern/**
           if (!pattern.includes('*') && !pattern.includes('.') && !pattern.endsWith('/')) {
-            pattern = pattern + '/**';
+            // This is likely a directory name without extension (e.g., node_modules, build)
+            patterns.push(pattern);       // Match the directory itself
+            patterns.push(pattern + '/**'); // Match contents
+          } else {
+            // Pattern already has wildcard or extension, use as-is
+            // For dot directories like .git, also add the directory-wide pattern
+            if (pattern.startsWith('.') || pattern.includes('/.')) {
+              patterns.push(pattern);       // Match the directory/file itself
+              patterns.push(pattern + '/**'); // Match contents
+            } else {
+              patterns.push(pattern);
+            }
           }
-          patterns.push(pattern);
         }
       }
     }
@@ -86,6 +122,7 @@ async function getIgnorePatterns(folderPath: string): Promise<string[]> {
 
 const watchers = new Map<string, any>();
 const debounceTimers = new Map<string, NodeJS.Timeout>();
+const emfileWarned = new Set<string>(); // Track projects that already logged EMFILE warning
 
 export async function initWatcher(force = false) {
   const watchList = await getWatchList();
@@ -94,7 +131,7 @@ export async function initWatcher(force = false) {
   // Pre-check: Count files across ALL projects to determine if we need polling mode
   // EMFILE limit is system-wide, not per-project, so we must account for all projects
   let usePollingMode = process.env.USE_POLLING === "true";
-  const EMFILE_THRESHOLD = 3000; // Conservative limit for all projects combined
+  const EMFILE_THRESHOLD = 500; // Very conservative to prevent EMFILE spam (reduced from 1000)
 
   if (!usePollingMode) {
     try {
@@ -242,7 +279,7 @@ async function startWatching(
         stabilityThreshold: 500,
         pollInterval: 100
       },
-      depth: 15,
+      depth: 10, // Reduced from 15 to prevent EMFILE on large projects
       atomic: false,
     };
 
@@ -281,7 +318,11 @@ async function startWatching(
   // Add error handler for watcher (for runtime errors)
   watcher.on("error", (error: any) => {
     if (error.message.includes("EMFILE") || error.message.includes("too many open files")) {
-      logger.warn(`[Watcher] Runtime EMFILE error for ${projectName}. The watcher will continue with polling.`);
+      // Only log once per project to avoid spamming
+      if (!emfileWarned.has(projectName)) {
+        logger.warn(`[Watcher] Runtime EMFILE error for ${projectName}. The watcher will continue with polling.`);
+        emfileWarned.add(projectName);
+      }
       // Don't close the watcher - let it recover
     } else {
       logger.error(`[Watcher] Error for ${projectName}: ${error.message}`);
@@ -297,11 +338,18 @@ async function startWatching(
     }
 
     // Set a new timer (wait 500ms after last change before indexing)
-    const timer = setTimeout(() => {
-      logger.debug(`[Watcher] Debounced index for: ${filePath}`);
-      indexSingleFile(filePath, projectName, collection, shouldSummarize).catch(err => {
-        logger.error(`[Watcher] Error indexing ${filePath}: ${err.message}`);
-      });
+    const timer = setTimeout(async () => {
+      logger.debug(`[Watcher] Queuing index for: ${filePath}`);
+
+      // Queue the file indexing task with MEDIUM priority (higher than API requests)
+      const queue = await getTaskQueue();
+      queue.addTask(TaskType.INDEX_FILES, {
+        filePaths: [filePath],
+        projectName,
+        collection,
+        summarize: shouldSummarize
+      }, TaskPriority.MEDIUM);
+
       debounceTimers.delete(filePath);
     }, 500);
 
@@ -341,7 +389,7 @@ export async function watchProject(folderPath: string, projectName: string, coll
       const newProjectFiles = await countFilesRecursively(path.resolve(folderPath));
       const total = existingFiles + newProjectFiles;
 
-      const EMFILE_THRESHOLD = 3000;
+      const EMFILE_THRESHOLD = 500; // Very conservative to prevent EMFILE spam (reduced from 1000)
       if (total > EMFILE_THRESHOLD) {
         logger.info(`[Watcher] After adding "${projectName}": ${total} files total (threshold: ${EMFILE_THRESHOLD}), using polling mode`);
         usePollingMode = true;
@@ -386,6 +434,9 @@ export async function unwatchProject(folderPath: string, projectName?: string) {
       debounceTimers.delete(filePath);
     }
   }
+
+  // Clear EMFILE warning flag so it can warn again if re-added
+  emfileWarned.delete(projectName || path.basename(absolutePath));
 
   await removeFromWatchList(folderPath, projectName);
 }

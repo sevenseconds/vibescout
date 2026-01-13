@@ -51,7 +51,7 @@ async function startServer(mode, port, isUI = false) {
     await server.connect(transport);
 
     // MCP Transport handler via Hono (using Node.js adapter raw req/res)
-    app.all('/mcp', async (c) => {
+    app.all("/mcp", async (c) => {
       // @ts-ignore - node-server specific
       const nodeReq = c.env.incoming;
       // @ts-ignore - node-server specific
@@ -63,7 +63,7 @@ async function startServer(mode, port, isUI = false) {
       const distPath = path.resolve(__dirname, "ui-dist");
       if (!fs.existsSync(distPath)) {
         logger.warn(`[UI] Warning: UI assets not found at ${distPath}. Web UI will not be available.`);
-        logger.warn(`[UI] If you are developing, run 'npm run build:ui' to generate the assets.`);
+        logger.warn("[UI] If you are developing, run 'npm run build:ui' to generate the assets.");
       }
       app.use("/*", serveStatic({ root: distPath }));
       // Fallback for SPA
@@ -83,7 +83,7 @@ async function startServer(mode, port, isUI = false) {
     serve({
       fetch: app.fetch,
       port,
-      hostname: '0.0.0.0'
+      hostname: "0.0.0.0"
     });
 
     if (isUI || !isSSE) {
@@ -128,11 +128,11 @@ async function main() {
       level = LogLevel.DEBUG;
     } else {
       switch (opts.logLevel?.toLowerCase()) {
-        case 'debug': level = LogLevel.DEBUG; break;
-        case 'info': level = LogLevel.INFO; break;
-        case 'warn': level = LogLevel.WARN; break;
-        case 'error': level = LogLevel.ERROR; break;
-        case 'none': level = LogLevel.NONE; break;
+      case "debug": level = LogLevel.DEBUG; break;
+      case "info": level = LogLevel.INFO; break;
+      case "warn": level = LogLevel.WARN; break;
+      case "error": level = LogLevel.ERROR; break;
+      case "none": level = LogLevel.NONE; break;
       }
     }
     logger.setLevel(level);
@@ -140,14 +140,14 @@ async function main() {
     // Determine which command is being run
     // Check process.argv to see what command was invoked (skip options starting with --)
     const args = process.argv.slice(2);
-    const firstCommand = args.find(arg => !arg.startsWith('--'));
+    const firstCommand = args.find(arg => !arg.startsWith("--"));
 
     // Commands that don't need any initialization
-    const noInitCommands = ['config', 'plugin', 'provider-plugin', 'pp'];
+    const noInitCommands = ["config", "plugin", "provider-plugin", "pp"];
     const needsNoInit = noInitCommands.includes(firstCommand);
 
     // Commands that need database/providers but NOT file watcher
-    const noWatcherCommands = ['compact', 'reset', 'index', 'search'];
+    const noWatcherCommands = ["compact", "reset", "index", "search"];
     const needsWatcher = !noWatcherCommands.includes(firstCommand) && !needsNoInit;
 
     // Initialize plugin system (needed for plugin commands)
@@ -213,7 +213,7 @@ async function main() {
     const profileFromConfig = config.profiling?.enabled || false;
 
     if (profileFromCLI || profileFromConfig) {
-      const { configureProfiler } = await import('./profiler-api.js');
+      const { configureProfiler } = await import("./profiler-api.js");
 
       const samplingRate = opts.profileSampling || config.profiling?.samplingRate || 1.0;
       const outputDir = opts.profileOutput || config.profiling?.outputDir || "~/.vibescout/profiles";
@@ -270,8 +270,8 @@ async function main() {
 
       if (!proceed) {
         const prompt = new pkg.Confirm({
-          name: 'question',
-          message: 'Are you sure you want to clear the entire database? This cannot be undone.'
+          name: "question",
+          message: "Are you sure you want to clear the entire database? This cannot be undone."
         });
         proceed = await prompt.run();
       }
@@ -330,7 +330,7 @@ async function main() {
       console.log("\nInstalled Plugins:\n");
       plugins.forEach(p => {
         const status = p.loaded ? "✓" : "✗";
-        const source = p.source === 'npm' ? 'npm' : 'local';
+        const source = p.source === "npm" ? "npm" : "local";
         console.log(`  ${status} ${p.name} v${p.version} (${source})`);
         if (p.error) {
           console.log(`    Error: ${p.error}`);
@@ -356,11 +356,11 @@ async function main() {
       console.log(`Version: ${plugin.version}`);
       console.log(`Source: ${plugin.source}`);
       console.log(`Path: ${plugin.path}`);
-      console.log(`Status: ${plugin.loaded ? 'Loaded' : 'Failed'}`);
+      console.log(`Status: ${plugin.loaded ? "Loaded" : "Failed"}`);
       if (plugin.manifest.vibescout) {
         console.log(`API Version: ${plugin.manifest.vibescout.apiVersion}`);
         if (plugin.manifest.vibescout.capabilities) {
-          console.log(`Capabilities: ${plugin.manifest.vibescout.capabilities.join(', ')}`);
+          console.log(`Capabilities: ${plugin.manifest.vibescout.capabilities.join(", ")}`);
         }
       }
       if (plugin.error) {
@@ -374,14 +374,14 @@ async function main() {
     .description("Install a plugin from npm")
     .option("-g, --global", "Install globally (default)")
     .action(async (name, options) => {
-      const { execSync } = await import('child_process');
-      const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
-      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-      const globalFlag = options.global !== false ? '-g' : '';
+      const { execSync } = await import("child_process");
+      const pluginName = name.startsWith("vibescout-plugin-") ? name : `vibescout-plugin-${name}`;
+      const cmd = process.platform === "win32" ? "npm.cmd" : "npm";
+      const globalFlag = options.global !== false ? "-g" : "";
 
       try {
         console.log(`Installing ${pluginName}...`);
-        const output = execSync(`${cmd} install ${globalFlag} ${pluginName}`, { encoding: 'utf-8' });
+        const output = execSync(`${cmd} install ${globalFlag} ${pluginName}`, { encoding: "utf-8" });
         console.log(output);
         console.log(`\n✓ Plugin ${pluginName} installed successfully!`);
       } catch (error) {
@@ -397,14 +397,14 @@ async function main() {
     .description("Uninstall a plugin")
     .option("-g, --global", "Uninstall globally (default)")
     .action(async (name, options) => {
-      const { execSync } = await import('child_process');
-      const pluginName = name.startsWith('vibescout-plugin-') ? name : `vibescout-plugin-${name}`;
-      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-      const globalFlag = options.global !== false ? '-g' : '';
+      const { execSync } = await import("child_process");
+      const pluginName = name.startsWith("vibescout-plugin-") ? name : `vibescout-plugin-${name}`;
+      const cmd = process.platform === "win32" ? "npm.cmd" : "npm";
+      const globalFlag = options.global !== false ? "-g" : "";
 
       try {
         console.log(`Uninstalling ${pluginName}...`);
-        const output = execSync(`${cmd} uninstall ${globalFlag} ${pluginName}`, { encoding: 'utf-8' });
+        const output = execSync(`${cmd} uninstall ${globalFlag} ${pluginName}`, { encoding: "utf-8" });
         console.log(output);
         console.log(`\n✓ Plugin ${pluginName} uninstalled successfully!`);
       } catch (error) {
@@ -419,7 +419,7 @@ async function main() {
     .argument("<name>", "Plugin name")
     .description("Enable a disabled plugin")
     .action(async (name) => {
-      const { saveConfig } = await import('./config.js');
+      const { saveConfig } = await import("./config.js");
       const config = await loadConfig();
 
       if (!config.plugin) {
@@ -451,7 +451,7 @@ async function main() {
     .argument("<name>", "Plugin name")
     .description("Disable a plugin")
     .action(async (name) => {
-      const { saveConfig } = await import('./config.js');
+      const { saveConfig } = await import("./config.js");
       const config = await loadConfig();
 
       if (!config.plugin) {
@@ -504,7 +504,7 @@ async function main() {
 
       let filteredPlugins = plugins;
       if (options.type) {
-        if (options.type !== 'embedding' && options.type !== 'llm') {
+        if (options.type !== "embedding" && options.type !== "llm") {
           console.error(`Error: Invalid type '${options.type}'. Must be 'embedding' or 'llm'.`);
           process.exit(1);
         }
@@ -514,9 +514,9 @@ async function main() {
       console.log("\nInstalled Provider Plugins:\n");
       const tableData = filteredPlugins.map(p => ({
         Name: p.name,
-        Version: p.version || 'N/A',
+        Version: p.version || "N/A",
         Type: p.type,
-        Source: 'builtin'
+        Source: "builtin"
       }));
 
       // Simple table output
@@ -544,13 +544,13 @@ async function main() {
 
       console.log(`\nProvider Plugin: ${plugin.name}`);
       console.log(`Type: ${plugin.type}`);
-      console.log(`Version: ${plugin.version || 'N/A'}`);
-      console.log(`Source: builtin`);
+      console.log(`Version: ${plugin.version || "N/A"}`);
+      console.log("Source: builtin");
 
       if (plugin.configSchema && plugin.configSchema.fields.length > 0) {
-        console.log(`\nConfiguration Fields:`);
+        console.log("\nConfiguration Fields:");
         plugin.configSchema.fields.forEach(field => {
-          const required = field.required ? '(required)' : '(optional)';
+          const required = field.required ? "(required)" : "(optional)";
           console.log(`  - ${field.name} [${field.type}] ${required}`);
           if (field.helperText) {
             console.log(`    ${field.helperText}`);
@@ -559,12 +559,12 @@ async function main() {
       }
 
       const methods = [];
-      if (plugin.createProvider) methods.push('createProvider');
-      if (plugin.validateCredentials) methods.push('validateCredentials');
-      if (plugin.testConnection) methods.push('testConnection');
+      if (plugin.createProvider) methods.push("createProvider");
+      if (plugin.validateCredentials) methods.push("validateCredentials");
+      if (plugin.testConnection) methods.push("testConnection");
 
       if (methods.length > 0) {
-        console.log(`\nAvailable Methods: ${methods.join(', ')}`);
+        console.log(`\nAvailable Methods: ${methods.join(", ")}`);
       }
 
       process.exit(0);
@@ -575,19 +575,19 @@ async function main() {
     .argument("<name>", "Provider plugin name (will be prefixed with vibescout-provider- if not already)")
     .description("Install a provider plugin from npm")
     .action(async (name) => {
-      const { execSync } = await import('child_process');
+      const { execSync } = await import("child_process");
 
-      const pluginName = name.startsWith('vibescout-provider-') ? name : `vibescout-provider-${name}`;
-      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      const pluginName = name.startsWith("vibescout-provider-") ? name : `vibescout-provider-${name}`;
+      const cmd = process.platform === "win32" ? "npm.cmd" : "npm";
 
       try {
         console.log(`Installing ${pluginName}...`);
 
         // Install to user plugins directory
-        const pluginsDir = path.join(os.homedir(), '.vibescout', 'plugins', 'providers');
+        const pluginsDir = path.join(os.homedir(), ".vibescout", "plugins", "providers");
         await fs.ensureDir(pluginsDir);
 
-        const output = execSync(`${cmd} install ${pluginName} --prefix "${pluginsDir}"`, { encoding: 'utf-8' });
+        const output = execSync(`${cmd} install ${pluginName} --prefix "${pluginsDir}"`, { encoding: "utf-8" });
         console.log(output);
         console.log(`\n✓ Provider plugin ${pluginName} installed successfully!`);
         console.log(`Location: ${pluginsDir}/${pluginName}`);
@@ -604,14 +604,14 @@ async function main() {
     .argument("<name>", "Provider plugin name")
     .description("Uninstall a provider plugin")
     .action(async (name) => {
-      const { execSync } = await import('child_process');
+      const { execSync } = await import("child_process");
 
-      const pluginName = name.startsWith('vibescout-provider-') ? name : `vibescout-provider-${name}`;
-      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      const pluginName = name.startsWith("vibescout-provider-") ? name : `vibescout-provider-${name}`;
+      const cmd = process.platform === "win32" ? "npm.cmd" : "npm";
 
       try {
-        const pluginsDir = path.join(os.homedir(), '.vibescout', 'plugins', 'providers');
-        const pluginPath = path.join(pluginsDir, 'node_modules', pluginName);
+        const pluginsDir = path.join(os.homedir(), ".vibescout", "plugins", "providers");
+        const pluginPath = path.join(pluginsDir, "node_modules", pluginName);
 
         // Check if plugin exists
         if (!await fs.pathExists(pluginPath)) {
@@ -620,7 +620,7 @@ async function main() {
         }
 
         console.log(`Uninstalling ${pluginName}...`);
-        const output = execSync(`${cmd} uninstall ${pluginName} --prefix "${pluginsDir}"`, { encoding: 'utf-8' });
+        const output = execSync(`${cmd} uninstall ${pluginName} --prefix "${pluginsDir}"`, { encoding: "utf-8" });
         console.log(output);
         console.log(`\n✓ Provider plugin ${pluginName} uninstalled successfully!`);
         process.exit(0);
@@ -645,35 +645,35 @@ async function main() {
       }
 
       // Check for package.json
-      const packagePath = path.join(absolutePath, 'package.json');
+      const packagePath = path.join(absolutePath, "package.json");
       if (!await fs.pathExists(packagePath)) {
         console.error(`Error: package.json not found at ${packagePath}`);
         process.exit(1);
       }
 
       try {
-        const packageContent = await fs.readFile(packagePath, 'utf-8');
+        const packageContent = await fs.readFile(packagePath, "utf-8");
         const packageJson = JSON.parse(packageContent);
 
         // Validate vibescout manifest
         if (!packageJson.vibescout) {
-          console.error(`Error: package.json missing 'vibescout' manifest`);
+          console.error("Error: package.json missing 'vibescout' manifest");
           process.exit(1);
         }
 
         const manifest = packageJson.vibescout;
 
-        if (manifest.type !== 'provider') {
+        if (manifest.type !== "provider") {
           console.error(`Error: Expected type 'provider', got '${manifest.type}'`);
           process.exit(1);
         }
 
-        if (!['embedding', 'llm'].includes(manifest.providerType)) {
+        if (!["embedding", "llm"].includes(manifest.providerType)) {
           console.error(`Error: Invalid providerType '${manifest.providerType}'. Must be 'embedding' or 'llm'.`);
           process.exit(1);
         }
 
-        console.log(`\n✓ package.json is valid`);
+        console.log("\n✓ package.json is valid");
         console.log(`  Plugin Name: ${packageJson.name}`);
         console.log(`  Version: ${packageJson.version}`);
         console.log(`  Type: ${manifest.type}`);
@@ -681,7 +681,7 @@ async function main() {
         console.log(`  API Version: ${manifest.apiVersion}`);
 
         // Check for main entry point
-        const mainFile = manifest.main || packageJson.main || 'index.js';
+        const mainFile = manifest.main || packageJson.main || "index.js";
         const mainPath = path.join(absolutePath, mainFile);
 
         if (!await fs.pathExists(mainPath)) {
@@ -697,24 +697,24 @@ async function main() {
           const plugin = pluginModule.default;
 
           if (!plugin) {
-            console.warn(`\n⚠ Warning: Plugin has no default export`);
+            console.warn("\n⚠ Warning: Plugin has no default export");
           } else {
             if (plugin.name) console.log(`\n✓ Plugin name: ${plugin.name}`);
             if (plugin.type) console.log(`✓ Plugin type: ${plugin.type}`);
             if (plugin.configSchema) {
               console.log(`✓ Config schema found with ${plugin.configSchema.fields.length} fields`);
             } else {
-              console.warn(`\n⚠ Warning: No configSchema found. UI won't be able to generate configuration form.`);
+              console.warn("\n⚠ Warning: No configSchema found. UI won't be able to generate configuration form.");
             }
-            if (plugin.createProvider) console.log(`✓ createProvider method found`);
-            if (plugin.validateCredentials) console.log(`✓ validateCredentials method found`);
-            if (plugin.testConnection) console.log(`✓ testConnection method found`);
+            if (plugin.createProvider) console.log("✓ createProvider method found");
+            if (plugin.validateCredentials) console.log("✓ validateCredentials method found");
+            if (plugin.testConnection) console.log("✓ testConnection method found");
           }
         } catch (error) {
           console.warn(`\n⚠ Warning: Could not load plugin module: ${error.message}`);
         }
 
-        console.log(`\n✓ Provider plugin validation passed!`);
+        console.log("\n✓ Provider plugin validation passed!");
         process.exit(0);
       } catch (error) {
         console.error(`\n✗ Validation failed: ${error.message}`);
@@ -731,7 +731,7 @@ async function main() {
     .option("--query <text>", "Search query (for 'search' operation)")
     .option("--sampling <rate>", "Sampling rate (0.0-1.0)", "1.0")
     .action(async (operation, options) => {
-      const { startProfiling, stopProfiling } = await import('./profiler-api.js');
+      const { startProfiling, stopProfiling } = await import("./profiler-api.js");
 
       console.log("Starting profiling session...");
       console.log(`Operation: ${operation}`);
@@ -740,18 +740,18 @@ async function main() {
       startProfiling(parseFloat(options.sampling));
 
       try {
-        if (operation === 'index') {
+        if (operation === "index") {
           if (!options.folder) {
             console.error("--folder option is required for 'index' operation");
             process.exit(1);
           }
           await handleIndexFolder(options.folder, null, "default", config.summarize, false, false);
-        } else if (operation === 'search') {
+        } else if (operation === "search") {
           if (!options.query) {
             console.error("--query option is required for 'search' operation");
             process.exit(1);
           }
-          const { handleSearchCode } = await import('./core.js');
+          const { handleSearchCode } = await import("./core.js");
           await handleSearchCode(options.query);
         } else {
           console.error(`Unknown operation: ${operation}`);
@@ -762,13 +762,13 @@ async function main() {
         const traceInfo = await stopProfiling();
 
         if (traceInfo) {
-          console.log(`\n✓ Profiling complete!`);
+          console.log("\n✓ Profiling complete!");
           console.log(`Trace saved to: ${traceInfo.filepath}`);
           console.log(`Events recorded: ${traceInfo.eventCount}`);
-          console.log(`\nTo view the flame graph:`);
-          console.log(`  1. Open Chrome and navigate to chrome://tracing`);
-          console.log(`  2. Click 'Load' and select the trace file`);
-          console.log(`  3. Zoom and pan to analyze performance`);
+          console.log("\nTo view the flame graph:");
+          console.log("  1. Open Chrome and navigate to chrome://tracing");
+          console.log("  2. Click 'Load' and select the trace file");
+          console.log("  3. Zoom and pan to analyze performance");
         } else {
           console.log("\nNo profiling data collected (sampling rate may be too low)");
         }

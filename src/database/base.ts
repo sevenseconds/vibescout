@@ -22,6 +22,9 @@ export interface VectorResult {
   last_commit_message?: string;
   commit_count_6m?: number;
   churn_level?: 'low' | 'medium' | 'high';
+
+  // File hash for change detection (snake_case to match LanceDB convention)
+  file_hash?: string;
 }
 
 export interface SearchOptions {

@@ -1,5 +1,6 @@
 import * as lancedb from "@lancedb/lancedb";
 import fs from "fs-extra";
+import crypto from "crypto";
 import { VectorDBProvider, VectorResult, SearchOptions } from "./base.js";
 import { logger } from "../logger.js";
 

@@ -150,94 +150,112 @@ export default function PerformanceView() {
         </div>
       </div>
 
-      {/* Profiling Controls */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <Settings className="w-5 h-5" />
-          Profiling Controls
-        </h2>
+      {/* Top Section: Instructions (Left) + Controls (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Instructions - Left Column */}
+        <div className="lg:col-span-1 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            How to View Flame Graphs
+          </h3>
+          <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1.5 list-decimal list-inside">
+            <li>Download a trace file</li>
+            <li>Open Chrome: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded text-xs">chrome://tracing</code></li>
+            <li>Click "Load" and select the file</li>
+            <li>Zoom and pan through the graph</li>
+            <li>Hover over events for details</li>
+          </ol>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Sampling Rate Control */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Sampling Rate: {Math.round(samplingRate * 100)}%
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={samplingRate}
-              onChange={(e) => setSamplingRate(parseFloat(e.target.value))}
-              disabled={isProfiling}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 disabled:opacity-50"
-            />
-            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-              <span>0% (lowest overhead)</span>
-              <span>100% (most detailed)</span>
+        {/* Profiling Controls - Right Column */}
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Profiling Controls
+          </h2>
+
+          <div className="space-y-4">
+            {/* Sampling Rate Control */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Sampling Rate: {Math.round(samplingRate * 100)}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={samplingRate}
+                onChange={(e) => setSamplingRate(parseFloat(e.target.value))}
+                disabled={isProfiling}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 disabled:opacity-50"
+              />
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <span>0% (lowest overhead)</span>
+                <span>100% (most detailed)</span>
+              </div>
             </div>
-          </div>
 
-          {/* Start/Stop Buttons */}
-          <div className="flex items-end gap-3">
-            {!isProfiling ? (
-              <button
-                onClick={startProfiling}
-                disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Play className="w-4 h-4" />
-                Start Profiling
-              </button>
-            ) : (
-              <button
-                onClick={stopProfiling}
-                disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Square className="w-4 h-4" />
-                Stop Profiling
-              </button>
+            {/* Start/Stop Button */}
+            <div>
+              {!isProfiling ? (
+                <button
+                  onClick={startProfiling}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Play className="w-4 h-4" />
+                  Start Profiling
+                </button>
+              ) : (
+                <button
+                  onClick={stopProfiling}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Square className="w-4 h-4" />
+                  Stop Profiling
+                </button>
+              )}
+            </div>
+
+            {/* Status Display */}
+            {stats && (
+              <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                    <span className={`ml-2 font-medium ${isProfiling ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                      {isProfiling ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Buffered Events:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{stats.bufferedEvents}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Sampling Rate:</span>
+                    <span className="ml-2 font-medium text-gray-900 dark:text-white">{Math.round(stats.samplingRate * 100)}%</span>
+                  </div>
+                  {stats.sessionStart && (
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Started:</span>
+                      <span className="ml-2 font-medium text-gray-900 dark:text-white text-xs">
+                        {formatDate(new Date(stats.sessionStart))}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
-
-        {/* Status Display */}
-        {stats && (
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500 dark:text-gray-400">Status:</span>
-                <span className={`ml-2 font-medium ${isProfiling ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
-                  {isProfiling ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400">Buffered Events:</span>
-                <span className="ml-2 font-medium text-gray-900 dark:text-white">{stats.bufferedEvents}</span>
-              </div>
-              <div>
-                <span className="text-gray-500 dark:text-gray-400">Sampling Rate:</span>
-                <span className="ml-2 font-medium text-gray-900 dark:text-white">{Math.round(stats.samplingRate * 100)}%</span>
-              </div>
-              {stats.sessionStart && (
-                <div>
-                  <span className="text-gray-500 dark:text-gray-400">Started:</span>
-                  <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                    {formatDate(new Date(stats.sessionStart))}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Recent Traces */}
+      {/* Recent Traces - Full Width */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <BarChart3 className="w-5 h-5" />
+          <Activity className="w-5 h-5" />
           Recent Trace Files
         </h2>
 
@@ -292,18 +310,6 @@ export default function PerformanceView() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* Instructions */}
-      <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">How to View Flame Graphs</h3>
-        <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
-          <li>Download a trace file using the download button above</li>
-          <li>Open Google Chrome and navigate to <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">chrome://tracing</code></li>
-          <li>Click "Load" and select the downloaded trace file</li>
-          <li>Use your mouse/touchpad to zoom and pan through the flame graph</li>
-          <li>Hover over events to see detailed timing information</li>
-        </ol>
       </div>
     </div>
   );

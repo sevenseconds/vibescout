@@ -1,6 +1,6 @@
-import fs from 'fs-extra';
-import path from 'path';
-import os from 'os';
+import fs from "fs-extra";
+import path from "path";
+import os from "os";
 
 /**
  * VibeScout Profiler - Chrome DevTools-compatible performance profiler
@@ -16,7 +16,7 @@ class Profiler {
     this.buffer = [];
     this.sessionStart = null;
     this.categorySampling = {};
-    this.outputDir = path.join(os.homedir(), '.vibescout', 'profiles');
+    this.outputDir = path.join(os.homedir(), ".vibescout", "profiles");
     this.maxBufferSize = 10000;
     this.random = Math.random;
   }
@@ -86,9 +86,9 @@ class Profiler {
     if (!this.shouldSample(category)) return;
 
     const event = {
-      ph: 'B', // Begin event
+      ph: "B", // Begin event
       name,
-      cat: category || 'default',
+      cat: category || "default",
       ts: this.getTimestamp(),
       pid: process.pid,
       tid: this.getThreadId(),
@@ -113,9 +113,9 @@ class Profiler {
     if (!this.shouldSample(category)) return;
 
     const event = {
-      ph: 'E', // End event
+      ph: "E", // End event
       name,
-      cat: category || 'default',
+      cat: category || "default",
       ts: this.getTimestamp(),
       pid: process.pid,
       tid: this.getThreadId(),
@@ -140,9 +140,9 @@ class Profiler {
     if (!this.shouldSample(category)) return;
 
     const event = {
-      ph: 'I', // Instant event
+      ph: "I", // Instant event
       name,
-      cat: category || 'default',
+      cat: category || "default",
       ts: this.getTimestamp(),
       pid: process.pid,
       tid: this.getThreadId(),
@@ -168,9 +168,9 @@ class Profiler {
     if (!this.shouldSample(category)) return;
 
     const event = {
-      ph: 'C', // Counter event
+      ph: "C", // Counter event
       name,
-      cat: category || 'default',
+      cat: category || "default",
       ts: this.getTimestamp(),
       pid: process.pid,
       tid: this.getThreadId(),
@@ -210,9 +210,9 @@ class Profiler {
 
       // Complete event with duration
       const event = {
-        ph: 'X', // Complete event (duration)
+        ph: "X", // Complete event (duration)
         name,
-        cat: category || 'default',
+        cat: category || "default",
         ts: startTime,
         dur: duration,
         pid: process.pid,
@@ -234,9 +234,9 @@ class Profiler {
 
       // Record failed operation
       const event = {
-        ph: 'X',
+        ph: "X",
         name: `${name} (error)`,
-        cat: category || 'default',
+        cat: category || "default",
         ts: startTime,
         dur: duration,
         pid: process.pid,
