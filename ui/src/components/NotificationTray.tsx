@@ -18,7 +18,6 @@ interface IndexProgress {
 }
 
 export default function NotificationTray() {
-  const [lastStatus, setLastStatus] = useState<string>('idle');
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   useEffect(() => {
@@ -30,18 +29,20 @@ export default function NotificationTray() {
       }
     });
 
-    const interval = setInterval(async () => {
-      try {
-        const res = await axios.get('/api/index/status');
-        const progress: IndexProgress = res.data;
+    // Use SSE for system-wide indexing status
+    const eventSource = new EventSource('/api/events');
+    let lastActive = false;
 
+    eventSource.addEventListener('indexStatus', (event) => {
+      try {
+        const progress: IndexProgress = JSON.parse(event.data);
+        
         // Detect transition from active -> completed
-        if (lastStatus === 'indexing' && !progress.active && progress.status === 'completed') {
+        if (lastActive && !progress.active && progress.status === 'completed') {
           setNotification({
             type: 'success',
             message: `Indexing complete: ${progress.projectName}`
           });
-          // Auto-hide after 5 seconds
           setTimeout(() => setNotification(null), 5000);
         }
 
@@ -53,17 +54,17 @@ export default function NotificationTray() {
           });
         }
 
-        setLastStatus(progress.active ? 'indexing' : progress.status);
+        lastActive = progress.active;
       } catch (err) {
-        console.error('Failed to poll status for notifications:', err);
+        console.error('Failed to parse index status event:', err);
       }
-    }, 2000);
+    });
 
     return () => {
-      clearInterval(interval);
+      eventSource.close();
       unsubscribe();
     };
-  }, [lastStatus]);
+  }, []);
 
   if (!notification) return null;
 

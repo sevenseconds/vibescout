@@ -225,7 +225,10 @@ export async function batchCollectGitInfo(
     }
 
   } catch (err: any) {
-    logger.warn(`[Git] Efficient batch collection failed: ${err.message}`);
+    logger.warn(`[Git] Efficient batch collection failed: ${err.message}`, {
+      repoPath,
+      stack: err.stack
+    });
     // If we have some data, return it, otherwise fallback
     if (gitInfoMap.size === 0) {
       return await batchCollectGitInfoSlow(repoPath, files, churnWindow);

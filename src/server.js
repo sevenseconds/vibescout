@@ -352,8 +352,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // Hono App Setup
 export const app = new Hono();
 
-// Pipe Hono request logs to our custom logger at DEBUG level
-app.use("*", honoLogger((str) => logger.debug(`[API] ${str}`)));
+// Pipe Hono request logs to our custom logger at DEBUG level and file
+app.use("*", honoLogger((str) => {
+  logger.debug(`[API] ${str}`);
+  logger.access(str);
+}));
 app.use("*", cors());
 
 // API Routes
@@ -523,6 +526,49 @@ app.post("/api/queue/cancel", async (c) => {
 });
 
 app.get("/api/logs", (c) => c.json(logger.getRecentLogs()));
+
+app.get("/api/events", async (c) => {
+  return streamSSE(c, async (stream) => {
+    const onLog = async (log) => {
+      await stream.writeSSE({
+        data: JSON.stringify(log),
+        event: "log",
+      });
+    };
+
+    const onIndexStatus = async (status) => {
+      await stream.writeSSE({
+        data: JSON.stringify(status),
+        event: "indexStatus",
+      });
+    };
+
+    logger.on("log", onLog);
+    
+    // We'll need to export an event emitter from core.js for this
+    const { indexingEvents } = await import("./core.js");
+    indexingEvents.on("status", onIndexStatus);
+
+    // Keep-alive heartbeat
+    const heartbeat = setInterval(async () => {
+      await stream.writeSSE({ data: "ping", event: "ping" });
+    }, 30000);
+
+    c.req.raw.signal.addEventListener("abort", () => {
+      logger.off("log", onLog);
+      indexingEvents.off("status", onIndexStatus);
+      clearInterval(heartbeat);
+    });
+
+    // Initial sync of existing state
+    const recentLogs = logger.getRecentLogs();
+    for (const log of recentLogs) {
+      await stream.writeSSE({ data: JSON.stringify(log), event: "log" });
+    }
+    
+    await stream.writeSSE({ data: JSON.stringify(indexingProgress), event: "indexStatus" });
+  });
+});
 
 app.get("/api/logs/stream", async (c) => {
   return streamSSE(c, async (stream) => {
