@@ -138,13 +138,6 @@ export async function getFileGitInfo(
   }
 }
 
-/**
- * Batch collect git info for multiple files (performance optimization)
- * @param repoPath Git repository root path
- * @param files Array of absolute file paths
- * @param churnWindow Number of months to calculate churn (default: 6)
- * @returns Map of relative file paths to git info
- */
 export async function batchCollectGitInfo(
   repoPath: string,
   files: string[],
@@ -152,13 +145,19 @@ export async function batchCollectGitInfo(
 ): Promise<Map<string, GitFileInfo>> {
   const gitInfoMap = new Map<string, GitFileInfo>();
 
+  // If there are too few files, the batch method is overkill and might scan too much history
+  if (files.length < 10) {
+    return await batchCollectGitInfoSlow(repoPath, files, churnWindow);
+  }
+
   logger.debug(`[Git] Batch collecting metadata for ${files.length} files in ${repoPath}`);
 
   try {
-    // 1. Get last commit info for ALL files in one go
-    // format: filepath|author|email|date|hash|subject
-    const logCommand = `git -C "${repoPath}" log --name-only --pretty=format:"%an|%ae|%aI|%h|%s"`;
-    const { stdout } = await execAsync(logCommand, { maxBuffer: 10 * 1024 * 1024 });
+    // 1. Get last commit info for files
+    // We limit the log to avoid scanning the entire history of huge repos
+    // 2000 commits should cover most active files in most projects
+    const logCommand = `git -C "${repoPath}" log -n 2000 --name-only --pretty=format:"%an|%ae|%aI|%h|%s"`;
+    const { stdout } = await execAsync(logCommand, { maxBuffer: 20 * 1024 * 1024 });
     
     const lines = stdout.split('\n');
     const processedFiles = new Set<string>();
@@ -168,18 +167,21 @@ export async function batchCollectGitInfo(
       if (!line.trim()) continue;
       
       if (line.includes('|')) {
-        const [author, email, date, hash, ...msgParts] = line.split('|');
-        currentCommit = { author, email, date, hash, message: msgParts.join('|') };
+        const parts = line.split('|');
+        if (parts.length >= 4) {
+          const [author, email, date, hash, ...msgParts] = parts;
+          currentCommit = { author, email, date, hash, message: msgParts.join('|') };
+        }
       } else {
         // This is a filename
         const relativePath = line.trim();
         const absolutePath = path.join(repoPath, relativePath);
         
-        // Only process the FIRST (newest) commit for each file
+        // Only process if it's one of the files we care about and we haven't seen it yet
         if (!processedFiles.has(absolutePath)) {
           gitInfoMap.set(absolutePath, {
             ...currentCommit,
-            commitCount6m: 0, // Will fill later
+            commitCount6m: 0, 
             churnLevel: 'low'
           });
           processedFiles.add(absolutePath);
@@ -187,9 +189,25 @@ export async function batchCollectGitInfo(
       }
     }
 
-    // 2. Get commit counts for churn in one go
+    // 2. For any files NOT found in the recent log (e.g. old files), we'll have to get them individually
+    const missingFiles = files.filter(f => !processedFiles.has(f));
+    if (missingFiles.length > 0 && missingFiles.length < 500) {
+      logger.debug(`[Git] ${missingFiles.length} files not found in recent history, fetching individually...`);
+      const BATCH_SIZE = 20;
+      for (let i = 0; i < missingFiles.length; i += BATCH_SIZE) {
+        const batch = missingFiles.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(async (file) => {
+          const rel = path.relative(repoPath, file);
+          const info = await getFileGitInfo(repoPath, rel, churnWindow);
+          if (info) gitInfoMap.set(file, info);
+        }));
+      }
+    }
+
+    // 3. Churn collection (also limited to avoid CPU hogging)
+    // Only collect churn for files we actually found/care about
     const churnCommand = `git -C "${repoPath}" log --since="${churnWindow} months ago" --name-only --pretty=format:""`;
-    const { stdout: churnStdout } = await execAsync(churnCommand, { maxBuffer: 10 * 1024 * 1024 });
+    const { stdout: churnStdout } = await execAsync(churnCommand, { maxBuffer: 20 * 1024 * 1024 });
     
     const fileCommitCounts = new Map<string, number>();
     for (const file of churnStdout.split('\n')) {
@@ -199,7 +217,7 @@ export async function batchCollectGitInfo(
       fileCommitCounts.set(abs, (fileCommitCounts.get(abs) || 0) + 1);
     }
 
-    // 3. Merge churn data
+    // 4. Merge churn data
     for (const [absPath, info] of gitInfoMap.entries()) {
       const count = fileCommitCounts.get(absPath) || 0;
       info.commitCount6m = count;
@@ -207,9 +225,11 @@ export async function batchCollectGitInfo(
     }
 
   } catch (err: any) {
-    logger.warn(`[Git] Efficient batch collection failed, falling back to slow method: ${err.message}`);
-    // Fallback to the original slower method if something goes wrong
-    return await batchCollectGitInfoSlow(repoPath, files, churnWindow);
+    logger.warn(`[Git] Efficient batch collection failed: ${err.message}`);
+    // If we have some data, return it, otherwise fallback
+    if (gitInfoMap.size === 0) {
+      return await batchCollectGitInfoSlow(repoPath, files, churnWindow);
+    }
   }
 
   logger.info(`[Git] Collected metadata for ${gitInfoMap.size} files`);

@@ -180,18 +180,19 @@ export class TaskQueue extends EventEmitter {
    * @param {object} task - Task object
    */
   async _processTask(task) {
-    const { indexFolder } = await import("./core.js");
+    const { handleIndexFolder } = await import("./core.js");
 
     try {
       logger.info(`[TaskQueue] Processing task: ${task.id} (${task.type})`);
 
       // Call the appropriate handler
       if (task.type === TaskType.INDEX_FOLDER || task.type === TaskType.INDEX_FILES) {
-        await indexFolder(
+        await handleIndexFolder(
           task.data.folderPath,
           task.data.projectName,
           task.data.collection,
           task.data.summarize,
+          false, // background - wait for completion since we are already in a worker
           task.data.force,
           task  // Pass task for progress updates
         );
