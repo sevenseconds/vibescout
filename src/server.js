@@ -857,6 +857,62 @@ app.post('/api/config', async (c) => {
   return c.json({ success: true });
 });
 
+// ============================================================================
+// Provider Plugin Management Endpoints
+// ============================================================================
+
+// List available provider plugins
+app.get('/api/plugins/providers', async (c) => {
+  const registry = getRegistry();
+  const plugins = registry.getProvidersByType('llm');
+
+  return c.json({
+    plugins: plugins.map(p => ({
+      name: p.name,
+      version: p.version,
+      type: p.type,
+      configSchema: p.configSchema
+    }))
+  });
+});
+
+// Get plugin config schema
+app.get('/api/plugins/providers/:name/schema', async (c) => {
+  const registry = getRegistry();
+  const pluginName = c.req.param('name');
+  const plugin = registry.getProvider(pluginName, 'llm');
+
+  if (!plugin) {
+    return c.json({ error: 'Plugin not found' }, 404);
+  }
+
+  return c.json(plugin.configSchema || { fields: [] });
+});
+
+// Test plugin connection
+app.post('/api/plugins/providers/:name/test', async (c) => {
+  const registry = getRegistry();
+  const pluginName = c.req.param('name');
+  const plugin = registry.getProvider(pluginName, 'llm');
+
+  if (!plugin) {
+    return c.json({ error: 'Plugin not found' }, 404);
+  }
+
+  if (!plugin.testConnection) {
+    return c.json({ error: 'Test not supported by this plugin' }, 400);
+  }
+
+  try {
+    const config = await c.req.json();
+    await plugin.testConnection(config);
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error(`[PluginAPI] Connection test failed for ${pluginName}:`, error);
+    return c.json({ error: error.message || 'Connection test failed' }, 400);
+  }
+});
+
 app.get('/api/watchers', async (c) => {
   const watchers = await getWatchList();
   return c.json(watchers);

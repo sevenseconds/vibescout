@@ -1,0 +1,19 @@
+{
+  "name": "bedrock-llm-assume-role",
+  "version": "1.0.0",
+  "description": "AWS Bedrock LLM provider with AssumeRole and SSO support",
+  "main": "index.ts",
+  "type": "module",
+  "vibescout": {
+    "type": "provider",
+    "providerType": "llm",
+    "apiVersion": "1.0.0",
+    "builtin": true,
+    "capabilities": ["providers"]
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock": "^3.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0",
+    "@aws-sdk/credential-providers": "^3.0.0"
+  }
+}

@@ -40,6 +40,12 @@ async function startServer(mode, port, isUI = false) {
     const isSSE = mode === "sse";
     logger.info(`Starting MCP ${isSSE ? "SSE" : "HTTP"} Server on port ${port}${isUI ? " (with Web UI)" : ""}...`);
 
+    // Load plugins for server mode
+    const registry = getRegistry();
+    const config = await loadConfig();
+    await registry.loadAll(config.plugin || {});
+    logger.info(`[Plugin System] Loaded ${registry.getPlugins().length} plugin(s)`);
+
     // Standardize on /mcp endpoint
     const transport = new StreamableHTTPServerTransport({ endpoint: "/mcp" });
     await server.connect(transport);
@@ -134,7 +140,7 @@ async function main() {
     const firstCommand = args.find(arg => !arg.startsWith('--'));
 
     // Commands that don't need any initialization
-    const noInitCommands = ['config', 'plugin'];
+    const noInitCommands = ['config', 'plugin', 'provider-plugin', 'pp'];
     const needsNoInit = noInitCommands.includes(firstCommand);
 
     // Commands that need database/providers but NOT file watcher
@@ -444,6 +450,251 @@ async function main() {
       await registry.unloadPlugin(name);
 
       console.log(`✓ Plugin '${name}' disabled successfully!`);
+    });
+
+  // Provider plugin management commands
+  const providerPluginCommand = program
+    .command("provider-plugin")
+    .description("Manage provider plugins (embedding and LLM providers)")
+    .alias("pp");
+
+  providerPluginCommand
+    .command("list")
+    .description("List all installed provider plugins")
+    .option("-t, --type <type>", "Filter by type (embedding, llm)")
+    .action(async (options) => {
+      const registry = getRegistry();
+
+      // Load plugins first
+      await registry.loadAll(config.plugin || {});
+
+      const plugins = registry.getProviders();
+
+      if (plugins.length === 0) {
+        console.log("No provider plugins found.");
+        console.log("\nBuilt-in plugins are in: src/plugins/providers/");
+        console.log("User plugins are in: ~/.vibescout/plugins/providers/");
+        process.exit(0);
+      }
+
+      let filteredPlugins = plugins;
+      if (options.type) {
+        if (options.type !== 'embedding' && options.type !== 'llm') {
+          console.error(`Error: Invalid type '${options.type}'. Must be 'embedding' or 'llm'.`);
+          process.exit(1);
+        }
+        filteredPlugins = plugins.filter(p => p.type === options.type);
+      }
+
+      console.log("\nInstalled Provider Plugins:\n");
+      const tableData = filteredPlugins.map(p => ({
+        Name: p.name,
+        Version: p.version || 'N/A',
+        Type: p.type,
+        Source: 'builtin'
+      }));
+
+      // Simple table output
+      console.table(tableData);
+      process.exit(0);
+    });
+
+  providerPluginCommand
+    .command("info")
+    .argument("<name>", "Provider plugin name")
+    .description("Show detailed information about a provider plugin")
+    .action(async (name) => {
+      const registry = getRegistry();
+
+      // Load plugins first
+      await registry.loadAll(config.plugin || {});
+
+      const plugin = registry.getProvider(name);
+
+      if (!plugin) {
+        console.log(`Provider plugin '${name}' not found.`);
+        console.log("\nRun 'vibescout provider-plugin list' to see available plugins.");
+        process.exit(1);
+      }
+
+      console.log(`\nProvider Plugin: ${plugin.name}`);
+      console.log(`Type: ${plugin.type}`);
+      console.log(`Version: ${plugin.version || 'N/A'}`);
+      console.log(`Source: builtin`);
+
+      if (plugin.configSchema && plugin.configSchema.fields.length > 0) {
+        console.log(`\nConfiguration Fields:`);
+        plugin.configSchema.fields.forEach(field => {
+          const required = field.required ? '(required)' : '(optional)';
+          console.log(`  - ${field.name} [${field.type}] ${required}`);
+          if (field.helperText) {
+            console.log(`    ${field.helperText}`);
+          }
+        });
+      }
+
+      const methods = [];
+      if (plugin.createProvider) methods.push('createProvider');
+      if (plugin.validateCredentials) methods.push('validateCredentials');
+      if (plugin.testConnection) methods.push('testConnection');
+
+      if (methods.length > 0) {
+        console.log(`\nAvailable Methods: ${methods.join(', ')}`);
+      }
+
+      process.exit(0);
+    });
+
+  providerPluginCommand
+    .command("install")
+    .argument("<name>", "Provider plugin name (will be prefixed with vibescout-provider- if not already)")
+    .description("Install a provider plugin from npm")
+    .action(async (name) => {
+      const { execSync } = await import('child_process');
+
+      const pluginName = name.startsWith('vibescout-provider-') ? name : `vibescout-provider-${name}`;
+      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+
+      try {
+        console.log(`Installing ${pluginName}...`);
+
+        // Install to user plugins directory
+        const pluginsDir = path.join(os.homedir(), '.vibescout', 'plugins', 'providers');
+        await fs.ensureDir(pluginsDir);
+
+        const output = execSync(`${cmd} install ${pluginName} --prefix "${pluginsDir}"`, { encoding: 'utf-8' });
+        console.log(output);
+        console.log(`\n✓ Provider plugin ${pluginName} installed successfully!`);
+        console.log(`Location: ${pluginsDir}/${pluginName}`);
+        process.exit(0);
+      } catch (error) {
+        console.error(`\n✗ Failed to install ${pluginName}:`);
+        console.error(error.stdout || error.stderr || error.message);
+        process.exit(1);
+      }
+    });
+
+  providerPluginCommand
+    .command("uninstall")
+    .argument("<name>", "Provider plugin name")
+    .description("Uninstall a provider plugin")
+    .action(async (name) => {
+      const { execSync } = await import('child_process');
+
+      const pluginName = name.startsWith('vibescout-provider-') ? name : `vibescout-provider-${name}`;
+      const cmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+
+      try {
+        const pluginsDir = path.join(os.homedir(), '.vibescout', 'plugins', 'providers');
+        const pluginPath = path.join(pluginsDir, 'node_modules', pluginName);
+
+        // Check if plugin exists
+        if (!await fs.pathExists(pluginPath)) {
+          console.log(`Provider plugin '${name}' is not installed.`);
+          process.exit(0);
+        }
+
+        console.log(`Uninstalling ${pluginName}...`);
+        const output = execSync(`${cmd} uninstall ${pluginName} --prefix "${pluginsDir}"`, { encoding: 'utf-8' });
+        console.log(output);
+        console.log(`\n✓ Provider plugin ${pluginName} uninstalled successfully!`);
+        process.exit(0);
+      } catch (error) {
+        console.error(`\n✗ Failed to uninstall ${pluginName}:`);
+        console.error(error.stdout || error.stderr || error.message);
+        process.exit(1);
+      }
+    });
+
+  providerPluginCommand
+    .command("validate")
+    .argument("<path>", "Path to provider plugin directory")
+    .description("Validate a provider plugin manifest and implementation")
+    .action(async (pluginPath) => {
+      const absolutePath = path.resolve(pluginPath);
+
+      // Check if directory exists
+      if (!await fs.pathExists(absolutePath)) {
+        console.error(`Error: Directory not found: ${absolutePath}`);
+        process.exit(1);
+      }
+
+      // Check for package.json
+      const packagePath = path.join(absolutePath, 'package.json');
+      if (!await fs.pathExists(packagePath)) {
+        console.error(`Error: package.json not found at ${packagePath}`);
+        process.exit(1);
+      }
+
+      try {
+        const packageContent = await fs.readFile(packagePath, 'utf-8');
+        const packageJson = JSON.parse(packageContent);
+
+        // Validate vibescout manifest
+        if (!packageJson.vibescout) {
+          console.error(`Error: package.json missing 'vibescout' manifest`);
+          process.exit(1);
+        }
+
+        const manifest = packageJson.vibescout;
+
+        if (manifest.type !== 'provider') {
+          console.error(`Error: Expected type 'provider', got '${manifest.type}'`);
+          process.exit(1);
+        }
+
+        if (!['embedding', 'llm'].includes(manifest.providerType)) {
+          console.error(`Error: Invalid providerType '${manifest.providerType}'. Must be 'embedding' or 'llm'.`);
+          process.exit(1);
+        }
+
+        console.log(`\n✓ package.json is valid`);
+        console.log(`  Plugin Name: ${packageJson.name}`);
+        console.log(`  Version: ${packageJson.version}`);
+        console.log(`  Type: ${manifest.type}`);
+        console.log(`  Provider Type: ${manifest.providerType}`);
+        console.log(`  API Version: ${manifest.apiVersion}`);
+
+        // Check for main entry point
+        const mainFile = manifest.main || packageJson.main || 'index.js';
+        const mainPath = path.join(absolutePath, mainFile);
+
+        if (!await fs.pathExists(mainPath)) {
+          console.warn(`\n⚠ Warning: Main file not found: ${mainPath}`);
+        } else {
+          console.log(`\n✓ Main file found: ${mainFile}`);
+        }
+
+        // Check for configSchema (recommended)
+        try {
+          // Try to load the plugin to check for configSchema
+          const pluginModule = await import(absolutePath);
+          const plugin = pluginModule.default;
+
+          if (!plugin) {
+            console.warn(`\n⚠ Warning: Plugin has no default export`);
+          } else {
+            if (plugin.name) console.log(`\n✓ Plugin name: ${plugin.name}`);
+            if (plugin.type) console.log(`✓ Plugin type: ${plugin.type}`);
+            if (plugin.configSchema) {
+              console.log(`✓ Config schema found with ${plugin.configSchema.fields.length} fields`);
+            } else {
+              console.warn(`\n⚠ Warning: No configSchema found. UI won't be able to generate configuration form.`);
+            }
+            if (plugin.createProvider) console.log(`✓ createProvider method found`);
+            if (plugin.validateCredentials) console.log(`✓ validateCredentials method found`);
+            if (plugin.testConnection) console.log(`✓ testConnection method found`);
+          }
+        } catch (error) {
+          console.warn(`\n⚠ Warning: Could not load plugin module: ${error.message}`);
+        }
+
+        console.log(`\n✓ Provider plugin validation passed!`);
+        process.exit(0);
+      } catch (error) {
+        console.error(`\n✗ Validation failed: ${error.message}`);
+        process.exit(1);
+      }
     });
 
   program.action(async () => {

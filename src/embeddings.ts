@@ -9,6 +9,7 @@ import { ZAIProvider, ZAICodingProvider } from "./providers/ZAIProvider.js";
 import { BedrockProvider } from "./providers/BedrockProvider.js";
 import { EmbeddingProvider, SummarizerProvider, ProviderConfig } from "./providers/base.js";
 import { getThrottler } from "./throttler.js";
+import { getRegistry } from "./plugins/registry.js";
 
 export function configureEnvironment(modelsPath: string, offlineMode: boolean = false) {
   if (modelsPath) {
@@ -40,7 +41,31 @@ export class EmbeddingManager {
   async setProvider(config: ProviderConfig, throttlingErrors: string[] = []) {
     this.currentModel = config.modelName;
     this.throttlingErrors = throttlingErrors;
-    
+
+    // Check for provider plugin first
+    if (config.pluginName) {
+      const registry = getRegistry();
+      const plugin = registry.getProvider(config.pluginName, 'embedding');
+
+      if (plugin) {
+        // Use plugin's createProvider method if available, otherwise use plugin directly
+        this.provider = plugin.createProvider
+          ? plugin.createProvider(config)
+          : plugin;
+
+        // Initialize the provider if it has an initialize method
+        if (this.provider.initialize) {
+          await this.provider.initialize(config);
+        }
+
+        logger.info(`[EmbeddingManager] Using provider plugin: ${config.pluginName}`);
+        return;
+      } else {
+        logger.warn(`[EmbeddingManager] Provider plugin "${config.pluginName}" not found, falling back to built-in`);
+      }
+    }
+
+    // Fall back to built-in providers
     if (config.type === 'ollama') {
       this.provider = new OllamaProvider(config.modelName, config.baseUrl);
     } else if (config.type === 'openai') {
@@ -176,6 +201,30 @@ export class SummarizerManager {
     this.modelName = config.modelName;
     this.throttlingErrors = throttlingErrors;
 
+    // Check for provider plugin first
+    if (config.pluginName) {
+      const registry = getRegistry();
+      const plugin = registry.getProvider(config.pluginName, 'llm');
+
+      if (plugin) {
+        // Use plugin's createProvider method if available, otherwise use plugin directly
+        this.provider = plugin.createProvider
+          ? plugin.createProvider(config)
+          : plugin;
+
+        // Initialize the provider if it has an initialize method
+        if (this.provider.initialize) {
+          await this.provider.initialize(config);
+        }
+
+        logger.info(`[SummarizerManager] Using provider plugin: ${config.pluginName}`);
+        return;
+      } else {
+        logger.warn(`[SummarizerManager] Provider plugin "${config.pluginName}" not found, falling back to built-in`);
+      }
+    }
+
+    // Fall back to built-in providers
     if (config.type === 'ollama') {
       this.provider = new OllamaProvider(config.modelName, config.baseUrl);
     } else if (config.type === 'openai') {

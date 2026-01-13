@@ -188,22 +188,72 @@ export interface ImportInfo {
 }
 
 /**
+ * Configuration schema for dynamic UI generation.
+ * Defines the form fields that providers need for configuration.
+ */
+export interface ConfigSchema {
+  /** Array of configuration field definitions */
+  fields: ConfigField[];
+}
+
+/**
+ * Configuration field definition for provider config UI.
+ */
+export interface ConfigField {
+  /** Field name (used as key in config object) */
+  name: string;
+
+  /** Field type (determines UI element) */
+  type: 'text' | 'password' | 'select' | 'arn' | 'region';
+
+  /** Human-readable label for the field */
+  label: string;
+
+  /** Placeholder text for input */
+  placeholder?: string;
+
+  /** Whether the field is required */
+  required: boolean;
+
+  /** Helper text displayed below the field */
+  helperText?: string;
+
+  /** Options for select fields */
+  options?: { label: string; value: string }[];
+}
+
+/**
  * AI provider plugin interface.
- * Providers implement embedding generation or text summarization.
+ * Providers implement embedding generation or LLM capabilities.
  */
 export interface ProviderPlugin {
   /** Unique provider name */
   name: string;
 
-  /** Provider type (embedding or summarizer) */
-  type: 'embedding' | 'summarizer';
+  /** Provider type (embedding or LLM) */
+  type: 'embedding' | 'llm';
+
+  /**
+   * Configuration schema for dynamic UI generation.
+   * If provided, VibeScout will automatically generate configuration forms.
+   */
+  configSchema?: ConfigSchema;
 
   /**
    * Initialize the provider with configuration.
    *
    * @param config - Provider configuration from config.json
    */
-  initialize(config: any): Promise<void> | void;
+  initialize?(config: any): Promise<void> | void;
+
+  /**
+   * Factory method to create a provider instance.
+   * Used when the plugin needs to create a new provider instance with custom logic.
+   *
+   * @param config - Provider configuration
+   * @returns Provider instance
+   */
+  createProvider?(config: any): any;
 
   /**
    * Generate embedding for a single text (for embedding providers).
@@ -216,17 +266,17 @@ export interface ProviderPlugin {
   generateEmbeddingsBatch?(texts: string[]): Promise<number[][]>;
 
   /**
-   * Summarize text (for summarizer providers).
+   * Summarize text (for LLM providers).
    */
   summarize?(text: string, maxLength?: number): Promise<string>;
 
   /**
-   * Generate a response from a prompt (for summarizer/LLM providers).
+   * Generate a response from a prompt (for LLM providers).
    */
   generateResponse?(prompt: string, context?: string): Promise<string>;
 
   /**
-   * Generate the best question for a code block (for summarizer/LLM providers).
+   * Generate the best question for a code block (for LLM providers).
    */
   generateBestQuestion?(code: string, summary: string): Promise<string>;
 
@@ -234,6 +284,21 @@ export interface ProviderPlugin {
    * Check if provider is available and configured.
    */
   isAvailable?(): Promise<boolean> | boolean;
+
+  /**
+   * Validate provider credentials/configuration.
+   *
+   * @param config - Provider configuration to validate
+   * @returns true if credentials are valid
+   */
+  validateCredentials?(config: any): Promise<boolean>;
+
+  /**
+   * Test provider connection with given configuration.
+   *
+   * @param config - Provider configuration to test
+   */
+  testConnection?(config: any): Promise<void>;
 }
 
 /**

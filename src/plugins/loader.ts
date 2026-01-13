@@ -129,6 +129,22 @@ export async function discoverPlugins(): Promise<PluginInfo[]> {
     pluginMap.set(plugin.name, plugin);
   }
 
+  // 2.5. Discover provider plugins
+  const providerPlugins = await discoverProviderPlugins();
+  for (const plugin of providerPlugins) {
+    const existing = pluginMap.get(plugin.name);
+
+    if (existing) {
+      logger.warn(
+        `[Plugin Loader] ⚠️  Override detected: Provider plugin "${plugin.name}" is overriding ${existing.source} plugin. ` +
+        `Existing: ${existing.path}, Provider: ${plugin.path}`
+      );
+      plugin.overridden = existing.path;
+    }
+
+    pluginMap.set(plugin.name, plugin);
+  }
+
   // 3. Discover npm plugins
   const npmPlugins = await discoverNpmPlugins();
   for (const plugin of npmPlugins) {
@@ -240,6 +256,65 @@ async function discoverLocalPlugins(): Promise<PluginInfo[]> {
         } catch (error) {
           // Invalid package.json - skip
           console.warn(`[Plugin Loader] Invalid package.json in ${pluginPath}:`, error.message);
+        }
+      }
+    }
+  }
+
+  return plugins;
+}
+
+/**
+ * Discover provider plugins from ~/.vibescout/plugins/providers/
+ * and src/plugins/providers/ (built-in)
+ */
+async function discoverProviderPlugins(): Promise<PluginInfo[]> {
+  const plugins: PluginInfo[] = [];
+
+  // 1. Discover user provider plugins
+  const userProvidersDir = path.join(os.homedir(), '.vibescout', 'plugins', 'providers');
+
+  if (await fs.pathExists(userProvidersDir)) {
+    const entries = await fs.readdir(userProvidersDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const pluginPath = path.join(userProvidersDir, entry.name);
+        const manifestPath = path.join(pluginPath, 'package.json');
+
+        if (await fs.pathExists(manifestPath)) {
+          try {
+            const manifest = await fs.readJson(manifestPath);
+            const pluginInfo = createPluginInfo(manifest, pluginPath, 'local');
+            plugins.push(pluginInfo);
+          } catch (error) {
+            console.warn(`[Plugin Loader] Invalid provider plugin in ${pluginPath}:`, error.message);
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Discover built-in provider plugins from src/plugins/providers/
+  const builtinProvidersDir = path.join(__dirname, 'providers');
+
+  if (await fs.pathExists(builtinProvidersDir)) {
+    const entries = await fs.readdir(builtinProvidersDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const pluginPath = path.join(builtinProvidersDir, entry.name);
+        const manifestPath = path.join(pluginPath, 'package.json');
+
+        if (await fs.pathExists(manifestPath)) {
+          try {
+            const manifest = await fs.readJson(manifestPath);
+            const pluginInfo = createPluginInfo(manifest, pluginPath, 'local');
+            pluginInfo.manifest.builtin = true;
+            plugins.push(pluginInfo);
+          } catch (error) {
+            console.warn(`[Plugin Loader] Invalid built-in provider plugin in ${pluginPath}:`, error.message);
+          }
         }
       }
     }

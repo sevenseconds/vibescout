@@ -5,6 +5,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import modelsData from '../models.json';
 import DebugPanel from '../components/DebugPanel';
+import DynamicConfigForm from '../components/DynamicConfigForm';
 import { notify } from '../utils/events';
 
 function cn(...inputs: ClassValue[]) {
@@ -31,6 +32,11 @@ interface Config {
   cloudflareVectorizeIndex: string;
   awsRegion: string;
   awsProfile: string;
+  pluginName?: string;  // For provider plugins
+  inferenceArn?: string;  // For inference ARNs
+  sourceProfile?: string;  // For AssumeRole
+  roleArn?: string;  // For AssumeRole
+  ssoSession?: string;  // For SSO
   port: number;
   summarize: boolean;
   verbose: boolean;
@@ -68,6 +74,12 @@ export default function ConfigView() {
   const [testingLLM, setTestingLLM] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
 
+  // Provider plugin state
+  const [availablePlugins, setAvailablePlugins] = useState<any[]>([]);
+  const [selectedPlugin, setSelectedPlugin] = useState<any>(null);
+  const [providerMode, setProviderMode] = useState<'builtin' | 'plugin'>('builtin');
+  const [pluginConfig, setPluginConfig] = useState<Record<string, any>>({});
+
   const fetchOllamaModels = async (url: string) => {
     try {
       const res = await axios.get(`/api/models/ollama?url=${encodeURIComponent(url)}`);
@@ -93,6 +105,20 @@ export default function ConfigView() {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Fetch available provider plugins
+  const fetchProviderPlugins = async () => {
+    try {
+      const res = await axios.get('/api/plugins/providers');
+      setAvailablePlugins(res.data.plugins || []);
+    } catch (err) {
+      console.error('Failed to fetch provider plugins:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchProviderPlugins();
   }, []);
 
   const handleSave = async () => {
@@ -283,14 +309,128 @@ export default function ConfigView() {
       case 'bedrock':
         return (
           <>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">AWS Region</label>
-              <input type="text" value={config.awsRegion} onChange={(e) => updateConfig('awsRegion', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" placeholder="us-east-1" />
+            {/* Provider Mode Selector */}
+            <div className="space-y-2 mb-6">
+              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Provider Mode</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setProviderMode('builtin');
+                    if (config?.pluginName) {
+                      updateConfig('pluginName', undefined);
+                    }
+                  }}
+                  className={cn(
+                    "flex-1 px-4 py-2 rounded-xl border transition-all text-sm font-bold",
+                    providerMode === 'builtin'
+                      ? "bg-primary/10 border-primary/30 text-primary"
+                      : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Built-in (Simple)
+                </button>
+                <button
+                  onClick={() => {
+                    setProviderMode('plugin');
+                  }}
+                  className={cn(
+                    "flex-1 px-4 py-2 rounded-xl border transition-all text-sm font-bold",
+                    providerMode === 'plugin'
+                      ? "bg-primary/10 border-primary/30 text-primary"
+                      : "bg-secondary border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Plugin (Custom Auth)
+                </button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">AWS Profile</label>
-              <input type="text" value={config.awsProfile} onChange={(e) => updateConfig('awsProfile', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" placeholder="default" />
-            </div>
+
+            {providerMode === 'plugin' ? (
+              <>
+                {/* Plugin Selection */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">Provider Plugin</label>
+                  <select
+                    value={config?.pluginName || ''}
+                    onChange={(e) => {
+                      const pluginName = e.target.value;
+                      updateConfig('pluginName', pluginName);
+                      const plugin = availablePlugins.find(p => p.name === pluginName);
+                      setSelectedPlugin(plugin);
+                      setPluginConfig({});
+                    }}
+                    className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground"
+                  >
+                    <option value="">Select a plugin...</option>
+                    {availablePlugins
+                      .filter(p => p.type === 'llm')
+                      .map((plugin) => (
+                        <option key={plugin.name} value={plugin.name}>
+                          {plugin.name} (v{plugin.version})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Dynamic Configuration Form */}
+                {selectedPlugin && selectedPlugin.configSchema && (
+                  <div className="space-y-4 mt-4">
+                    <h3 className="text-sm font-bold text-foreground">Plugin Configuration</h3>
+                    <DynamicConfigForm
+                      schema={selectedPlugin.configSchema}
+                      values={pluginConfig}
+                      onChange={(newValues) => {
+                        setPluginConfig(newValues);
+                        // Update individual config fields
+                        Object.entries(newValues).forEach(([key, value]) => {
+                          updateConfig(key as keyof Config, value);
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Test Plugin Connection Button */}
+                {config?.pluginName && (
+                  <div className="mt-4">
+                    <button
+                      onClick={async () => {
+                        if (!config?.pluginName) return;
+                        try {
+                          setTestingLLM(true);
+                          await axios.post(`/api/plugins/providers/${config.pluginName}/test`, {
+                            ...config,
+                            ...pluginConfig
+                          });
+                          notify('success', 'Plugin connection test successful!');
+                        } catch (err: any) {
+                          notify('error', `Connection test failed: ${err.response?.data?.error || err.message}`);
+                        } finally {
+                          setTestingLLM(false);
+                        }
+                      }}
+                      disabled={testingLLM}
+                      className="w-full px-4 py-3 bg-secondary border border-border rounded-xl hover:border-primary/50 transition-all text-muted-foreground hover:text-primary disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {testingLLM ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+                      Test Plugin Connection
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Built-in Provider Fields */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">AWS Region</label>
+                  <input type="text" value={config.awsRegion} onChange={(e) => updateConfig('awsRegion', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" placeholder="us-east-1" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-1">AWS Profile</label>
+                  <input type="text" value={config.awsProfile} onChange={(e) => updateConfig('awsProfile', e.target.value)} className="w-full bg-secondary border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary font-mono text-sm transition-all text-foreground" placeholder="default" />
+                </div>
+              </>
+            )}
           </>
         );
       default:

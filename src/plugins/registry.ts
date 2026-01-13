@@ -225,16 +225,22 @@ export class PluginRegistry {
   /**
    * Get providers by type.
    */
-  getProvidersByType(type: 'embedding' | 'summarizer'): ProviderPlugin[] {
+  getProvidersByType(type: 'embedding' | 'llm'): ProviderPlugin[] {
     return this.getProviders().filter(provider => provider.type === type);
   }
 
   /**
    * Get provider by name and type.
    */
-  getProvider(name: string, type: 'embedding' | 'summarizer'): ProviderPlugin | undefined {
-    const key = `${type}:${name}`;
-    return this.state.providers.get(key);
+  getProvider(name: string, type?: 'embedding' | 'llm'): ProviderPlugin | undefined {
+    // If type is specified, use it. Otherwise search by name only.
+    if (type) {
+      const key = `${type}:${name}`;
+      return this.state.providers.get(key);
+    }
+
+    // Search by name only
+    return this.getProviders().find(provider => provider.name === name);
   }
 
   /**

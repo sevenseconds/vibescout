@@ -45,6 +45,7 @@
     "access": "public"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock": "^3.966.0",
     "@aws-sdk/client-bedrock-runtime": "^3.966.0",
     "@aws-sdk/credential-provider-node": "^3.966.0",
     "@aws-sdk/credential-providers": "^3.966.0",
@@ -52,8 +53,8 @@
     "@huggingface/transformers": "^3.8.1",
     "@lancedb/lancedb": "^0.23.0",
     "@modelcontextprotocol/sdk": "^1.25.2",
-    "apache-arrow": "^18.0.0",
     "adm-zip": "^0.5.14",
+    "apache-arrow": "^18.0.0",
     "chalk": "^5.6.2",
     "chokidar": "^5.0.0",
     "commander": "^14.0.2",
