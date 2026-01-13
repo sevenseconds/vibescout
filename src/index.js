@@ -5,6 +5,8 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Command } from "commander";
 import fs from "fs-extra";
+import path from "path";
+import os from "os";
 import { logger, LogLevel } from "./logger.js";
 import { configureEnvironment, embeddingManager, summarizerManager, rerankerManager } from "./embeddings.js";
 import { closeDb, compactDatabase, initDB, clearDatabase } from "./db.js";
@@ -20,7 +22,6 @@ const require = createRequire(import.meta.url);
 const packageJson = require("../package.json");
 import pkg from "enquirer";
 import { fileURLToPath } from "url";
-import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

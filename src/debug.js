@@ -27,13 +27,13 @@ class DebugStore {
 
   _truncateValue(val, depth = 0) {
     if (depth > 5) return "[Max Depth]";
-    if (typeof val === 'string') {
+    if (typeof val === "string") {
       return val.length > 5000 ? val.substring(0, 5000) + "... [truncated]" : val;
     }
     if (Array.isArray(val)) {
       return val.map(item => this._truncateValue(item, depth + 1));
     }
-    if (typeof val === 'object' && val !== null) {
+    if (typeof val === "object" && val !== null) {
       const result = {};
       for (const key in val) {
         result[key] = this._truncateValue(val[key], depth + 1);

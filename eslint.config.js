@@ -3,7 +3,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["ui/dist/**/*", "ui/node_modules/**/*", "dist/**/*"]
+    ignores: ["ui/dist/**/*", "ui/node_modules/**/*", "dist/**/*", "src/ui-dist/**/*"]
   },
   js.configs.recommended,
   {

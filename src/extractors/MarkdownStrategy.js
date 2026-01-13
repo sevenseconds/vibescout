@@ -16,10 +16,10 @@ export const MarkdownStrategy = {
     const blocks = [];
     const metadata = { imports: [], exports: [] };
     const lines = code.split("\n");
-    const chunking = options.chunking || 'headings';
+    const chunking = options.chunking || "headings";
 
     // 1. No Chunking: Treat the entire file as a single block
-    if (chunking === 'none') {
+    if (chunking === "none") {
       if (code.trim().length > 0) {
         blocks.push({
           name: `Doc: ${path.basename(filePath)}`,
@@ -36,7 +36,7 @@ export const MarkdownStrategy = {
     }
 
     // 2. Paragraph Chunking: Split by double newlines
-    if (chunking === 'paragraphs') {
+    if (chunking === "paragraphs") {
       const paragraphs = code.split(/\n\s*\n/);
       let currentLine = 1;
       
@@ -44,7 +44,7 @@ export const MarkdownStrategy = {
         const content = paragraphs[i].trim();
         if (!content) continue;
         
-        const paraLines = content.split('\n').length;
+        const paraLines = content.split("\n").length;
         blocks.push({
           name: `Doc: ${path.basename(filePath)} (Para ${i + 1})`,
           type: "documentation",

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
-import axios from 'axios';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { subscribeToNotifications } from '../utils/events';

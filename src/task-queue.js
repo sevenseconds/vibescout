@@ -85,7 +85,7 @@ export class TaskQueue extends EventEmitter {
     // Try to process the queue asynchronously
     setImmediate(() => {
       this._processQueue().catch(err => {
-        logger.error(`[TaskQueue] Queue processing error:`, err);
+        logger.error("[TaskQueue] Queue processing error:", err);
       });
     });
 
@@ -230,7 +230,7 @@ export class TaskQueue extends EventEmitter {
           this.queue.push(task.id);
           this._sortQueue();
           this._processQueue().catch(err => {
-            logger.error(`[TaskQueue] Queue processing error during retry:`, err);
+            logger.error("[TaskQueue] Queue processing error during retry:", err);
           });
         }, backoffDelay);
 
@@ -247,7 +247,7 @@ export class TaskQueue extends EventEmitter {
 
       // Process next task in queue
       this._processQueue().catch(err => {
-        logger.error(`[TaskQueue] Queue processing error in finally:`, err);
+        logger.error("[TaskQueue] Queue processing error in finally:", err);
       });
     }
   }

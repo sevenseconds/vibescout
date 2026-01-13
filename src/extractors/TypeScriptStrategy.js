@@ -1,5 +1,6 @@
 import Parser from "tree-sitter";
 import TypeScript from "tree-sitter-typescript";
+import path from "path";
 
 const parser = new Parser();
 parser.setLanguage(TypeScript.typescript);
@@ -14,10 +15,10 @@ export const TypeScriptStrategy = {
     const blocks = [];
     const metadata = { imports: [], exports: [] };
     const lines = code.split("\n");
-    const chunking = options.chunking || 'granular';
+    const chunking = options.chunking || "granular";
 
     // 1. No Chunking: Treat the entire file as a single unit
-    if (chunking === 'none') {
+    if (chunking === "none") {
       if (code.trim().length > 0) {
         blocks.push({
           name: path.basename(filePath),
@@ -72,7 +73,7 @@ export const TypeScriptStrategy = {
         }
       }
 
-      if (name && chunking === 'granular') {
+      if (name && chunking === "granular") {
         const startLine = node.startPosition.row + 1;
         const endLine = node.endPosition.row + 1;
         const lineCount = endLine - startLine;

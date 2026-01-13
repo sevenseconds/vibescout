@@ -145,7 +145,7 @@ export function stopIndexing() {
   if (indexingProgress.active) {
     isShuttingDown = true;
     indexingProgress.status = "stopping";
-    logger.info(`[Shutdown] Stopping indexing gracefully...`);
+    logger.info("[Shutdown] Stopping indexing gracefully...");
     emitStatus();
   }
 }
@@ -275,7 +275,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
         while (isPaused && !isShuttingDown) await new Promise(r => setTimeout(r, 500));
 
         const filePath = path.join(absolutePath, file);
-        if (!filePath || typeof filePath !== 'string') {
+        if (!filePath || typeof filePath !== "string") {
           logger.error(`[Index] Invalid file path: ${filePath}`);
           indexingProgress.processedFiles++;
           return;
@@ -443,18 +443,16 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
 }
 
 export async function searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore = 0.4, limit = 10) {
-  try {
-    const storedModel = await getStoredModel();
-    if (storedModel && storedModel !== embeddingManager.getModel()) await embeddingManager.setModel(storedModel);
+  const storedModel = await getStoredModel();
+  if (storedModel && storedModel !== embeddingManager.getModel()) await embeddingManager.setModel(storedModel);
 
-    const queryVector = await embeddingManager.generateEmbedding(query);
-    const rawResults = await hybridSearch(query, queryVector, {
-      collection, projectName, fileTypes, categories, limit, authors, dateFrom, dateTo, churnLevels
-    });
+  const queryVector = await embeddingManager.generateEmbedding(query);
+  const rawResults = await hybridSearch(query, queryVector, {
+    collection, projectName, fileTypes, categories, limit, authors, dateFrom, dateTo, churnLevels
+  });
 
-    const reranked = await rerankerManager.rerank(query, rawResults, limit);
-    return reranked.filter(r => (r.rerankScore || r.score || 0) >= minScore);
-  } catch (error) { throw error; }
+  const reranked = await rerankerManager.rerank(query, rawResults, limit);
+  return reranked.filter(r => (r.rerankScore || r.score || 0) >= minScore);
 }
 
 export async function handleSearchCode(query, collection, projectName, categories = ["code"], fileTypes, authors, dateFrom, dateTo, churnLevels, minScore, limit, previewOnly = false) {

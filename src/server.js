@@ -1559,7 +1559,7 @@ app.post("/api/plugins/install", async (c) => {
       });
     } else if (source === "github") {
       // Parse GitHub URL
-      const urlMatch = url.match(/github\.com\/([^\/]+)\/([^\/\.]+)/);
+      const urlMatch = url.match(/github\.com\/([^/]+)\/([^/.]+)/);
       if (!urlMatch) {
         return c.json({ error: "Invalid GitHub URL. Expected: https://github.com/user/repo" }, 400);
       }
