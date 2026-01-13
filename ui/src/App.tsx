@@ -37,6 +37,7 @@ import ChatView from './views/ChatView';
 import GraphView from './views/GraphView';
 import PromptsView from './views/PromptsView';
 import PluginManagerView from './views/PluginManagerView';
+import PerformanceView from './views/PerformanceView';
 import LiveLogs from './components/LiveLogs';
 import NotificationTray from './components/NotificationTray';
 
@@ -99,6 +100,7 @@ function AppContent() {
 
   const secondaryNavItems = [
     { path: '/plugins', label: 'Plugins', icon: Box },
+    { path: '/performance', label: 'Performance', icon: Activity },
     { path: '/config', label: 'Settings', icon: Settings },
   ];
 
@@ -268,6 +270,7 @@ function AppContent() {
             <Route path="/kb" element={<KBView onExplore={handleExploreProject} />} />
             <Route path="/prompts" element={<PromptsView />} />
             <Route path="/plugins" element={<PluginManagerView />} />
+            <Route path="/performance" element={<PerformanceView />} />
             <Route path="/config" element={<ConfigView />} />
           </Routes>
         </div>

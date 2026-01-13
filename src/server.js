@@ -12,6 +12,7 @@ import { logger as honoLogger } from 'hono/logger';
 import { streamSSE } from 'hono/streaming';
 import { glob } from "glob";
 import { logger } from "./logger.js";
+import { profileStart, profileEnd } from "./profiler-api.js";
 import {
   handleIndexFolder,
   handleSearchCode,
@@ -223,25 +224,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+
+  profileStart('mcp_tool', { toolName: name });
+
   try {
+    let result;
+
     if (name === "index_folder") {
       const shouldSummarize = args.summarize !== undefined ? args.summarize : true;
-      return await handleIndexFolder(args.folderPath, args.projectName, args.collection, shouldSummarize, !!args.background);
+      result = await handleIndexFolder(args.folderPath, args.projectName, args.collection, shouldSummarize, !!args.background);
     }
-    if (name === "get_indexing_status") {
+    else if (name === "get_indexing_status") {
       const { active, projectName, totalFiles, processedFiles, status } = indexingProgress;
-      if (!active && status === "idle") return { content: [{ type: "text", text: "No indexing task has been run yet." }] };
-      
-      const percent = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
-      const msg = active 
-        ? `Indexing "${projectName}": ${percent}% complete (${processedFiles}/${totalFiles} files).`
-        : `Last task ("${projectName}") status: ${status}.`;
-      
-      return { content: [{ type: "text", text: msg }] };
+      if (!active && status === "idle") result = { content: [{ type: "text", text: "No indexing task has been run yet." }] };
+      else {
+        const percent = totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0;
+        const msg = active
+          ? `Indexing "${projectName}": ${percent}% complete (${processedFiles}/${totalFiles} files).`
+          : `Last task ("${projectName}") status: ${status}.`;
+        result = { content: [{ type: "text", text: msg }] };
+      }
     }
-    if (name === "search_code") {
+    else if (name === "search_code") {
       const searchCategories = args.categories || (args.category ? [args.category] : undefined);
-      return await handleSearchCode(
+      result = await handleSearchCode(
         args.query,
         args.collection,
         args.projectName,
@@ -254,48 +260,57 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         args.minScore
       );
     }
-    if (name === "move_project") {
+    else if (name === "move_project") {
       await moveProjectToCollection(args.projectName, args.newCollection);
-      return { content: [{ type: "text", text: `Moved to ${args.newCollection}` }] };
+      result = { content: [{ type: "text", text: `Moved to ${args.newCollection}` }] };
     }
-    if (name === "get_file_dependencies") {
+    else if (name === "get_file_dependencies") {
       const deps = await getFileDependencies(path.resolve(args.filePath));
-      return { content: [{ type: "text", text: JSON.stringify(deps, null, 2) }] };
+      result = { content: [{ type: "text", text: JSON.stringify(deps, null, 2) }] };
     }
-    if (name === "find_symbol_usages") {
+    else if (name === "find_symbol_usages") {
       const usages = await findSymbolUsages(args.symbolName);
-      return { content: [{ type: "text", text: JSON.stringify(usages, null, 2) }] };
+      result = { content: [{ type: "text", text: JSON.stringify(usages, null, 2) }] };
     }
-    if (name === "get_current_model") {
-      return { content: [{ type: "text", text: `Embedding: ${embeddingManager.getModel()}\nSummarizer: ${summarizerManager.modelName}` }] };
+    else if (name === "get_current_model") {
+      result = { content: [{ type: "text", text: `Embedding: ${embeddingManager.getModel()}\nSummarizer: ${summarizerManager.modelName}` }] };
     }
-    if (name === "set_model") {
+    else if (name === "set_model") {
       await embeddingManager.setModel(args.modelName);
-      return { content: [{ type: "text", text: `Embedding model set to ${args.modelName}. Please clear your index if switching architectures.` }] };
+      result = { content: [{ type: "text", text: `Embedding model set to ${args.modelName}. Please clear your index if switching architectures.` }] };
     }
-    if (name === "list_knowledge_base") {
+    else if (name === "list_knowledge_base") {
       const kb = await listKnowledgeBase();
       const text = Object.entries(kb).map(([col, projs]) => `Collection "${col}":\n - ${projs.join("\n - ")}`).join("\n\n");
-      return { content: [{ type: "text", text: text || "Empty." }] };
+      result = { content: [{ type: "text", text: text || "Empty." }] };
     }
-    if (name === "watch_folder") {
-      return await watchProject(args.folderPath, args.projectName, args.collection);
+    else if (name === "watch_folder") {
+      result = await watchProject(args.folderPath, args.projectName, args.collection);
     }
-    if (name === "read_code_range") {
+    else if (name === "read_code_range") {
       const fullPath = path.resolve(args.filePath);
       const content = await fs.readFile(fullPath, "utf-8");
       const lines = content.split("\n");
-      return { content: [{ type: "text", text: lines.slice(args.startLine - 1, args.endLine).join("\n") }] };
+      result = { content: [{ type: "text", text: lines.slice(args.startLine - 1, args.endLine).join("\n") }] };
     }
-    if (name === "read_file") {
+    else if (name === "read_file") {
       const fullPath = path.resolve(args.filePath);
       const content = await fs.readFile(fullPath, "utf-8");
-      return { content: [{ type: "text", text: content }] };
+      result = { content: [{ type: "text", text: content }] };
     }
-    if (name === "clear_index") { await clearDatabase(); return { content: [{ type: "text", text: "Cleared." }] }; }
-    throw new Error(`Unknown tool: ${name}`);
+    else if (name === "clear_index") {
+      await clearDatabase();
+      result = { content: [{ type: "text", text: "Cleared." }] };
+    }
+    else {
+      throw new Error(`Unknown tool: ${name}`);
+    }
+
+    profileEnd('mcp_tool', { toolName: name, status: 'success' });
+    return result;
   } catch (error) {
     logger.error(`Tool execution error: ${error.message}`);
+    profileEnd('mcp_tool', { toolName: name, status: 'error', error: error.message });
     return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
   }
 });
@@ -878,6 +893,139 @@ app.post('/api/config', async (c) => {
 
   await initWatcher();
   return c.json({ success: true });
+});
+
+// ============================================================================
+// Profiling API Endpoints
+// ============================================================================
+
+// Start profiling session
+app.post('/api/profiling/start', async (c) => {
+  try {
+    const { samplingRate, categories } = await c.req.json();
+
+    const { startProfiling } = await import('./profiler-api.js');
+    startProfiling(samplingRate || 1.0, categories);
+
+    return c.json({ success: true, message: 'Profiling started' });
+  } catch (error) {
+    logger.error(`[Profiling] Failed to start: ${error.message}`);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
+// Stop profiling and get trace
+app.post('/api/profiling/stop', async (c) => {
+  try {
+    const { stopProfiling } = await import('./profiler-api.js');
+    const traceInfo = await stopProfiling();
+
+    if (!traceInfo) {
+      return c.json({ success: false, error: 'No profiling data collected' }, 400);
+    }
+
+    return c.json({
+      success: true,
+      trace: {
+        filepath: traceInfo.filepath,
+        filename: traceInfo.filename,
+        eventCount: traceInfo.eventCount,
+        startTime: traceInfo.startTime,
+        endTime: traceInfo.endTime
+      },
+      message: 'Profiling stopped'
+    });
+  } catch (error) {
+    logger.error(`[Profiling] Failed to stop: ${error.message}`);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
+// Check profiling status
+app.get('/api/profiling/status', async (c) => {
+  try {
+    const { isProfilerEnabled, getProfilerStats } = await import('./profiler-api.js');
+    const enabled = isProfilerEnabled();
+    const stats = getProfilerStats();
+
+    return c.json({
+      enabled,
+      stats
+    });
+  } catch (error) {
+    logger.error(`[Profiling] Failed to get status: ${error.message}`);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
+// Download trace file
+app.get('/api/profiling/download', async (c) => {
+  try {
+    const id = c.req.query('id');
+    if (!id) {
+      return c.json({ error: 'Trace file ID required' }, 400);
+    }
+
+    const tracePath = path.join(os.homedir(), '.vibescout', 'profiles', `${id}.json`);
+
+    if (!await fs.pathExists(tracePath)) {
+      return c.json({ error: 'Trace file not found' }, 404);
+    }
+
+    const traceContent = await fs.readFile(tracePath, 'utf-8');
+    return c.json(JSON.parse(traceContent));
+  } catch (error) {
+    logger.error(`[Profiling] Failed to download trace: ${error.message}`);
+    return c.json({ success: false, error: error.message }, 500);
+  }
+});
+
+// List available trace files
+app.get('/api/profiling/traces', async (c) => {
+  try {
+    const profilesDir = path.join(os.homedir(), '.vibescout', 'profiles');
+
+    if (!await fs.pathExists(profilesDir)) {
+      return c.json({ traces: [] });
+    }
+
+    const files = await fs.readdir(profilesDir);
+    const traces = [];
+
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const filePath = path.join(profilesDir, file);
+        const stats = await fs.stat(filePath);
+
+        // Read the trace file to get metadata
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const trace = JSON.parse(content);
+
+          traces.push({
+            filename: file,
+            id: file.replace('.json', ''),
+            size: stats.size,
+            created: stats.mtime,
+            eventCount: trace.metadata?.eventCount || 0,
+            startTime: trace.metadata?.startTime,
+            endTime: trace.metadata?.endTime
+          });
+        } catch (err) {
+          // Skip invalid trace files
+          logger.warn(`[Profiling] Invalid trace file: ${file}`);
+        }
+      }
+    }
+
+    // Sort by creation time, newest first
+    traces.sort((a, b) => b.created - a.created);
+
+    return c.json({ traces });
+  } catch (error) {
+    logger.error(`[Profiling] Failed to list traces: ${error.message}`);
+    return c.json({ success: false, error: error.message }, 500);
+  }
 });
 
 // ============================================================================

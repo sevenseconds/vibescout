@@ -115,7 +115,10 @@ async function main() {
     .option("--log-level <level>", "Log level (debug, info, warn, error, none)", "info")
     .option("--verbose", "Enable verbose logging (alias for --log-level debug)", config.verbose || false)
     .option("--force", "Force full re-index of all watched projects on startup", false)
-    .option("--no-plugins", "Disable plugin system", false);
+    .option("--no-plugins", "Disable plugin system", false)
+    .option("--profile", "Enable performance profiling", false)
+    .option("--profile-sampling <rate>", "Profiling sampling rate (0.0-1.0)", parseFloat)
+    .option("--profile-output <path>", "Profiling output directory");
 
   program.hook("preAction", async (thisCommand) => {
     const opts = thisCommand.opts();
@@ -203,6 +206,28 @@ async function main() {
     // Only initialize file watcher for server/UI commands
     if (needsWatcher) {
       await initWatcher(!!opts.force);
+    }
+
+    // Initialize profiler if enabled via CLI or config
+    const profileFromCLI = opts.profile === true;
+    const profileFromConfig = config.profiling?.enabled || false;
+
+    if (profileFromCLI || profileFromConfig) {
+      const { configureProfiler } = await import('./profiler-api.js');
+
+      const samplingRate = opts.profileSampling || config.profiling?.samplingRate || 1.0;
+      const outputDir = opts.profileOutput || config.profiling?.outputDir || "~/.vibescout/profiles";
+      const categorySampling = config.profiling?.categorySampling || {};
+
+      configureProfiler({
+        enabled: true,
+        samplingRate,
+        outputDir,
+        maxBufferSize: config.profiling?.maxBufferSize || 10000,
+        categorySampling
+      });
+
+      logger.info(`[Profiler] Enabled with ${Math.round(samplingRate * 100)}% sampling`);
     }
   });
 
@@ -695,6 +720,65 @@ async function main() {
         console.error(`\n✗ Validation failed: ${error.message}`);
         process.exit(1);
       }
+    });
+
+  // Profile command for performance profiling
+  program
+    .command("profile")
+    .description("Run a profiling session for a specific operation")
+    .argument("<operation>", "Operation to profile (index|search)")
+    .option("--folder <path>", "Folder to index (for 'index' operation)")
+    .option("--query <text>", "Search query (for 'search' operation)")
+    .option("--sampling <rate>", "Sampling rate (0.0-1.0)", "1.0")
+    .action(async (operation, options) => {
+      const { startProfiling, stopProfiling } = await import('./profiler-api.js');
+
+      console.log("Starting profiling session...");
+      console.log(`Operation: ${operation}`);
+      console.log(`Sampling rate: ${Math.round(parseFloat(options.sampling) * 100)}%`);
+
+      startProfiling(parseFloat(options.sampling));
+
+      try {
+        if (operation === 'index') {
+          if (!options.folder) {
+            console.error("--folder option is required for 'index' operation");
+            process.exit(1);
+          }
+          await handleIndexFolder(options.folder, null, "default", config.summarize, false, false);
+        } else if (operation === 'search') {
+          if (!options.query) {
+            console.error("--query option is required for 'search' operation");
+            process.exit(1);
+          }
+          const { handleSearchCode } = await import('./core.js');
+          await handleSearchCode(options.query);
+        } else {
+          console.error(`Unknown operation: ${operation}`);
+          console.error("Supported operations: index, search");
+          process.exit(1);
+        }
+
+        const traceInfo = await stopProfiling();
+
+        if (traceInfo) {
+          console.log(`\n✓ Profiling complete!`);
+          console.log(`Trace saved to: ${traceInfo.filepath}`);
+          console.log(`Events recorded: ${traceInfo.eventCount}`);
+          console.log(`\nTo view the flame graph:`);
+          console.log(`  1. Open Chrome and navigate to chrome://tracing`);
+          console.log(`  2. Click 'Load' and select the trace file`);
+          console.log(`  3. Zoom and pan to analyze performance`);
+        } else {
+          console.log("\nNo profiling data collected (sampling rate may be too low)");
+        }
+      } catch (error) {
+        console.error(`\n✗ Profiling failed: ${error.message}`);
+        await stopProfiling();
+        process.exit(1);
+      }
+
+      await closeDb();
     });
 
   program.action(async () => {

@@ -31,6 +31,7 @@ A high-performance Model Context Protocol (MCP) server and Web Dashboard for loc
 - **Real-time Activity (SSE)**: Instant system event streaming via Server-Sent Events.
 - **AI Inspector (Debug)**: Chrome DevTools-style panel to inspect prompts, payloads, and responses.
 - **IDE Integration**: "Open in Editor" with line-level navigation for VS Code and Cursor.
+- **Performance Profiling**: Built-in profiling with Chrome DevTools flame graphs for optimizing indexing and search performance.
 
 ### Technical Stack
 - **Hono-Powered Backend**: Ultra-low latency with standard Web Fetch API support.
@@ -90,6 +91,7 @@ See `/docs/` directory for:
 - `plugin-api.md` - API reference
 - `plugin-architecture.md` - Design patterns
 - `plugin-example.md` - Complete example
+- `profiling-guide.md` - Performance profiling and optimization
 
 ## 🛠 Installation
 
@@ -129,6 +131,30 @@ vibescout reset
 # Or via npm
 npm run reset-db
 ```
+
+### Performance Profiling
+```bash
+# Profile with 100% sampling (most detailed)
+vibescout --profile index ./my-app "My Project"
+
+# Profile with 10% sampling (lower overhead)
+vibescout --profile --profile-sampling 0.1 search "authentication"
+
+# Dedicated profiling command
+vibescout profile index --folder ./my-app --sampling 1.0
+
+# View traces in chrome://tracing
+# Traces saved to ~/.vibescout/profiles/
+```
+
+**Profiling Features**:
+- Zero overhead when disabled (default)
+- Chrome DevTools-compatible flame graphs
+- Configurable sampling rates (0.0-1.0) to reduce overhead
+- Category-based sampling (indexing, search, embedding, database)
+- Web UI dashboard at http://localhost:3000/performance
+
+**See [`docs/profiling-guide.md`](docs/profiling-guide.md) for detailed documentation.**
 
 ## 🔒 Offline Mode
 

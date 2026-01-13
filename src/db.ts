@@ -6,6 +6,7 @@ import { logger } from "./logger.js";
 import { LanceDBProvider } from "./database/LanceDBProvider.js";
 import { VectorizeProvider } from "./database/VectorizeProvider.js";
 import { VectorDBProvider, DBConfig, VectorResult } from "./database/base.js";
+import { profileAsync } from "./profiler-api.js";
 
 const HOME_DIR = os.homedir();
 const GLOBAL_DATA_DIR = path.join(HOME_DIR, ".vibescout", "data");
@@ -86,25 +87,30 @@ async function saveHashes(hashes: any) {
 }
 
 export async function createOrUpdateTable(data: VectorResult[], modelName: string) {
-  const db = await getMetaDb();
-  const metaTableName = "metadata";
-  const tables = await db.tableNames();
+  return profileAsync('db_create_or_update_table', async () => {
+    const db = await getMetaDb();
+    const metaTableName = "metadata";
+    const tables = await db.tableNames();
 
-  if (tables.includes(metaTableName)) {
-    const metaTable = await db.openTable(metaTableName);
-    const meta = await metaTable.query().toArray();
-    if (meta.length > 0 && meta[0].model !== modelName) {
-      throw new Error(`Model mismatch! Database uses "${meta[0].model}" but you are trying to index with "${modelName}".`);
+    if (tables.includes(metaTableName)) {
+      const metaTable = await db.openTable(metaTableName);
+      const meta = await metaTable.query().toArray();
+      if (meta.length > 0 && meta[0].model !== modelName) {
+        throw new Error(`Model mismatch! Database uses "${meta[0].model}" but you are trying to index with "${modelName}".`);
+      }
+    } else {
+      try {
+        await db.createTable(metaTableName, [{ model: modelName }]);
+      } catch (err: any) {
+        if (!err.message.includes("already exists")) throw err;
+      }
     }
-  } else {
-    try {
-      await db.createTable(metaTableName, [{ model: modelName }]);
-    } catch (err: any) {
-      if (!err.message.includes("already exists")) throw err;
-    }
-  }
 
-  await getProvider().insert(data);
+    await getProvider().insert(data);
+  }, {
+    recordCount: data.length,
+    modelName
+  }, 'database');
 }
 
 export async function updateDependencies(filePath: string, projectName: string, collection: string, metadata: any) {
@@ -275,11 +281,17 @@ export async function deleteFileData(filePath: string) {
 }
 
 export async function hybridSearch(queryText: string, embedding: number[], options = {}) {
-  const p = getProvider();
-  if (p instanceof LanceDBProvider) {
-    return p.hybridSearch(queryText, embedding, options);
-  }
-  return p.search(embedding, options);
+  return profileAsync('db_hybrid_search', async () => {
+    const p = getProvider();
+    if (p instanceof LanceDBProvider) {
+      return await p.hybridSearch(queryText, embedding, options);
+    }
+    return await p.search(embedding, options);
+  }, {
+    queryLength: queryText?.length || 0,
+    limit: options.limit,
+    projectName: options.projectName
+  }, 'database');
 }
 
 export async function search(embedding: number[], options = {}) {

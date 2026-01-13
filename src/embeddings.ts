@@ -10,6 +10,7 @@ import { BedrockProvider } from "./providers/BedrockProvider.js";
 import { EmbeddingProvider, SummarizerProvider, ProviderConfig } from "./providers/base.js";
 import { getThrottler } from "./throttler.js";
 import { getRegistry } from "./plugins/registry.js";
+import { profileAsync } from "./profiler-api.js";
 
 export function configureEnvironment(modelsPath: string, offlineMode: boolean = false) {
   if (modelsPath) {
@@ -100,30 +101,42 @@ export class EmbeddingManager {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    const throttler = getThrottler(this.provider.name, this.throttlingErrors);
-    return throttler.run(() => this.provider.generateEmbedding(text));
+    return profileAsync('embedding_generate_single', async () => {
+      const throttler = getThrottler(this.provider.name, this.throttlingErrors);
+      return await throttler.run(() => this.provider.generateEmbedding(text));
+    }, {
+      provider: this.provider.name,
+      model: this.currentModel,
+      textLength: text.length
+    }, 'embedding');
   }
 
   async generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
-    // If provider supports batching, use it
-    if (this.provider.generateEmbeddingsBatch) {
-      const throttler = getThrottler(this.provider.name, this.throttlingErrors);
-      return throttler.run(() => this.provider.generateEmbeddingsBatch!(texts));
-    }
+    return profileAsync('embedding_generate_batch', async () => {
+      // If provider supports batching, use it
+      if (this.provider.generateEmbeddingsBatch) {
+        const throttler = getThrottler(this.provider.name, this.throttlingErrors);
+        return await throttler.run(() => this.provider.generateEmbeddingsBatch!(texts));
+      }
 
-    // Fallback: generate embeddings one by one (with some parallelization)
-    const PARALLEL_LIMIT = 5; // Process 5 at a time
-    const results: number[][] = [];
+      // Fallback: generate embeddings one by one (with some parallelization)
+      const PARALLEL_LIMIT = 5; // Process 5 at a time
+      const results: number[][] = [];
 
-    for (let i = 0; i < texts.length; i += PARALLEL_LIMIT) {
-      const batch = texts.slice(i, i + PARALLEL_LIMIT);
-      const batchResults = await Promise.all(
-        batch.map(text => this.generateEmbedding(text))
-      );
-      results.push(...batchResults);
-    }
+      for (let i = 0; i < texts.length; i += PARALLEL_LIMIT) {
+        const batch = texts.slice(i, i + PARALLEL_LIMIT);
+        const batchResults = await Promise.all(
+          batch.map(text => this.generateEmbedding(text))
+        );
+        results.push(...batchResults);
+      }
 
-    return results;
+      return results;
+    }, {
+      provider: this.provider.name,
+      model: this.currentModel,
+      batchSize: texts.length
+    }, 'embedding');
   }
 }
 

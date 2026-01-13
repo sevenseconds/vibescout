@@ -114,6 +114,23 @@ const DEFAULT_CONFIG = {
     allowedModules: ["fs", "path", "crypto", "os", "util"]  // Whitelisted Node.js modules
   },
 
+  // Performance profiling configuration
+  profiling: {
+    enabled: false,              // Master switch (default: off for zero overhead)
+    samplingRate: 1.0,           // 0.0 to 1.0 (1.0 = profile everything)
+    outputDir: "~/.vibescout/profiles",  // Trace file storage directory
+    maxBufferSize: 10000,        // Max events in memory before auto-flush
+    flushInterval: 5000,         // Auto-flush interval (ms)
+    categories: ["indexing", "search", "embedding", "database", "mcp", "git", "filesystem"],
+    categorySampling: {          // Per-category sampling (multipliers of samplingRate)
+      indexing: 1.0,
+      search: 0.5,
+      embedding: 0.1,            // Expensive ops: lower sampling
+      database: 1.0,
+      mcp: 0.3
+    }
+  },
+
   prompts: {
     summarizeTemplates: [
       { id: 'default', name: 'Architect Summary', text: "Act as a Senior Software Architect. Analyze the following code and provide: 1. A high-level overview of the purpose. 2. Key logic flow. 3. Potential edge cases or security risks. \n\nFile: {{fileName}}\nProject: {{projectName}}\n\nHere is the code:\n{{code}}" },

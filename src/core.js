@@ -8,6 +8,7 @@ import { embeddingManager, rerankerManager, summarizerManager } from "./embeddin
 import { logger } from "./logger.js";
 import { loadConfig } from "./config.js";
 import { initGitRepo, batchCollectGitInfo } from "./git-info.js";
+import { profileStart, profileEnd, profileAsync } from "./profiler-api.js";
 import {
   createOrUpdateTable,
   hybridSearch,
@@ -178,19 +179,23 @@ export function pauseIndexing(paused) {
  * @param {boolean} force - If true, clear existing index and re-scan everything
  */
 export async function handleIndexFolder(folderPath, projectName, collection = "default", summarize = true, background = false, force = false) {
+  profileStart('index_folder', { folderPath, projectName, collection });
+
   const config = await loadConfig();
   const absolutePath = path.resolve(folderPath);
   const derivedProjectName = projectName || path.basename(absolutePath);
 
-  if (indexingProgress.active) {
-    return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
-  }
+  try {
+    if (indexingProgress.active) {
+      profileEnd('index_folder', { status: 'error', error: 'Already indexing' });
+      return { content: [{ type: "text", text: `Error: An indexing task for "${indexingProgress.projectName}" is already in progress.` }], isError: true };
+    }
 
-  // 1. If force, clear the existing data for this project first
-  if (force) {
-    logger.info(`[Force Re-index] Clearing existing data for ${derivedProjectName}...`);
-    await deleteProject(derivedProjectName);
-  }
+    // 1. If force, clear the existing data for this project first
+    if (force) {
+      logger.info(`[Force Re-index] Clearing existing data for ${derivedProjectName}...`);
+      await deleteProject(derivedProjectName);
+    }
 
   const { filter: ig, patterns: ignorePatterns } = await getIgnoreFilter(absolutePath);
 
@@ -514,13 +519,16 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       if (isShuttingDown) {
         indexingProgress.status = "stopped";
         logger.info(`[Shutdown] Indexing for "${derivedProjectName}" stopped gracefully.`);
+        profileEnd('index_folder', { status: 'stopped', totalIndexed, skipped, pruned });
       } else {
         if (indexingProgress.failedFiles > 0) {
           indexingProgress.status = "completed_with_errors";
           logger.warn(`[Success] Indexing complete for "${derivedProjectName}" with ${indexingProgress.failedFiles} errors.`);
+          profileEnd('index_folder', { status: 'completed_with_errors', totalIndexed, skipped, pruned, errors: indexingProgress.failedFiles });
         } else {
           indexingProgress.status = "completed";
           logger.info(`[Success] Indexing complete for "${derivedProjectName}". Indexed: ${totalIndexed} blocks, Skipped: ${skipped}, Pruned: ${pruned}.`);
+          profileEnd('index_folder', { status: 'completed', totalIndexed, skipped, pruned });
         }
       }
 
@@ -529,6 +537,7 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
       indexingProgress.active = false;
       indexingProgress.status = `error: ${err.message}`;
       indexingProgress.lastError = err.message;
+      profileEnd('index_folder', { status: 'error', error: err.message });
       throw err;
     }
   };
@@ -536,12 +545,14 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
   if (background) {
     // Fire and forget
     runIndexing().catch(console.error);
+    profileEnd('index_folder', { status: 'background', fileCount: filesOnDisk.length });
     return {
       content: [{ type: "text", text: `Started background indexing for "${derivedProjectName}" (${filesOnDisk.length} files). You can check progress using "get_indexing_status".` }],
     };
   } else {
     // Wait for completion
     const result = await runIndexing();
+    profileEnd('index_folder', { status: 'success', ...result });
     return {
       content: [{ type: "text", text: `Sync complete. Indexed: ${result.totalIndexed} blocks, Skipped: ${result.skipped}, Pruned: ${result.pruned}.` }],
     };
@@ -552,30 +563,48 @@ export async function handleIndexFolder(folderPath, projectName, collection = "d
  * Shared search logic that returns raw result objects
  */
 export async function searchCode(query, collection, projectName, fileTypes, categories, authors, dateFrom, dateTo, churnLevels, minScore = 0.4) {
-  const currentModel = embeddingManager.getModel();
-  const storedModel = await getStoredModel();
+  profileStart('search_code', { query, collection, projectName });
 
-  if (storedModel && storedModel !== currentModel) {
-    logger.info(`[Auto-Switch] Switching model from "${currentModel}" to stored model "${storedModel}" to match index.`);
-    await embeddingManager.setModel(storedModel);
+  try {
+    const currentModel = embeddingManager.getModel();
+    const storedModel = await getStoredModel();
+
+    if (storedModel && storedModel !== currentModel) {
+      logger.info(`[Auto-Switch] Switching model from "${currentModel}" to stored model "${storedModel}" to match index.`);
+      await embeddingManager.setModel(storedModel);
+    }
+
+    const queryVector = await profileAsync('query_embedding', async () => {
+      return await embeddingManager.generateEmbedding(query);
+    }, { queryLength: query.length }, 'embedding');
+
+    const rawResults = await profileAsync('db_search', async () => {
+      return await hybridSearch(query, queryVector, {
+        collection,
+        projectName,
+        fileTypes,
+        categories,
+        limit: 15,
+        authors,
+        dateFrom,
+        dateTo,
+        churnLevels
+      });
+    }, { limit: 15 }, 'database');
+
+    const reranked = await profileAsync('rerank_results', async () => {
+      return await rerankerManager.rerank(query, rawResults, 10);
+    }, { resultCount: rawResults.length }, 'search');
+
+    // Filter results by minimum confidence score (use rerankScore if available, otherwise base score)
+    const filtered = reranked.filter(r => (r.rerankScore || r.score || 0) >= minScore);
+    profileEnd('search_code', { resultCount: filtered.length });
+
+    return filtered;
+  } catch (error) {
+    profileEnd('search_code', { status: 'error', error: error.message });
+    throw error;
   }
-
-  const queryVector = await embeddingManager.generateEmbedding(query);
-  const rawResults = await hybridSearch(query, queryVector, {
-    collection,
-    projectName,
-    fileTypes,
-    categories,
-    limit: 15,
-    authors,
-    dateFrom,
-    dateTo,
-    churnLevels
-  });
-  const reranked = await rerankerManager.rerank(query, rawResults, 10);
-
-  // Filter results by minimum confidence score (use rerankScore if available, otherwise base score)
-  return reranked.filter(r => (r.rerankScore || r.score || 0) >= minScore);
 }
 
 /**
